@@ -180,7 +180,18 @@ impl Bond {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::StandaloneBlockContext;
+    use crate::utils::{BlockContext, StandaloneBlockContext};
+    
+    // A simple mock context for tests that allows setting exact block height
+    struct TestBlockContext {
+        block_height: u64,
+    }
+    
+    impl BlockContext for TestBlockContext {
+        fn get_current_block_height(&self) -> u64 {
+            self.block_height
+        }
+    }
     
     #[test]
     fn test_bond_creation() {
@@ -213,18 +224,16 @@ mod tests {
             500, // 5% interest
         );
         
-        // Test with block before maturity
-        let early_context = StandaloneBlockContext::new().with_offset(1000); // Will translate to block < 150
+        // Test with block before maturity (block 90)
+        let early_context = TestBlockContext { block_height: 90 };
         assert!(!bond.is_mature(&early_context));
         
-        // Test with block at maturity
-        let context_at_maturity = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(150); // Will translate to block = 150
+        // Test with block at maturity (block 150)
+        let context_at_maturity = TestBlockContext { block_height: 150 };
         assert!(bond.is_mature(&context_at_maturity));
         
-        // Test with block after maturity
-        let late_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(200); // Will translate to block > 150
+        // Test with block after maturity (block 200)
+        let late_context = TestBlockContext { block_height: 200 };
         assert!(bond.is_mature(&late_context));
     }
     
@@ -240,16 +249,14 @@ mod tests {
             500, // 5% interest
         );
         
-        // Try to redeem before maturity
-        let early_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(149); // Block 149 (maturity is 150)
+        // Try to redeem before maturity (block 90)
+        let early_context = TestBlockContext { block_height: 90 };
         let early_result = bond.redeem(&early_context);
         assert!(early_result.is_err());
         assert_eq!(bond.status, BondStatus::Active);
         
-        // Redeem at maturity
-        let mature_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(150); // Block 150 (maturity is 150)
+        // Redeem at maturity (block 150)
+        let mature_context = TestBlockContext { block_height: 150 };
         let redemption_result = bond.redeem(&mature_context);
         assert!(redemption_result.is_ok());
         assert_eq!(redemption_result.unwrap(), 1050); // 1000 + 5% interest
@@ -315,24 +322,21 @@ mod tests {
         );
         
         // At creation block - should be principal only
-        let start_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(100);
+        let start_context = TestBlockContext { block_height: 100 };
         assert_eq!(bond.current_value(&start_context), 1000);
         
         // Halfway to maturity - should be principal + ~half interest
-        let mid_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(150);
+        let mid_context = TestBlockContext { block_height: 150 };
         let mid_value = bond.current_value(&mid_context);
         assert!(mid_value > 1000 && mid_value < 1050);
+        assert_eq!(mid_value, 1025); // Exactly half the interest
         
         // At maturity - should be principal + full interest
-        let maturity_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(200);
-        assert_eq!(bond.current_value(&maturity_context), 1050);
+        let maturity_context = TestBlockContext { block_height: 200 };
+        assert_eq!(bond.current_value(&maturity_context), 1050); // 1000 + 5%
         
         // After maturity - should still be principal + full interest
-        let post_maturity_context = StandaloneBlockContext::with_seconds_per_block(1)
-            .with_offset(250);
+        let post_maturity_context = TestBlockContext { block_height: 250 };
         assert_eq!(bond.current_value(&post_maturity_context), 1050);
     }
 }

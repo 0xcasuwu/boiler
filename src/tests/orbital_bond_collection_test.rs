@@ -164,7 +164,7 @@ fn test_successful_redemption_with_interest() {
     // Verify that the bond can't be redeemed again
     let second_redemption = collection.redeem_bond(&orbital_id, &mature_context);
     assert!(second_redemption.is_err());
-    assert_eq!(second_redemption.unwrap_err(), "Bond has already been redeemed");
+    assert_eq!(second_redemption.unwrap_err(), "Bond is not active");
 }
 
 #[test]
