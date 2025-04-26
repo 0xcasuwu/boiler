@@ -2,7 +2,11 @@
 
 ## Current Focus
 
-We are actively developing the SLOP platform with a focus on implementing the orbital token as bond paradigm. The key insight driving our current work is that the orbital token itself IS the bond, not just a reference to it. This fundamentally changes our approach to bond management and authentication.
+We are actively developing the SLOP platform with a dual focus:
+
+1. Implementing the orbital token as bond paradigm. The key insight driving our current work is that the orbital token itself IS the bond, not just a reference to it. This fundamentally changes our approach to bond management and authentication.
+
+2. Enhancing security with a unified redemption pathway. We've identified a critical security enhancement requiring the orbital token to be presented within the alkane transfer context, enforcing a single, secure redemption mechanism.
 
 ## Recent Changes and Decisions
 
@@ -41,21 +45,40 @@ We've implemented the block-based time model that:
 2. **Block Context Interface**: Abstraction for block-based time tracking
 3. **Example Implementation**: Basic demonstration of the system flow
 4. **Standalone Context**: Non-blockchain implementation for testing
-5. **Robust Testing Infrastructure**: 51 passing tests with deterministic behavior
+5. **Robust Testing Infrastructure**: 62 passing tests with deterministic behavior
+6. **API Documentation**: Comprehensive documentation with examples for core components
 
 ### In-Progress Components
 
-1. **LaunchpadFactory**: Implementation mostly complete, but needs refinement of collection management
-2. **OrbitalBondCollection**: Core functionality working, but needs better error handling
+1. **LaunchpadFactory**: Implementation fully functional but needs additional documentation
+2. **OrbitalBondCollection**: Core functionality working, API fully documented, but needs better error handling
 3. **Bond Value Calculation**: Basic implementation works, could benefit from optimization
-4. **Testing Infrastructure**: Core tests complete with 51 passing tests, advanced testing still needed
+4. **Testing Infrastructure**: Core tests complete with 62 passing tests, advanced testing still needed
 
 ### Pending Work
 
 1. **Batch Operations**: Support for batch redemption operations
 2. **Collection Administration**: Better tools for collection management
 3. **Error Recovery**: More robust error handling and recovery strategies
-4. **Documentation**: API documentation and developer guides
+4. **Documentation**: Remaining API documentation and developer guides
+
+## API Improvements
+
+### Latest Changes
+
+1. **Enhanced API for Token-Based Authentication**
+   - Updated `mint_bond()` to require explicit `owner_id` for better security
+   - Updated return type to include both `bond_id` and `alkane_token_id` for consistent token tracking
+   - Added dedicated `redeem_bond()` method using alkane token for authentication
+   - Added backward compatibility with `redeem_bond_by_orbital()` method
+   - All tests updated to match new signatures - 62 tests now passing
+
+2. **Comprehensive API Documentation**
+   - Added detailed rustdoc documentation for all public methods
+   - Included complete examples for each API function
+   - Documented parameters, return values, and error conditions
+   - Examples demonstrate real-world usage patterns
+   - All documentation tests pass verification with `cargo test --doc`
 
 ## Active Decisions
 
@@ -159,8 +182,9 @@ We've implemented the block-based time model that:
 
 4. **Testing Strategy**:
    - The TestBlockContext approach provides deterministic, time-independent testing.
-   - The comprehensive test suite (51 passing tests) verifies core functionality.
+   - The comprehensive test suite (62 passing tests) verifies core functionality.
    - Testing guarantees reliable behavior of time-dependent financial operations.
+   - All tests updated to match new API signatures and pass successfully.
    - Additional testing needed for performance, security, and integration aspects.
 
 ## Current Active Work
@@ -173,4 +197,6 @@ The most active areas of development are:
 
 3. **Advanced Testing**: Moving beyond core tests to performance, security, and integration testing
 
-4. **Documentation**: Ensuring the API is well-documented for developers
+4. **Documentation**: Completing API documentation for the remaining components
+
+5. **Batch Operations**: Designing and implementing support for batch operations

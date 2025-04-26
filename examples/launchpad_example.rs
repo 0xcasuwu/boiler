@@ -4,8 +4,10 @@
 
 use slop::contracts::LaunchpadFactory;
 use slop::utils::{BlockContext, StandaloneBlockContext};
+use slop::utils::transaction_context::TransactionContextExt;
 use std::thread::sleep;
 use std::time::Duration;
+use anyhow::{anyhow, Result};
 
 fn main() {
     println!("=== Orbital Bond Launchpad Example ===");
@@ -56,12 +58,16 @@ fn main() {
         // When minting an orbital bond, the launchpad creates an orbital token
         // that functions as the bond - the orbital itself IS the bond
         let orbital_id = format!("orbital-{}", i);
-        let bond_id = factory.mint_bond(
+        let (bond_id, _alkane_token_id, alkane_transfer) = factory.mint_bond(
             &collection_id,
             orbital_id.clone(),
             amount,
+            format!("owner-{}", i),
             &block_context,
         ).unwrap();
+        
+        // Verify the AlkaneTransfer
+        assert_eq!(alkane_transfer.value as u64, amount);
         
         orbital_ids.push(orbital_id.clone());
         
@@ -93,7 +99,7 @@ fn main() {
     
     // Create a new context from the baseline of the original context
     // This ensures we're using the same block numbering scheme
-    let base_block = block_context.get_current_block_height();
+    let _base_block = block_context.get_current_block_height();
     
     // First get a bond to examine its maturity block
     let mut reference_maturity_block = 0;
@@ -173,11 +179,29 @@ fn main() {
     if !orbital_ids.is_empty() {
         let orbital_id = &orbital_ids[0];
         
-        // Present the orbital to redeem the bond
-        // Since the orbital IS the bond, presenting it proves ownership
-        let redemption_result = factory.redeem_bond(
+        // Create a mock transaction context that includes the orbital token
+        // In a real blockchain environment, this would be created from the transaction data
+        struct MockTransactionContext {
+            orbital_id: String,
+        }
+        
+        impl TransactionContextExt for MockTransactionContext {
+            fn orbital_token_id(&self) -> Result<String> {
+                Ok(self.orbital_id.clone())
+            }
+        }
+        
+        // Create a transaction context with proof of ownership of the orbital token
+        let tx_context = MockTransactionContext {
+            orbital_id: orbital_id.clone(),
+        };
+        
+        // Present the orbital to redeem the bond using secure verification
+        // The transaction context proves ownership of the orbital token
+        let redemption_result = factory.redeem_bond_secure(
             &collection_id,
-            orbital_id,
+            &tx_context,
+            "redeemer-id",
             &mature_context,
         );
         

@@ -28,6 +28,27 @@
 pub mod contracts;
 pub mod models;
 pub mod utils;
+
+// Mock implementation of alkanes_support
+pub mod alkanes_support {
+    pub mod parcel {
+        use serde::{Deserialize, Serialize};
+        
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub struct AlkaneTransfer {
+            pub id: Vec<u8>,
+            pub value: u128,
+            pub from: Option<String>,
+            pub to: Option<String>,
+        }
+    }
+    
+    pub mod context {
+        pub trait Context {
+            fn get_current_block_height(&self) -> u64;
+        }
+    }
+}
 #[cfg(test)]
 mod tests;
 

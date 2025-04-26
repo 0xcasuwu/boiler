@@ -29,7 +29,17 @@ impl fmt::Display for BondStatus {
     }
 }
 
-/// Bond represents a financial contract with a maturity date (in blocks)
+/// # Bond
+/// 
+/// A financial contract that represents a debt instrument with:
+///
+/// - A unique identifier and associated orbital token
+/// - A principal amount that earns interest over time
+/// - A maturity date expressed in block height
+/// - Status tracking (Active, Mature, Redeemed, Canceled)
+///
+/// Bonds are created through minting, earn interest over time until maturity,
+/// and can be redeemed for principal plus interest after reaching maturity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bond {
     /// Unique identifier for the bond
@@ -59,7 +69,33 @@ pub struct Bond {
 }
 
 impl Bond {
-    /// Create a new bond
+    /// Creates a new bond with specified parameters
+    ///
+    /// # Parameters
+    /// * `id` - Unique identifier for this bond
+    /// * `orbital_token_id` - ID of the orbital token that backs this bond
+    /// * `amount` - Principal amount of the bond
+    /// * `creation_block` - Block height when the bond is created
+    /// * `maturity_blocks` - Duration in blocks until the bond matures
+    /// * `interest_rate_bps` - Interest rate in basis points (1/100th of a percent, e.g. 500 = 5%)
+    ///
+    /// # Returns
+    /// A new Bond instance in Active status
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// 
+    /// let current_block = 100; // Current block height
+    /// let bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-token-xyz".to_string(),
+    ///     1000,             // 1000 tokens as principal
+    ///     current_block,    // creation block
+    ///     100,              // matures after 100 blocks
+    ///     500               // 5% interest
+    /// );
+    /// ```
     pub fn new(
         id: String,
         orbital_token_id: String,
@@ -80,7 +116,47 @@ impl Bond {
         }
     }
     
-    /// Check if the bond is mature given the current block context
+    /// Checks if the bond has reached maturity and can be redeemed
+    ///
+    /// A bond is considered mature when:
+    /// 1. It is in Active status, and
+    /// 2. The current block height has reached or passed the maturity block
+    ///
+    /// # Parameters
+    /// * `block_context` - Context providing current block information
+    ///
+    /// # Returns
+    /// `true` if the bond is mature and can be redeemed, `false` otherwise
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// use slop::utils::StandaloneBlockContext;
+    /// 
+    /// // Create a bond that matures after 50 blocks
+    /// let bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-xyz".to_string(),
+    ///     1000,
+    ///     100, // created at block 100
+    ///     50,  // matures after 50 blocks (at block 150)
+    ///     500  // 5% interest
+    /// );
+    /// 
+    /// // Check at block 140 (not mature yet)
+    /// let early_context = StandaloneBlockContext::new().with_offset(140);
+    /// if bond.is_mature(&early_context) {
+    ///     println!("Bond is ready for redemption!");
+    /// } else {
+    ///     println!("Bond is not mature yet");
+    /// }
+    /// 
+    /// // Check at block 150 (mature)
+    /// let mature_context = StandaloneBlockContext::new().with_offset(150);
+    /// if bond.is_mature(&mature_context) {
+    ///     println!("Bond is ready for redemption!");
+    /// }
+    /// ```
     pub fn is_mature<T: BlockContext>(&self, block_context: &T) -> bool {
         if self.status != BondStatus::Active {
             return false;
@@ -89,7 +165,53 @@ impl Bond {
         block_context.is_block_height_reached(self.maturity_block)
     }
     
-    /// Mark the bond as redeemed, returning the redemption amount including interest
+    /// Redeems the bond and returns the total amount (principal + interest)
+    ///
+    /// This method will:
+    /// 1. Check if the bond is active and has reached maturity
+    /// 2. Change the bond status to Redeemed
+    /// 3. Calculate and return the redemption amount (principal + interest)
+    ///
+    /// # Parameters
+    /// * `block_context` - Context providing current block information
+    ///
+    /// # Returns
+    /// * `Ok(u64)` - The redemption amount (principal + interest) if successful
+    /// * `Err(&'static str)` - Error message if redemption failed
+    ///
+    /// # Errors
+    /// * "Bond is not active" - If the bond has already been redeemed or canceled
+    /// * "Bond has not reached maturity" - If attempting to redeem before maturity date
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// use slop::utils::StandaloneBlockContext;
+    /// 
+    /// // Create a bond that matures after 50 blocks
+    /// let mut bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-xyz".to_string(),
+    ///     1000,
+    ///     100, // created at block 100
+    ///     50,  // matures after 50 blocks (at block 150)
+    ///     500  // 5% interest
+    /// );
+    /// 
+    /// // Try redeeming at block 140 (not mature yet)
+    /// let early_context = StandaloneBlockContext::new().with_offset(140);
+    /// match bond.redeem(&early_context) {
+    ///     Ok(amount) => println!("Redeemed bond for {} tokens", amount),
+    ///     Err(e) => println!("Failed to redeem bond: {}", e),
+    /// }
+    /// 
+    /// // Try redeeming at block 150 (mature)
+    /// let mature_context = StandaloneBlockContext::new().with_offset(150);
+    /// match bond.redeem(&mature_context) {
+    ///     Ok(amount) => println!("Redeemed bond for {} tokens", amount),
+    ///     Err(e) => println!("Failed to redeem bond: {}", e),
+    /// }
+    /// ```
     pub fn redeem<T: BlockContext>(&mut self, block_context: &T) -> Result<u64, &'static str> {
         // Can only redeem active bonds that have reached maturity
         if self.status != BondStatus::Active {
@@ -103,12 +225,48 @@ impl Bond {
         // Update bond status
         self.status = BondStatus::Redeemed;
         
-        // Return principal + interest 
-        let interest = (self.amount as u128 * self.interest_rate_bps as u128 / 10_000) as u64;
-        Ok(self.amount + interest)
+        // Calculate total amount (principal + interest) using u128 to avoid overflow
+        let principal = self.amount as u128;
+        let interest = principal * self.interest_rate_bps as u128 / 10_000;
+        let total = principal + interest;
+        
+        // Check for overflow before converting back to u64
+        if total > u64::MAX as u128 {
+            return Err("Integer overflow in interest calculation");
+        }
+        
+        Ok(total as u64)
     }
     
-    /// Calculate the time remaining until maturity in blocks
+    /// Calculates the number of blocks remaining until this bond matures
+    ///
+    /// # Parameters
+    /// * `block_context` - Context providing current block information
+    ///
+    /// # Returns
+    /// The number of blocks remaining until maturity, or 0 if:
+    /// - The bond is already mature
+    /// - The bond is not in Active status
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// use slop::utils::StandaloneBlockContext;
+    /// 
+    /// let current_block = 100;
+    /// let bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-xyz".to_string(),
+    ///     1000,
+    ///     current_block,
+    ///     50,
+    ///     500
+    /// );
+    /// 
+    /// let block_context = StandaloneBlockContext::new().with_offset(120);
+    /// let blocks_remaining = bond.blocks_until_maturity(&block_context);
+    /// println!("Bond matures in {} blocks", blocks_remaining);
+    /// ```
     pub fn blocks_until_maturity<T: BlockContext>(&self, block_context: &T) -> u64 {
         if self.status != BondStatus::Active {
             return 0;
@@ -117,8 +275,49 @@ impl Bond {
         block_context.blocks_remaining(self.maturity_block)
     }
     
-    /// Calculate the current value of the bond
-    /// This can include time-based accrual of interest
+    /// Calculates the current value of the bond, including accrued interest
+    ///
+    /// This method implements linear interest accrual based on elapsed time:
+    /// - Before maturity: partial interest based on elapsed/total time
+    /// - At or after maturity: full interest amount
+    /// - If bond is not active: returns 0
+    ///
+    /// # Parameters
+    /// * `block_context` - Context providing current block information
+    ///
+    /// # Returns
+    /// The current value of the bond (principal + accrued interest)
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// use slop::utils::StandaloneBlockContext;
+    /// 
+    /// // Create a bond that matures after 50 blocks
+    /// let bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-xyz".to_string(),
+    ///     1000,
+    ///     100, // created at block 100
+    ///     50,  // matures after 50 blocks (at block 150)
+    ///     500  // 5% interest
+    /// );
+    /// 
+    /// // Check value at creation
+    /// let start_context = StandaloneBlockContext::new().with_offset(100);
+    /// let start_value = bond.current_value(&start_context);
+    /// println!("Bond value at creation: {}", start_value); // 1000
+    /// 
+    /// // Check value at halfway point (partial interest)
+    /// let mid_context = StandaloneBlockContext::new().with_offset(125);
+    /// let mid_value = bond.current_value(&mid_context);
+    /// println!("Bond value halfway to maturity: {}", mid_value); // ~1025
+    /// 
+    /// // Check value at maturity (full interest)
+    /// let mature_context = StandaloneBlockContext::new().with_offset(150);
+    /// let mature_value = bond.current_value(&mature_context);
+    /// println!("Bond value at maturity: {}", mature_value); // 1050
+    /// ```
     pub fn current_value<T: BlockContext>(&self, block_context: &T) -> u64 {
         if self.status != BondStatus::Active {
             return 0;
@@ -155,12 +354,59 @@ impl Bond {
             return (amount + partial_interest) as u64;
         }
         
-        // If mature, return full amount plus interest
-        let interest = (self.amount as u128 * self.interest_rate_bps as u128 / 10_000) as u64;
-        self.amount + interest
+        // If mature, return full amount plus interest using u128 to avoid overflow
+        let principal = self.amount as u128;
+        let interest = principal * self.interest_rate_bps as u128 / 10_000;
+        let total = principal + interest;
+        
+        // Check for overflow before converting back to u64
+        if total > u64::MAX as u128 {
+            return u64::MAX; // Return max value if overflow would occur
+        }
+        
+        total as u64
     }
     
-    /// Cancel the bond (typically by issuer)
+    /// Cancels the bond and returns the principal amount without interest
+    ///
+    /// This method will:
+    /// 1. Check if the bond is in Active status
+    /// 2. Change the bond status to Canceled
+    /// 3. Return the original principal amount (no interest)
+    ///
+    /// # Returns
+    /// * `Ok(u64)` - The principal amount if cancellation is successful
+    /// * `Err(&'static str)` - Error message if cancellation failed
+    ///
+    /// # Errors
+    /// * "Bond is not active" - If the bond was already redeemed or canceled
+    ///
+    /// # Example
+    /// ```
+    /// use slop::models::Bond;
+    /// 
+    /// // Create a bond
+    /// let mut bond = Bond::new(
+    ///     "bond-1".to_string(),
+    ///     "orbital-xyz".to_string(),
+    ///     1000,
+    ///     100,
+    ///     50,
+    ///     500  // 5% interest
+    /// );
+    /// 
+    /// // Cancel the bond
+    /// match bond.cancel() {
+    ///     Ok(amount) => println!("Canceled bond, returning {} tokens", amount),
+    ///     Err(e) => println!("Failed to cancel bond: {}", e),
+    /// }
+    /// 
+    /// // Try to cancel again (will fail)
+    /// match bond.cancel() {
+    ///     Ok(amount) => println!("Canceled bond again, returning {} tokens", amount),
+    ///     Err(e) => println!("Failed to cancel bond: {}", e),
+    /// }
+    /// ```
     pub fn cancel(&mut self) -> Result<u64, &'static str> {
         if self.status != BondStatus::Active {
             return Err("Bond is not active");
@@ -170,7 +416,32 @@ impl Bond {
         Ok(self.amount) // Return original amount without interest
     }
     
-    /// Add metadata to the bond
+    /// Adds metadata to the bond and returns self for method chaining
+    ///
+    /// # Parameters
+    /// * `metadata` - Any serializable value to associate with this bond
+    ///
+    /// # Returns
+    /// Self with metadata added, allowing for method chaining
+    ///
+/// # Example
+/// ```
+/// use slop::models::Bond;
+/// use serde_json::json;
+///
+/// let bond = Bond::new(
+///     "bond-1".to_string(),
+///     "orbital-xyz".to_string(),
+///     1000,
+///     100,  // current_block
+///     50,   // maturity in 50 blocks
+///     500   // 5% interest
+/// ).with_metadata(json!({
+///     "issuer": "Treasury Department",
+///     "purpose": "Infrastructure funding",
+///     "series": "A-2023"
+/// }));
+/// ```
     pub fn with_metadata(mut self, metadata: serde_json::Value) -> Self {
         self.metadata = Some(metadata);
         self

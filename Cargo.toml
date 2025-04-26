@@ -18,6 +18,8 @@ log = "0.4"
 # alkanes-support = { path = "../alkanes-rs/crates/alkanes-support", optional = true }
 # metashrew-support = { path = "../alkanes-rs/crates/protorune-support", optional = true }
 
+# Local mock implementation for alkanes
+
 # For testing
 mockall = "0.11"
 

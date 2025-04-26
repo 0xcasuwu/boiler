@@ -1,8 +1,9 @@
-use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::utils::BlockContext;
+// Re-export for backward compatibility with tests
+pub use crate::utils::transaction_context::TransactionContextExt;
 
 /// Mock implementation of BlockContext trait for testing
 pub struct MockBlockContext {
@@ -42,6 +43,20 @@ impl MockBlockContext {
 impl BlockContext for MockBlockContext {
     fn get_current_block_height(&self) -> u64 {
         self.current_block_height
+    }
+    
+    // Explicitly implement this method to ensure it works in tests
+    fn is_block_height_reached(&self, target_height: u64) -> bool {
+        self.current_block_height >= target_height
+    }
+    
+    // Explicitly implement this method to ensure it works in tests
+    fn blocks_remaining(&self, target_height: u64) -> u64 {
+        if target_height <= self.current_block_height {
+            0
+        } else {
+            target_height - self.current_block_height
+        }
     }
 }
 
@@ -108,14 +123,10 @@ impl MockTransactionContext {
     }
 }
 
-/// Extension trait for extracting orbital token ID from context
-pub trait TransactionContextExt {
-    fn orbital_token_id(&self) -> Result<String>;
-}
-
+/// Implementation of TransactionContextExt for MockTransactionContext
 impl TransactionContextExt for MockTransactionContext {
-    fn orbital_token_id(&self) -> Result<String> {
+    fn orbital_token_id(&self) -> anyhow::Result<String> {
         self.orbital_token_id.clone()
-            .ok_or_else(|| anyhow!("No orbital token ID in context"))
+            .ok_or_else(|| anyhow::anyhow!("No orbital token ID in context"))
     }
 }

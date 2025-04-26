@@ -1,0 +1,30 @@
+{
+  "new_task": {
+    "triggers": [
+      {
+        "condition": "context_usage > 50%",
+        "action": "suggest_handoff"
+      }
+    ],
+    "context_template": [
+      "# Project Summary",
+      "Working on {{current_project}} with focus on {{current_focus}}.",
+      "",
+      "# Completed Work",
+      "{{completed_work}}",
+      "",
+      "# Current Progress",
+      "{{current_progress}}",
+      "",
+      "# Next Steps",
+      "{{next_steps}}",
+      "",
+      "# Key Files",
+      "{{relevant_files}}",
+      "",
+      "# Important References",
+      "{{important_references}}"
+    ],
+    "handoff_message": "The context window is getting full ({{context_percentage}}%). Would you like me to create a new task to continue working on {{current_focus}}? I'll transfer all relevant context to ensure continuity."
+  }
+}
