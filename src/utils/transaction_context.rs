@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 /// Extension trait for transaction contexts that provides token identification
 ///
@@ -62,7 +62,7 @@ pub mod test_impl {
     
     impl TransactionContextExt for MockTransactionContext {
         fn orbital_token_id(&self) -> Result<String> {
-            self.orbital_token_id.clone().ok_or_else(|| anyhow!("No orbital token ID in context"))
+            self.orbital_token_id.clone().ok_or_else(|| anyhow::anyhow!("No orbital token ID in context"))
         }
     }
 }

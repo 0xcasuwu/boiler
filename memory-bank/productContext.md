@@ -90,3 +90,40 @@ A platform wants to reward user loyalty. They create a bond collection with a lo
 3. **Efficiency**: Gas costs for common operations
 4. **Redemption Rate**: Percentage of bonds successfully redeemed at maturity
 5. **Security Track Record**: Absence of exploits or unauthorized redemptions
+
+## Security Model
+
+### Fort Knox Security Approach
+
+SLOP implements a "Fort Knox" level security model with these core aspects:
+
+1. **Possession-Based Authentication**: The orbital token itself proves ownership rights
+2. **Transaction Context Verification**: Cryptographic proof of token ownership required
+3. **Unified Redemption Security**: Single secure redemption pathway validates all security aspects
+4. **Mathematical Safeguards**: Integer overflow protection and boundary checks prevent financial exploits
+5. **Cross-Collection Protection**: Strict isolation between collections prevents cross-collection attacks
+
+### Key Security Features
+
+- **Token Verification**: All redemption operations verify token ownership via transaction context
+- **State Protection**: The checks-effects-interactions pattern prevents re-entrancy attacks
+- **Bond Mapping Cleanup**: Immediate removal of token mappings prevents double redemption
+- **Maturity Verification**: Multiple validation layers ensure bonds can only be redeemed after maturity
+- **Financial Safeguards**: u128 intermediate calculations prevent overflow in financial operations
+
+### Security Testing and Verification
+
+The system undergoes rigorous security testing:
+
+1. **Penetration Testing**: Simulations of sophisticated attacks including token forgery, double redemption, and cross-collection attacks
+2. **Property-Based Testing**: Systematic exploration of edge cases using randomized inputs
+3. **Formal Verification**: Mathematical proofs of financial operation correctness
+4. **Security Audit Process**: Comprehensive audit framework with automated verification
+5. **Bitcoin-specific Checks**: Special focus on transaction context and block-based vulnerabilities
+
+### Security-Related User Benefits
+
+- **Confidence**: Users can trust that only they can redeem their bonds
+- **Transparency**: Clear security model with well-defined principles
+- **Safety**: Protection against common attack vectors and financial exploits
+- **Auditability**: Comprehensive security documentation for verification

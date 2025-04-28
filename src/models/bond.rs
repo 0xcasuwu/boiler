@@ -158,11 +158,22 @@ impl Bond {
     /// }
     /// ```
     pub fn is_mature<T: BlockContext>(&self, block_context: &T) -> bool {
+        // Check active status first
         if self.status != BondStatus::Active {
             return false;
         }
         
-        block_context.is_block_height_reached(self.maturity_block)
+        // SECURITY: Add sanity check for block context to prevent time manipulation
+        let current_block = block_context.get_current_block_height();
+        
+        // If the block context appears to be from before the bond's creation,
+        // this could indicate manipulation or an invalid context
+        if current_block < self.creation_block {
+            return false; // Reject suspicious block contexts
+        }
+        
+        // Verify the bond has reached maturity
+        current_block >= self.maturity_block
     }
     
     /// Redeems the bond and returns the total amount (principal + interest)

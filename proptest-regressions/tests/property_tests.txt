@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ea68c32f1af0a6fd23b9d2a4e3f0a21edc9ebf4ff5a595fe5169f2ce2a089efe # shrinks to amount = 1, interest_rate = 1, maturity = 101, time_delta = 0
+cc a692fdaedd904a9d0ad7697bbdaa30aede6d36e08d79229b86164374aae8b6ef # shrinks to amounts = [1, 1, 1], interest_rates = [100, 100], maturities = [10, 10]
+cc b602ec83cd08daf7ff7999113d8234296d392c39bcba75186ea5b72c2e0821a3 # shrinks to size = 2, amounts = [1, 1], interest_rates = [100, 100], maturities = [10, 10]
+cc 013b59aecec46b91c27e30e4c7aa918af37e008b88b3bdb1f8a8990f53dff079 # shrinks to size = 2, amounts = [1, 1], interest_rates = [100, 100], maturities = [50, 50]
+cc 42e3ac8d58668f1d6af6a54fed6b0713b91628bdb3c7a08eb143ce675f850331 # shrinks to amount = 1, interest_rate = 1, maturity = 50, time_delta = 0

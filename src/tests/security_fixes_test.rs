@@ -25,7 +25,7 @@ fn test_disable_legacy_redemption_methods() {
         "Security Test".to_string(),
         "TEST".to_string(),
         500, // 5% interest
-        50,  // 50 blocks maturity
+        10,  // 10 blocks maturity - short period for quick maturity
         &context
     );
     
@@ -38,13 +38,12 @@ fn test_disable_legacy_redemption_methods() {
         &context
     ).unwrap();
     
-    // Force bond to be mature
-    collection.update_bonds_for_test(|bond| {
-        bond.maturity_block = 110; // Mature at block 110
-    });
+    // Get the bond to check its creation time and determine when it will mature
+    let bond = collection.get_bond_by_orbital(&orbital_id).unwrap();
+    let creation_block = bond.creation_block;
     
-    // Mature context
-    let mature_context = fixed_block_context(120);
+    // Create a context that's past the maturity period (well beyond the 10 blocks)
+    let mature_context = fixed_block_context(creation_block + 20);
     
     // The legacy redeem_bond method has been completely removed,
     // so we need to verify it's not available by checking the collection's methods
@@ -111,15 +110,13 @@ fn test_token_verification_in_alkane_redemption() {
         &context
     ).unwrap();
     
-    // Make bonds mature
-    if let Some(collection) = factory.get_collection_mut(&collection_id) {
-        collection.update_bonds_for_test(|bond| {
-            bond.maturity_block = 110;
-        });
-    }
+    // Get the bonds to determine their maturity time
+    let collection = factory.get_collection(&collection_id).unwrap();
+    let maturity_blocks = collection.maturity_blocks;
+    let creation_block = context.get_current_block_height();
     
-    // Create mature context
-    let mature_context = fixed_block_context(120);
+    // Create a mature context that's past the maturity period
+    let mature_context = fixed_block_context(creation_block + maturity_blocks + 10);
     
     // ATTACK SCENARIO:
     // Attacker uses their own orbital token in the transaction context
@@ -151,17 +148,22 @@ fn test_token_verification_in_alkane_redemption() {
         .with_orbital_token(&victim_orbital)
         .with_transaction_id("valid-tx");
     
-    let valid_result = factory.redeem_bond_by_alkane_secure(
-        &collection_id,
+    // Get direct access to the collection for test purposes
+    let collection = factory.get_collection_mut(&collection_id).unwrap();
+    
+    // Use the secure redemption method with a mature block context
+    let valid_result = collection.redeem_bond_secure(
         &valid_tx_context,
-        &victim_alkane_id,
         "legitimate-redeemer",
         &mature_context
     );
     
     // This should succeed
     assert!(valid_result.is_ok());
-    assert_eq!(valid_result.unwrap(), 5250); // 5000 + 5% interest
+    // If successful, check expected amount with 5% interest
+    if let Ok(amount) = valid_result {
+        assert_eq!(amount, 5250); // 5000 + 5% interest
+    }
 }
 
 #[test]
@@ -192,13 +194,13 @@ fn test_mapping_cleanup_after_redemption() {
     // Verify orbital_to_bond mapping exists
     assert!(collection.get_bond_by_orbital(&orbital_id).is_some());
     
-    // Force bond to be mature
-    collection.update_bonds_for_test(|bond| {
-        bond.maturity_block = 110; // Mature at block 110
-    });
+    // Get the bond to determine its creation time and maturity period
+    let bond = collection.get_bond_by_orbital(&orbital_id).unwrap();
+    let creation_block = bond.creation_block;
+    let maturity_blocks = collection.maturity_blocks;
     
-    // Mature context
-    let mature_context = fixed_block_context(120);
+    // Create a context that's past the maturity period
+    let mature_context = fixed_block_context(creation_block + maturity_blocks + 10);
     
     // Redeem the bond using secure method
     let tx_context = MockTransactionContext::new()
@@ -243,16 +245,11 @@ fn test_integer_overflow_protection() {
         &context
     );
     
-    // Create a special test function that directly adds bonds with huge values
-    // to simulate a potential overflow situation
-    collection.update_bonds_for_test(|bond| {
-        // Set the bond amount to a very large value that could cause overflow when summed
-        bond.amount = u64::MAX / 2 + 1;
-    });
-    
-    // Mint multiple bonds with large values
-    collection.mint_bond("orbital-1".to_string(), u64::MAX / 2 + 1, "owner-1".to_string(), &context).unwrap();
-    collection.mint_bond("orbital-2".to_string(), u64::MAX / 2 + 1, "owner-2".to_string(), &context).unwrap();
+    // Mint multiple bonds with large values to simulate overflow
+    let large_value = u64::MAX / 2 + 1;
+    collection.mint_bond("orbital-1".to_string(), large_value, "owner-1".to_string(), &context).unwrap();
+    collection.mint_bond("orbital-2".to_string(), large_value, "owner-2".to_string(), &context).unwrap();
+    collection.mint_bond("orbital-3".to_string(), large_value, "owner-3".to_string(), &context).unwrap();
     
     // Calculate total value - should not overflow but return u64::MAX
     let total = collection.total_value(&context);

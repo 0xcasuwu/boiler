@@ -10,3 +10,4 @@ pub mod launchpad_factory;
 // Re-export key types
 pub use orbital_bond_collection::OrbitalBondCollection;
 pub use launchpad_factory::LaunchpadFactory;
+pub use bond_curve::BondCurve;

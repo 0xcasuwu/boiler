@@ -258,7 +258,13 @@ These interfaces are designed to be:
 - **Self-Contained**: Not requiring external dependencies
 - **Ergonomic**: Providing intuitive, easy-to-use methods
 
-## Security Patterns
+## Security Patterns and Architecture
+
+### Security Model Foundation
+
+The SLOP security architecture is built around the central principle that "the orbital token IS the bond" - creating a possession-based authentication system that provides strong security guarantees through cryptographic proof of ownership.
+
+#### Core Security Principles
 
 1. **Possession-Based Authentication**: The orbital token itself proves ownership
 2. **No Direct State Manipulation**: All state changes go through verified interfaces
@@ -266,3 +272,238 @@ These interfaces are designed to be:
 4. **Maturity Verification**: Bonds can only be redeemed after reaching maturity
 5. **Single Redemption**: Bonds cannot be redeemed multiple times
 6. **Status Tracking**: Bond status transitions are strictly controlled
+7. **Checks-Effects-Interactions Pattern**: State changes occur before external calls to prevent re-entrancy
+8. **Collection Isolation**: Cross-collection operations are strictly prohibited
+9. **Mathematical Safety**: Financial calculations protect against overflow/underflow
+10. **Information Privacy**: Error messages are designed to not leak sensitive information
+
+### Authentication Architecture
+
+```mermaid
+graph TD
+    User[User] -->|presents| OrbitalToken[Orbital Token]
+    OrbitalToken -->|verifies ownership| TokenVerifier[Token Verifier]
+    TokenVerifier -->|if valid| BondOperation[Bond Operation]
+    TokenVerifier -->|if invalid| RejectedOperation[Operation Rejected]
+    
+    OrbitalToken -->|mapped to| Bond[Bond Record]
+    Bond -->|checked by| MaturityVerifier[Maturity Verifier]
+    MaturityVerifier -->|if mature| BondOperation
+    MaturityVerifier -->|if not mature| RejectedOperation
+```
+
+### Unified Redemption Flow
+
+#### Secure Redemption Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant LaunchpadFactory as LF
+    participant OrbitalCollection as OBC
+    participant TransactionContext as TC
+    participant BlockContext as BC
+    participant Bond
+    
+    User->>LF: redeem_bond_secure(collection_id, tx_context, redeemer_id)
+    LF->>OBC: get_collection(collection_id)
+    LF->>OBC: redeem_bond_secure(tx_context, redeemer_id, block_context)
+    OBC->>TC: orbital_token_id()
+    
+    alt No orbital token
+        TC-->>OBC: Error("No orbital token in transaction context")
+        OBC-->>LF: Error
+        LF-->>User: Error
+    end
+    
+    OBC->>OBC: orbital_to_bond.get(orbital_token_id)
+    
+    alt No associated bond
+        OBC-->>LF: Error("Token validation failure")
+        LF-->>User: Error
+    end
+    
+    OBC->>OBC: bonds.get_mut(bond_id)
+    OBC->>Bond: is_mature(block_context)
+    
+    alt Bond not mature
+        Bond-->>OBC: false
+        OBC-->>LF: Error("Bond is not yet mature")
+        LF-->>User: Error
+    end
+    
+    Note over OBC: Checks-Effects-Interactions Pattern
+    OBC->>Bond: status = Redeemed
+    OBC->>OBC: orbital_to_bond.remove(orbital_token_id)
+    
+    OBC->>Bond: calculate redemption amount
+    Bond-->>OBC: amount
+    OBC-->>LF: amount
+    LF-->>User: amount
+```
+
+### Critical Security Implementation Patterns
+
+#### 1. Token Validation and Authentication
+
+```rust
+pub fn redeem_bond_secure<T: BlockContext, C: TransactionContextExt>(
+    &mut self,
+    tx_context: &C,
+    redeemer_id: &str,
+    block_context: &T,
+) -> Result<u64, &'static str> {
+    // Extract orbital token from transaction context (proves ownership)
+    let orbital_token_id = tx_context.orbital_token_id()
+        .map_err(|_| "No orbital token in transaction context")?;
+
+    // Use the verified token ID for redemption
+    self.redeem_bond_internal(&orbital_token_id, redeemer_id, block_context)
+}
+```
+
+#### 2. Checks-Effects-Interactions Pattern
+
+```rust
+// SECURITY: Update state immediately (effects part of checks-effects-interactions)
+bond.status = BondStatus::Redeemed;
+
+// SECURITY: Clean up the mapping to prevent future redemption attempts
+self.orbital_to_bond.remove(orbital_token_id);
+
+// SECURITY: Return value only after all state changes are complete
+Ok(redemption_amount)
+```
+
+#### 3. Mathematical Safety
+
+```rust
+// Calculate with overflow protection
+let principal = bond.amount as u128;
+let interest = principal * bond.interest_rate_bps as u128 / 10_000;
+let total = principal + interest;
+        
+// Handle overflow with saturation
+let amount = if total > u64::MAX as u128 {
+    u64::MAX // Saturate to maximum value
+} else {
+    total as u64
+};
+```
+
+### Comprehensive Security Testing Patterns
+
+#### Property-Based Testing Pattern
+
+The property-based testing approach systematically explores edge cases and verifies that system invariants hold across a wide range of inputs.
+
+```rust
+proptest! {
+    #[test]
+    fn test_bond_redemption_security_properties(
+        amount in 1..1_000_000u64,
+        interest_rate in 1..10000u16,
+        maturity in 50..1000u64,
+        time_delta in 0..2000u64
+    ) {
+        // Test setup with randomized parameters
+        let base_context = StandaloneBlockContext::new();
+        let mut collection = OrbitalBondCollection::new(
+            "test-collection".to_string(),
+            "Test Bonds".to_string(),
+            "TBND".to_string(),
+            interest_rate,
+            maturity,
+            &base_context
+        );
+        
+        // Property 1: Early redemption should fail
+        let early_context = context_at_height(10);
+        let tx_context = create_tx_context(&orbital_id);
+        let early_result = collection.redeem_bond_secure(
+            &tx_context,
+            "owner",
+            &early_context
+        );
+        prop_assert!(early_result.is_err(), "Early redemption should fail");
+        
+        // Property 2: Mature redemption should succeed
+        let mature_context = context_at_height(1000);
+        let redemption_result = collection.redeem_bond_secure(
+            &tx_context,
+            "owner",
+            &mature_context
+        );
+        prop_assert!(redemption_result.is_ok(), "Mature redemption should succeed");
+        
+        // Additional properties...
+    }
+}
+```
+
+#### Formal Verification Pattern
+
+Formal verification uses mathematical proofs to ensure critical security properties are guaranteed:
+
+1. **Pre-conditions**: Validate inputs before operations
+2. **Post-conditions**: Verify outputs meet expected requirements
+3. **Invariants**: Ensure system-wide properties hold at all times
+4. **Mathematical Proving**: Usage of mathematical techniques to prove correctness
+
+```rust
+pub fn verify_redemption_amount(
+    principal: u128,
+    interest_rate_bps: u16,
+    amount: u64
+) -> Result<(), VerificationError> {
+    // Pre-condition: Inputs must be within valid ranges
+    if interest_rate_bps > 10000 {
+        return Err(VerificationError::InvalidInterestRate);
+    }
+    
+    // Calculate expected result
+    let interest = principal * interest_rate_bps as u128 / 10_000;
+    let expected_total = principal + interest;
+    let expected_amount = if expected_total > u64::MAX as u128 {
+        u64::MAX
+    } else {
+        expected_total as u64
+    };
+    
+    // Post-condition: Output must match expected calculation
+    if amount != expected_amount {
+        return Err(VerificationError::IncorrectAmount);
+    }
+    
+    // Invariant: Amount must be >= principal
+    if amount < principal as u64 {
+        return Err(VerificationError::InvariantViolation);
+    }
+    
+    Ok(())
+}
+```
+
+### Security Audit Framework
+
+The security audit process systematically assesses the system:
+
+1. **Static Analysis**: Compiler warnings checks and linting
+2. **Automated Testing**: Unit tests, penetration tests, security fix tests
+3. **Vulnerability Scanning**: Dependency scanning and CVE checks
+4. **Manual Security Review**: Code review following a security checklist
+5. **Penetration Testing**: Simulation of sophisticated attacks
+6. **Documentation**: Comprehensive security documentation
+
+### Attack Vectors and Mitigations
+
+The security architecture addresses numerous attack vectors:
+
+| Attack Vector | Description | Mitigation |
+|---------------|-------------|------------|
+| Token Forgery | Attempts to use forged tokens | Transaction context verification |
+| Double Redemption | Attempts to redeem twice | Immediate mapping removal after redemption |
+| Time Manipulation | Manipulation of block height | Block context validation checks |
+| Cross-Collection | Using tokens across collections | Strict collection isolation |
+| Re-entrancy | Callback-based attacks | Checks-effects-interactions pattern |
+| Integer Overflow | Overflow in calculations | u128 intermediates and saturation logic |

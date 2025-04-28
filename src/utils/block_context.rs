@@ -137,6 +137,12 @@ pub struct StandaloneBlockContext {
     time_offset_seconds: u64,
 }
 
+impl Default for StandaloneBlockContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StandaloneBlockContext {
     /// # Create a New Standalone Context
     ///
