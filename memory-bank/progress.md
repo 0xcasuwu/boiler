@@ -56,12 +56,13 @@ The core architecture for Bitcoin smart contracts has been established, followin
 - 🔄 Formal verification patterns
 - 🔄 Property-based test suite
 
-### Phase 3: Developer Experience (Planned)
+### Phase 3: Developer Experience (In Progress)
 
 - 🔄 Complete reference implementation
-- 🔄 Comprehensive test suite
+- ✅ Initial test suite improvements
+- 🔄 Comprehensive test suite (partially complete)
 - 🔄 Enhanced documentation with examples
-- 🔄 Development tooling
+- ✅ Test execution tooling
 - 🔄 Contract templates
 - 🔄 Integration examples
 
@@ -95,12 +96,18 @@ The current implementation compiles to WebAssembly but may include unnecessary c
 
 ### Testing Coverage
 
-While basic functionality tests exist, comprehensive test coverage is still being developed:
+Test coverage has been significantly improved, but further enhancements are needed:
 
-- Need property-based tests for security properties
-- Need integration tests for the complete contract lifecycle
-- Need performance benchmarks for key operations
-- Need formal verification of critical security properties
+- ✅ Basic functionality tests for core operations
+- ✅ Mock time control for testing yield accrual
+- ✅ Test isolation to prevent segmentation faults
+- ✅ Robust testing of ERC-4626 functionality
+- 🔄 Need property-based tests for security properties
+- 🔄 Need integration tests for the complete contract lifecycle
+- 🔄 Need performance benchmarks for key operations
+- 🔄 Need formal verification of critical security properties
+
+See the detailed documentation in `memory-bank/test-suite-improvements.md`.
 
 ## Next Milestones
 
