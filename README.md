@@ -29,19 +29,47 @@ YieldVault is built following the memory-bank architecture patterns:
 ```
 boiler/
 ├── src/
-│   ├── lib.rs              # Main contract implementation
-│   ├── constants.rs        # Storage pointer definitions and constants
+│   ├── lib.rs                       # Main contract implementation
+│   ├── constants.rs                 # Storage pointer definitions and constants
 │   └── tests/
-│       ├── mod.rs          # Test module organization
-│       ├── mock.rs         # Mock implementations for testing
-│       ├── yield_vault_test.rs          # Unit tests
-│       └── yield_vault_test_integration.rs  # Integration tests
-├── Cargo.toml              # Project dependencies
-├── README.md               # This file
-└── memory-bank/           # Documentation and context
-    ├── YieldVault.md       # Contract documentation
-    ├── YieldVault.rs       # Original implementation (for reference)
-    └── implementation-summary.md # Summary of implementation
+│       ├── mod.rs                   # Test module organization
+│       ├── mock.rs                  # Mock implementations for testing
+│       ├── minimal_test.rs          # Basic verification tests
+│       ├── basic_tests.rs           # Standard unit tests
+│       ├── yield_vault_test.rs      # Advanced unit tests
+│       ├── yield_vault_test_direct.rs # Direct method call tests
+│       ├── yield_vault_mock_tests.rs  # Tests with mocked dependencies
+│       ├── yield_vault_test_unit_wasm.rs # WASM-specific unit tests
+│       └── yield_vault_test_integration.rs # Integration tests
+├── scripts/
+│   ├── wasm-build.sh               # Build script for WASM
+│   └── test-wasm.sh                # Test script for WASM tests
+├── Cargo.toml                      # Project dependencies
+├── README.md                       # This file
+└── memory-bank/                    # Documentation and context
+    ├── YieldVault.md               # Contract documentation
+    ├── YieldVault.rs               # Original implementation (for reference)
+    └── implementation-summary.md   # Summary of implementation
+```
+
+## Testing
+
+The project features a comprehensive test suite:
+
+- **Unit Tests**: Verify individual components and functions in isolation
+- **WebAssembly Tests**: Specifically test the WASM target functionality
+  - Use `scripts/test-wasm.sh` to run WASM tests
+- **Integration Tests**: Test the contract as a whole system
+- **Mock-based Tests**: Use mock implementations for deterministic testing
+
+Run standard tests:
+```bash
+cargo test
+```
+
+Run WebAssembly tests:
+```bash
+./scripts/test-wasm.sh
 ```
 
 ## Core Concepts

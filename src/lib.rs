@@ -393,33 +393,30 @@ impl YieldVault {
         asset_symbol: String,
         decimal_offset: u8
     ) -> Result<CallResponse> {
-        // For test environment, use direct storage access
-        use crate::tests::mock::storage;
-
-        // Check if already initialized
-        if storage::get_bool("/initialized").unwrap_or(false) {
+        // Check if already initialized using our normal guard function
+        if self.initialized_pointer().get_value::<u8>() != 0 {
             return Err(anyhow!("Already initialized"));
         }
         
         // Store basic token metadata
-        storage::set_string("/name", &name);
-        storage::set_string("/symbol", &symbol);
-        storage::set_string("/asset-name", &asset_name);
-        storage::set_string("/asset-symbol", &asset_symbol);
-        storage::set_u8("/decimals", decimal_offset);
+        self.name_pointer().set(Arc::new(name.as_bytes().to_vec()));
+        self.symbol_pointer().set(Arc::new(symbol.as_bytes().to_vec()));
+        self.asset_name_pointer().set(Arc::new(asset_name.as_bytes().to_vec()));
+        self.asset_symbol_pointer().set(Arc::new(asset_symbol.as_bytes().to_vec()));
+        self.decimals_pointer().set_value(decimal_offset);
         
         // Initialize accounting state
-        storage::set_u128("/total-supply", 0);
-        storage::set_u128("/total-assets", 0);
+        self.total_supply_pointer().set_value(0u128);
+        self.total_assets_pointer().set_value(0u128);
         
         // Initialize yield rate (basis points, e.g. 500 = 5%)
-        storage::set_u128("/yield-rate", 0);
+        self.yield_rate_pointer().set_value(0u128);
         
         // Initialize the last yield timestamp
-        storage::set_u64("/last-yield-update", crate::tests::mock::get_timestamp());
+        self.last_yield_update_pointer().set_value(crate::tests::mock::get_timestamp());
         
         // Set initialization flag
-        storage::set_bool("/initialized", true);
+        self.initialized_pointer().set_value(1u8);
         
         use alkanes_support::parcel::AlkaneTransferParcel;
         Ok(CallResponse { 
@@ -480,7 +477,20 @@ impl YieldVault {
     /// Validate and track a transaction hash to prevent replay attacks
     fn validate_and_track_transaction(&self, tx_hash: &str) -> Result<(), &'static str> {
         // Get the current set of transaction hashes
-        let mut tx_hashes = self.get_transaction_hashes();
+        let json_data = self.tx_hashes_pointer().get();
+        
+        let tx_hashes: HashSet<String> = if json_data.len() == 0 {
+            HashSet::new()
+        } else {
+            // Convert bytes to string, return empty set if conversion fails
+            let json = match String::from_utf8(json_data.as_ref().to_vec()) {
+                Ok(s) => s,
+                Err(_) => return Err("Failed to parse transaction hashes"),
+            };
+            
+            // Parse JSON, return empty set if parsing fails
+            serde_json::from_str(&json).unwrap_or_else(|_| HashSet::new())
+        };
         
         // Check if this transaction hash has been used
         if tx_hashes.contains(tx_hash) {
@@ -488,81 +498,11 @@ impl YieldVault {
         }
         
         // Add the transaction hash to the set
-        tx_hashes.insert(tx_hash.to_string());
+        let mut new_tx_hashes = tx_hashes;
+        new_tx_hashes.insert(tx_hash.to_string());
         
-        // Store the updated set
-        self.set_transaction_hashes(&tx_hashes)
-    }
-    
-    /// Get the stored transaction hashes
-    #[cfg(test)]
-    fn get_transaction_hashes(&self) -> HashSet<String> {
-        // In test environment, create a simple persistent HashSet implementation
-        let mut result = HashSet::new();
-        
-        // Get raw data
-        let data = self.tx_hashes_pointer().get();
-        if data.len() == 0 {
-            return result;
-        }
-        
-        // Each transaction hash is stored as a semicolon-separated list
-        if let Ok(hashes_str) = String::from_utf8(data.as_ref().to_vec()) {
-            for hash in hashes_str.split(';') {
-                if !hash.is_empty() {
-                    result.insert(hash.to_string());
-                }
-            }
-        }
-        
-        result
-    }
-    
-    #[cfg(not(test))]
-    fn get_transaction_hashes(&self) -> HashSet<String> {
-        // Get existing transaction hashes
-        let json_data = self.tx_hashes_pointer().get();
-        
-        // Safety check - if the pointer returns an empty or invalid byte array
-        if json_data.len() == 0 {
-            return HashSet::new();
-        }
-        
-        // Convert bytes to string, return empty set if conversion fails
-        let json = match String::from_utf8(json_data.as_ref().to_vec()) {
-            Ok(s) => s,
-            Err(_) => return HashSet::new(),
-        };
-        
-        // Parse JSON, return empty set if parsing fails
-        if json.is_empty() {
-            HashSet::new()
-        } else {
-            serde_json::from_str(&json).unwrap_or_else(|_| HashSet::new())
-        }
-    }
-    
-    /// Store the transaction hashes
-    #[cfg(test)]
-    fn set_transaction_hashes(&self, hashes: &HashSet<String>) -> Result<(), &'static str> {
-        // In test environment, store as semicolon-separated string
-        let mut hashes_str = String::new();
-        
-        for hash in hashes.iter() {
-            if !hashes_str.is_empty() {
-                hashes_str.push(';');
-            }
-            hashes_str.push_str(hash);
-        }
-        
-        self.tx_hashes_pointer().set(Arc::new(hashes_str.into_bytes()));
-        Ok(())
-    }
-    
-    #[cfg(not(test))]
-    fn set_transaction_hashes(&self, hashes: &HashSet<String>) -> Result<(), &'static str> {
         // Serialize to JSON, handle failures
-        let json = match serde_json::to_string(hashes) {
+        let json = match serde_json::to_string(&new_tx_hashes) {
             Ok(j) => j,
             Err(_) => return Err("Failed to serialize transaction hashes"),
         };
@@ -570,6 +510,7 @@ impl YieldVault {
         // Store the serialized data
         let bytes = json.as_bytes().to_vec();
         self.tx_hashes_pointer().set(Arc::new(bytes));
+        
         Ok(())
     }
     
@@ -585,7 +526,83 @@ impl YieldVault {
 
     // == Asset Management Functions ==
     
+    /// Mint exact shares by depositing assets
+    #[cfg(test)]
+    pub fn mint(
+        &mut self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        shares: u128
+    ) -> Result<CallResponse> {
+        use alkanes_support::parcel::AlkaneTransferParcel;
+        
+        // Validate the transaction using our validation function
+        self.validate_and_track_transaction(&tx_hash)
+            .map_err(|e| anyhow!("Transaction validation error: {}", e))?;
+        
+        // Apply yield before mint
+        self.test_update_yield()
+            .map_err(|e| anyhow!("Yield update error: {}", e))?;
+        
+        // Calculate assets needed for shares
+        let total_assets = self.total_assets_pointer().get_value::<u128>();
+        let total_supply = self.total_supply_pointer().get_value::<u128>();
+        
+        let assets = if total_assets == 0 || total_supply == 0 {
+            // 1:1 ratio for first mint
+            shares
+        } else {
+            // Calculate with ceiling division for mint
+            let numerator = shares
+                .checked_mul(total_assets)
+                .ok_or_else(|| anyhow!("Asset calculation overflow"))?;
+            
+            // Division with ceiling for mint
+            let dividend = total_supply;
+            let quotient = numerator / dividend;
+            let remainder = numerator % dividend;
+            
+            if remainder > 0 {
+                quotient + 1
+            } else {
+                quotient
+            }
+        };
+        
+        if assets == 0 {
+            return Err(anyhow!("Zero assets"));
+        }
+        
+        // Update total assets
+        self.total_assets_pointer().set_value(
+            total_assets.checked_add(assets)
+                .ok_or_else(|| anyhow!("Total assets overflow"))?
+        );
+        
+        // Update user's shares
+        let balance_key = format!("/balances/{}", receiver);
+        let mut balance_pointer = StoragePointer::from_keyword(&balance_key);
+        let current_balance = balance_pointer.get_value::<u128>();
+        balance_pointer.set_value(
+            current_balance.checked_add(shares)
+                .ok_or_else(|| anyhow!("Balance overflow"))?
+        );
+        
+        // Update total supply
+        self.total_supply_pointer().set_value(
+            total_supply.checked_add(shares)
+                .ok_or_else(|| anyhow!("Total supply overflow"))?
+        );
+        
+        Ok(CallResponse { 
+            data: Vec::new(),
+            alkanes: AlkaneTransferParcel(Vec::new())
+        })
+    }
+    
     /// Deposit assets and mint shares
+    #[cfg(not(test))]
     fn deposit(
         &mut self,
         tx_hash: String,
@@ -594,7 +611,7 @@ impl YieldVault {
         assets: u128
     ) -> Result<CallResponse> {
         let context = self.context()?;
-        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let response = CallResponse::forward(&context.incoming_alkanes);
         
         // Validate the transaction
         self.validate_and_track_transaction(&tx_hash)
@@ -628,6 +645,7 @@ impl YieldVault {
     }
     
     /// Mint exact shares by depositing assets
+    #[cfg(not(test))]
     fn mint(
         &mut self,
         tx_hash: String,
@@ -636,7 +654,7 @@ impl YieldVault {
         shares: u128
     ) -> Result<CallResponse> {
         let context = self.context()?;
-        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let response = CallResponse::forward(&context.incoming_alkanes);
         
         // Validate the transaction
         self.validate_and_track_transaction(&tx_hash)
@@ -667,6 +685,133 @@ impl YieldVault {
             .map_err(|e| anyhow!("Share mint error: {}", e))?;
         
         Ok(response)
+    }
+
+    /// Deposit assets and mint shares
+    #[cfg(test)]
+    pub fn deposit(
+        &mut self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        assets: u128
+    ) -> Result<CallResponse> {
+        use alkanes_support::parcel::AlkaneTransferParcel;
+        use std::collections::HashSet;
+        
+        // Validate the transaction using our validation function
+        self.validate_and_track_transaction(&tx_hash)
+            .map_err(|e| anyhow!("Transaction validation error: {}", e))?;
+        
+        // Apply yield before deposit
+        self.test_update_yield()
+            .map_err(|e| anyhow!("Yield update error: {}", e))?;
+        
+        // Calculate shares
+        let total_assets = self.total_assets_pointer().get_value::<u128>();
+        let total_supply = self.total_supply_pointer().get_value::<u128>();
+        
+        let shares = if total_assets == 0 || total_supply == 0 {
+            // 1:1 ratio for first deposit
+            assets
+        } else {
+            // Calculate based on current ratio
+            assets
+                .checked_mul(total_supply)
+                .ok_or_else(|| anyhow!("Share calculation multiplication overflow"))?
+                .checked_div(total_assets)
+                .ok_or_else(|| anyhow!("Share calculation division error"))?
+        };
+        
+        if shares == 0 {
+            return Err(anyhow!("Zero shares"));
+        }
+        
+        // Update total assets
+        self.total_assets_pointer().set_value(
+            total_assets.checked_add(assets)
+                .ok_or_else(|| anyhow!("Total assets overflow"))?
+        );
+        
+        // Update user's shares
+        let balance_key = format!("/balances/{}", receiver);
+        let mut balance_pointer = StoragePointer::from_keyword(&balance_key);
+        let current_balance = balance_pointer.get_value::<u128>();
+        balance_pointer.set_value(
+            current_balance.checked_add(shares)
+                .ok_or_else(|| anyhow!("Balance overflow"))?
+        );
+        
+        // Update total supply
+        self.total_supply_pointer().set_value(
+            total_supply.checked_add(shares)
+                .ok_or_else(|| anyhow!("Total supply overflow"))?
+        );
+        
+        Ok(CallResponse { 
+            data: Vec::new(),
+            alkanes: AlkaneTransferParcel(Vec::new())
+        })
+    }
+    
+    /// Helper function for test yield updates
+    #[cfg(test)]
+    fn test_update_yield(&self) -> Result<(), &'static str> {
+        use crate::tests::mock::get_timestamp;
+        
+        let current_time = get_timestamp();
+        let last_update = self.last_yield_update_pointer().get_value::<u64>();
+        
+        // Calculate time elapsed in seconds
+        if current_time <= last_update {
+            return Ok(());  // No time passed or clock issues
+        }
+        
+        let time_elapsed = current_time - last_update;
+        if time_elapsed == 0 {
+            return Ok(());  // No time passed
+        }
+        
+        // Get current yield rate (in basis points)
+        let yield_rate = self.yield_rate_pointer().get_value::<u128>();
+        if yield_rate == 0 {
+            return Ok(());  // No yield to apply
+        }
+        
+        // Get current total assets
+        let total_assets = self.total_assets_pointer().get_value::<u128>();
+        if total_assets == 0 {
+            return Ok(());  // No assets to apply yield to
+        }
+        
+        // Calculate yield: assets * rate * timeElapsed / (10000 * 365 * 24 * 60 * 60)
+        // Rate is in basis points (1/100 of a percent)
+        let yield_multiplier = yield_rate
+            .checked_mul(time_elapsed as u128)
+            .ok_or("Yield calculation overflow")?;
+            
+        // 10000 * seconds in a year
+        let divisor: u128 = 10000 * 365 * 24 * 60 * 60;
+        
+        let yield_amount = total_assets
+            .checked_mul(yield_multiplier)
+            .ok_or("Yield amount overflow")?
+            .checked_div(divisor)
+            .ok_or("Yield division error")?;
+            
+        // Add yield to total assets
+        if yield_amount > 0 {
+            let new_total = total_assets
+                .checked_add(yield_amount)
+                .ok_or("Total assets overflow")?;
+                
+            self.total_assets_pointer().set_value(new_total);
+        }
+        
+        // Update the last yield timestamp
+        self.last_yield_update_pointer().set_value(current_time);
+        
+        Ok(())
     }
     
     /// Withdraw assets by burning shares
