@@ -2467,7 +2467,10 @@ dependencies = [
  "alkanes-support",
  "anyhow",
  "bitcoin 0.32.5",
+ "bitcoin_hashes 0.12.0",
+ "hex",
  "hex-literal",
+ "lazy_static",
  "metashrew-core",
  "metashrew-support",
  "once_cell",
@@ -2475,6 +2478,7 @@ dependencies = [
  "protorune",
  "protorune-support",
  "serde_json",
+ "wasm-bindgen",
  "wasm-bindgen-test",
 ]
 

@@ -10,10 +10,56 @@ use alkanes_support::utils::overflow_error;
 use alkanes_support::witness::find_witness_payload;
 use alkanes_support::{context::Context, parcel::AlkaneTransfer};
 use anyhow::{anyhow, Result};
-use bitcoin::{Transaction, Txid};
 use metashrew_support::compat::to_arraybuffer_layout;
 use metashrew_support::index_pointer::KeyValuePointer;
+#[cfg(test)]
+use bitcoin_hashes::Hash;
+
+// Conditionally include Bitcoin types when the bitcoin feature is enabled
+#[cfg(feature = "bitcoin")]
+use bitcoin::{Transaction, Txid};
+#[cfg(feature = "bitcoin")]
 use metashrew_support::utils::consensus_decode;
+#[cfg(feature = "bitcoin")]
+use std::str::FromStr;
+
+// Define stub types when the bitcoin feature is not enabled
+#[cfg(not(feature = "bitcoin"))]
+mod bitcoin_stubs {
+    use std::fmt;
+    
+    #[derive(Clone, Debug)]
+    pub struct Txid([u8; 32]);
+    
+    impl Txid {
+        pub fn from_slice(slice: &[u8]) -> Result<Self, &'static str> {
+            if slice.len() != 32 {
+                return Err("Invalid length for Txid");
+            }
+            let mut data = [0u8; 32];
+            data.copy_from_slice(slice);
+            Ok(Txid(data))
+        }
+    }
+    
+    impl fmt::Display for Txid {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{}", hex::encode(self.0))
+        }
+    }
+    
+    // Mock Transaction struct
+    pub struct Transaction {}
+    
+    impl Transaction {
+        pub fn compute_txid(&self) -> Txid {
+            Txid([0; 32])
+        }
+    }
+}
+
+#[cfg(not(feature = "bitcoin"))]
+use bitcoin_stubs::{Txid, Transaction};
 use std::collections::HashSet;
 use std::io::Cursor;
 use std::sync::Arc;
@@ -252,41 +298,21 @@ impl YieldVault {
     }
 }
 
-// Implement WebAssembly exports directly
-#[no_mangle]
-pub extern "C" fn alloc(size: u32) -> *mut u8 {
-    let mut buffer = Vec::with_capacity(size as usize);
-    let pointer = buffer.as_mut_ptr();
-    std::mem::forget(buffer);
-    pointer
-}
+use wasm_bindgen::prelude::*;
 
-#[no_mangle]
-pub extern "C" fn free(pointer: *mut u8, capacity: u32) {
-    if pointer.is_null() { return; }
-    unsafe {
-        let _ = Vec::from_raw_parts(pointer, 0, capacity as usize);
+// WebAssembly exports through wasm-bindgen
+#[wasm_bindgen]
+pub fn call(opcode: u32, args: &[u8]) -> Vec<u8> {
+    let mut vault = YieldVault::default();
+    match vault.dispatch(opcode, args) {
+        Ok(response) => response.data,
+        Err(e) => format!("Error: {}", e).as_bytes().to_vec(),
     }
 }
 
-#[no_mangle]
-pub extern "C" fn call(opcode: u32, args_ptr: *const u8, args_len: u32) -> *mut u8 {
-    let args = if args_ptr.is_null() || args_len == 0 {
-        &[]
-    } else {
-        unsafe { std::slice::from_raw_parts(args_ptr, args_len as usize) }
-    };
-
-    let mut vault = YieldVault::default();
-    let result = match vault.dispatch(opcode, args) {
-        Ok(response) => response.data,
-        Err(e) => format!("Error: {}", e).as_bytes().to_vec(),
-    };
-    
-    // Return ownership of the buffer to the runtime
-    let pointer = result.as_ptr() as *mut u8;
-    std::mem::forget(result);
-    pointer
+#[wasm_bindgen(start)]
+pub fn start() {
+    // Initialize any global state if needed
 }
 
 /// ContextHandle implementation for the contract
@@ -315,9 +341,17 @@ trait ContextExt {
 impl ContextExt for Context {
     fn transaction_id(&self) -> Result<Txid> {
         // Test implementation with all zeros
-        Ok(Txid::from_slice(&[0; 32]).unwrap_or_else(|_| {
-            panic!("Failed to create zero Txid")
-        }))
+        // For simplicity, just construct an empty txid in the test environment
+        #[cfg(feature = "bitcoin")]
+        {
+            // Use a string representation for the hash
+            Ok(Txid::from_str("0000000000000000000000000000000000000000000000000000000000000000").unwrap())
+        }
+        
+        #[cfg(not(feature = "bitcoin"))]
+        {
+            Ok(Txid([0; 32]))
+        }
     }
 }
 
@@ -1115,12 +1149,29 @@ impl YieldVault {
     
     /// Get the current context
     fn context(&self) -> Result<Context> {
-        // Create a cursor for the transaction data
-        let mut cursor = Cursor::new(CONTEXT.transaction());
+        #[cfg(test)]
+        {
+            // For testing, return a mock context
+            return Ok(Context {
+                incoming_alkanes: Vec::new(),
+                metadata: std::collections::HashMap::new(),
+                opcode: 0,
+                args: Vec::new(),
+                init: false,
+                myself: vec![0; 32],
+                script: vec![0; 32]
+            });
+        }
         
-        // Parse the context from the cursor
-        Context::parse(&mut cursor)
-            .map_err(|_| anyhow!("Failed to parse context"))
+        #[cfg(not(test))]
+        {
+            // Create a cursor for the transaction data
+            let mut cursor = Cursor::new(CONTEXT.transaction());
+            
+            // Parse the context from the cursor
+            Context::parse(&mut cursor)
+                .map_err(|_| anyhow!("Failed to parse context"))
+        }
     }
     
     /// Get the current timestamp

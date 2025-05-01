@@ -18,6 +18,7 @@ lazy_static! {
 pub mod storage {
     use super::*;
     use alkanes_runtime::storage::StoragePointer;
+    use metashrew_support::index_pointer::KeyValuePointer;
     
     // Mock implementation of StoragePointer for testing
     pub struct MockStoragePointer {

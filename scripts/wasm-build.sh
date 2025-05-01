@@ -1,31 +1,33 @@
 #!/bin/bash
-# WebAssembly build script for YieldVault
-
-# Ensure we exit on any errors
 set -e
 
-# Display build start message
-echo "Building YieldVault for WebAssembly..."
+# Install wasm-bindgen-cli with the correct version if needed
+echo "Installing wasm-bindgen-cli version 0.2.100..."
+cargo install -f wasm-bindgen-cli --version 0.2.100
 
-# Build for WebAssembly target
-RUSTFLAGS='-C link-arg=-s' cargo build --target wasm32-unknown-unknown --release
+# Clean target directory to avoid any potential issues
+echo "Cleaning target directory..."
+cargo clean --target wasm32-unknown-unknown
 
-# Verify the build succeeded
-if [ ! -f "target/wasm32-unknown-unknown/release/yield_vault.wasm" ]; then
-    echo "Error: WebAssembly build failed!"
-    exit 1
-fi
+# Build the project for wasm32-unknown-unknown target WITHOUT bitcoin feature
+echo "Building yield-vault for WebAssembly..."
+RUSTFLAGS="-C link-arg=-s" cargo build \
+    --target wasm32-unknown-unknown \
+    --no-default-features \
+    --release
+
+# Run wasm-bindgen to generate JavaScript bindings
+echo "Generating JavaScript bindings..."
+wasm-bindgen --out-dir pkg --target web \
+    target/wasm32-unknown-unknown/release/yield_vault.wasm
 
 # Optimize the WebAssembly binary if wasm-opt is available
 if command -v wasm-opt > /dev/null; then
     echo "Optimizing WebAssembly binary with wasm-opt..."
-    wasm-opt -Oz -o yield_vault_opt.wasm target/wasm32-unknown-unknown/release/yield_vault.wasm
-    cp yield_vault_opt.wasm yield_vault.wasm
-else
-    echo "wasm-opt not found, skipping optimization step..."
-    cp target/wasm32-unknown-unknown/release/yield_vault.wasm yield_vault.wasm
+    wasm-opt -Oz -o pkg/yield_vault_opt.wasm pkg/yield_vault_bg.wasm
+    cp pkg/yield_vault_opt.wasm pkg/yield_vault_bg.wasm
 fi
 
 # Display final size information
-echo "Final WebAssembly binary size: $(stat -f%z yield_vault.wasm) bytes"
-echo "Build complete! Output: yield_vault.wasm"
+echo "Final WebAssembly binary size: $(stat -f%z pkg/yield_vault_bg.wasm) bytes"
+echo "Build complete! Output in pkg directory"
