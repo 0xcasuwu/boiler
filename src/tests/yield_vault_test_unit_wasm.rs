@@ -1,9 +1,6 @@
 use std::sync::Arc;
-
 use crate::YieldVault;
-use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_runtime::storage::StoragePointer;
-use anyhow::Result;
 use metashrew_support::index_pointer::KeyValuePointer;
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -31,6 +28,7 @@ fn reset_test_storage() {
 }
 
 #[wasm_bindgen_test]
+#[test]
 fn test_initialization() {
     // Reset storage
     reset_test_storage();

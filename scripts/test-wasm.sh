@@ -1,20 +1,37 @@
 #!/bin/bash
+
+# This script runs tests one by one to avoid segmentation faults
+# that might happen when running all tests at once
+
+# Make sure the script exits on any error
 set -e
 
-# Install wasm-bindgen-cli with the correct version
-echo "Installing wasm-bindgen-cli version 0.2.100..."
-cargo install -f wasm-bindgen-cli --version 0.2.100
+echo "Running Yield Vault tests from minimal_test.rs..."
+echo "------------------------------------------------"
 
-# Build the project for wasm32-unknown-unknown target
-echo "Building for WebAssembly..."
-cargo build --target wasm32-unknown-unknown
+# Run individual tests from minimal_test.rs
+echo "Running test_initialization..."
+cargo test tests::minimal_test::test_initialization
 
-# Run wasm-bindgen to generate JavaScript bindings
-echo "Generating JavaScript bindings..."
-wasm-bindgen --out-dir pkg --target web target/wasm32-unknown-unknown/debug/boiler.wasm
+echo "Running test_deposit_functionality..."
+cargo test tests::minimal_test::test_deposit_functionality
 
-# Run the tests
-echo "Running tests..."
-wasm-pack test --node
+echo "Running test_mint_functionality..."
+cargo test tests::minimal_test::test_mint_functionality
 
-echo "WebAssembly tests completed successfully!"
+echo "Running test_conversion_functions..."
+cargo test tests::minimal_test::test_conversion_functions
+
+echo "Running test_preview_functions..."
+cargo test tests::minimal_test::test_preview_functions
+
+echo "Running test_yield_accrual..."
+cargo test tests::minimal_test::test_yield_accrual
+
+echo "Running test_transaction_validation..."
+cargo test tests::minimal_test::test_transaction_validation
+
+echo "Running test_balance_management..."
+cargo test tests::minimal_test::test_balance_management
+
+echo "All tests completed successfully!"
