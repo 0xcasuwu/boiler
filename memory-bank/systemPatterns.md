@@ -1,509 +1,632 @@
-# SLOP System Patterns
+# Bitcoin Smart Contract Architectural Patterns
 
-## Architecture Overview
+## System Architecture Overview
 
-SLOP follows a factory pattern architecture where the main LaunchpadFactory creates and manages multiple independent OrbitalBondCollection instances. Each collection manages its own set of bonds, with the bonds themselves being represented by orbital tokens.
+The Bitcoin smart contract architecture is built around a monolithic WebAssembly module that uses opcode-based message dispatching. This architectural approach enables efficient deployment while maintaining a clean separation of concerns:
 
 ```
-                  ┌─────────────────┐
-                  │LaunchpadFactory │
-                  └────────┬────────┘
-                           │
-                           │ creates
-                           ▼
-     ┌─────────────┬───────────────┬─────────────┐
-     │             │               │             │
-┌────▼─────┐ ┌─────▼─────┐   ┌─────▼─────┐ ┌─────▼─────┐
-│Collection1│ │Collection2│   │Collection3│ │Collection4│
-└────┬─────┘ └─────┬─────┘   └─────┬─────┘ └─────┬─────┘
-     │             │               │             │
-     │ mints       │ mints         │ mints       │ mints
-     ▼             ▼               ▼             ▼
-┌───────────┐ ┌───────────┐   ┌───────────┐ ┌───────────┐
-│Orbital/   │ │Orbital/   │   │Orbital/   │ │Orbital/   │
-│Bond       │ │Bond       │   │Bond       │ │Bond       │
-└───────────┘ └───────────┘   └───────────┘ └───────────┘
+Bitcoin Smart Contract
+├── Core Contract Implementation
+│   ├── Message Dispatch System
+│   ├── Token Logic Implementation
+│   └── Storage Access Layer
+├── Interface Layer
+│   ├── Trait Definitions
+│   └── Message Type Definitions
+├── Security Layer
+│   ├── Initialization Guards
+│   ├── Transaction Validation
+│   ├── Supply Constraints
+│   └── Numeric Safety
+└── WebAssembly Integration
+    ├── Export Definitions
+    ├── Memory Management
+    └── Runtime Integration
 ```
 
-## Core Design Patterns
+## Core Architectural Patterns
 
-### 1. Factory Pattern
+### 1. Monolithic Contract Pattern
 
-The LaunchpadFactory acts as a factory that creates and manages OrbitalBondCollection instances. This pattern provides:
+The contract follows a monolithic architecture where all functionality is contained within a single WebAssembly module:
 
-- **Centralized Creation Logic**: All collections are created through a single factory
-- **Standardization**: Collections follow consistent patterns and interfaces
-- **Management Capabilities**: The factory maintains references to all created collections
+- All operations are defined in one cohesive unit
+- Different functions are distinguished by numeric opcodes
+- Single deployment transaction simplifies on-chain management
+- Clean internal separation maintains code organization
 
-Implementation:
+**Implementation Structure:**
 ```rust
-pub struct LaunchpadFactory {
-    collections: HashMap<String, OrbitalBondCollection>,
-    next_collection_id: u64,
-    // ...
+// Single implementation structure containing all functionality
+pub struct MintableAlkane {
+    // State variables are typically minimal as storage is delegated
 }
 
-impl LaunchpadFactory {
-    pub fn create_collection(...) -> String {
-        // Generate a unique collection ID
-        let collection_id = format!("collection-{}", self.next_collection_id);
-        self.next_collection_id += 1;
-        
-        // Create the collection
-        let collection = OrbitalBondCollection::new(...);
-        
-        // Store and return the reference
-        self.collections.insert(collection_id.clone(), collection);
-        collection_id
-    }
+// Single message enum defines all possible operations
+#[derive(MessageDispatch)]
+enum MintableAlkaneMessage {
+    #[opcode(0)]
+    Initialize { /* params */ },
+    
+    #[opcode(77)]
+    Mint { /* params */ },
+    
+    // Additional operations...
 }
 ```
 
-### 2. Entity-Component Pattern (Modified)
+### 2. MessageDispatch Pattern
 
-The bonds function as entities, with their properties (amount, maturity, etc.) as components. The key modification is that the orbital token itself IS the entity, not just a reference to it:
+The cornerstone of the architecture is the MessageDispatch derive macro that handles opcode-based message routing:
 
-- **Entity**: The orbital token
-- **Components**: Bond attributes (amount, maturity, interest rate)
-- **Behavior**: Redemption logic, maturity checking, value calculation
+- Each operation is defined as an enum variant with a specific opcode
+- The macro generates dispatch code that maps numeric codes to functions
+- Return types are explicitly specified using attributes
+- Parameters are strongly typed and validated
 
+**Key Components:**
 ```rust
-pub struct Bond {
-    pub id: String,
-    pub orbital_token_id: String,  // The orbital IS the bond
-    pub amount: u64,
-    pub creation_block: u64,
-    pub maturity_block: u64,
-    pub status: BondStatus,
-    pub interest_rate_bps: u16,
-    pub metadata: Option<serde_json::Value>,
+#[derive(MessageDispatch)]
+enum MintableAlkaneMessage {
+    #[opcode(0)]
+    Initialize { 
+        units: u8, 
+        value_per_mint: u128,
+        cap: u128, 
+        name: String, 
+        symbol: String 
+    },
+    
+    #[opcode(77)]
+    Mint { tx_hash: String },
+    
+    #[opcode(88)]
+    SetNameAndSymbol { name: String, symbol: String },
+    
+    #[opcode(99)]
+    #[returns(String)]
+    GetName {},
+    
+    #[opcode(100)]
+    #[returns(String)]
+    GetSymbol {},
+    
+    #[opcode(101)]
+    #[returns(u128)]
+    GetTotalSupply {},
+    
+    #[opcode(102)]
+    #[returns(u128)]
+    GetValuePerMint {},
+    
+    #[opcode(103)]
+    #[returns(u128)]
+    GetMinted {},
+    
+    #[opcode(104)]
+    #[returns(u128)]
+    GetCap {},
+    
+    #[opcode(1000)]
+    #[returns(Option<String>)]
+    GetData { key: String },
 }
 ```
 
-### 3. Block-Based Time
+**Dispatch Implementation Flow:**
+1. WebAssembly runtime calls the entry point with an opcode
+2. MessageDispatch macro routes to the appropriate handler
+3. Parameters are deserialized from the input
+4. Method is invoked with typed parameters
+5. Result is serialized for WebAssembly return
 
-The system uses block numbers instead of timestamps for measuring time, which provides:
+### 3. Storage Pattern
 
-- **Consistency**: Block-based time is more consistent across validators
-- **Determinism**: Everyone agrees on the exact block number
-- **Simplicity**: No need for complex time calculations
+The contract implements a structured storage approach using storage pointers:
 
+- Each data element has a well-defined storage path
+- Consistent naming conventions for storage paths
+- Serialization/deserialization of complex structures
+- Clear separation between different data elements
+
+**Standard Storage Paths:**
 ```rust
-pub trait BlockContext {
-    fn get_current_block_height(&self) -> u64;
-    
-    fn is_block_height_reached(&self, target_height: u64) -> bool {
-        self.get_current_block_height() >= target_height
-    }
-}
-```
+// Token identity storage
+storage::get_string("/name").unwrap_or_default()
+storage::get_string("/symbol").unwrap_or_default()
 
-### 4. Context-Based Ownership
+// Numeric state storage
+storage::get_u128("/totalsupply").unwrap_or(0)
+storage::get_u128("/minted").unwrap_or(0)
+storage::get_u128("/value-per-mint").unwrap_or(0)
+storage::get_u128("/cap").unwrap_or(0)
 
-Rather than maintaining explicit maps of token owners, the system uses the transaction context to determine ownership. This means:
-
-- **No Address Tracking**: The system never tracks user addresses
-- **Possession = Ownership**: Whoever presents the orbital token owns it
-- **Simplified Authentication**: No complex auth flows needed
-
-Implementation pattern:
-```rust
-// Redeem using only the orbital token ID from the context
-pub fn redeem_bond<T: BlockContext>(
-    &mut self,
-    orbital_token_id: &str,
-    block_context: &T,
-) -> Result<u64, &'static str> {
-    // Find the bond by orbital ID
-    let bond_id = self.orbital_to_bond.get(orbital_token_id)
-        .ok_or("Orbital token has no associated bond")?;
-    
-    // Get bond and attempt redemption
-    let bond = self.bonds.get_mut(bond_id)
-        .ok_or("Bond not found")?;
-        
-    bond.redeem(block_context)
-}
-```
-
-### 5. Feature Flagging
-
-The system supports multiple execution environments through feature flags:
-
-- **`blockchain` feature**: Enables blockchain-specific functionality
-- **Standalone mode**: Default when blockchain feature is disabled
-
-```rust
-#[cfg(feature = "blockchain")]
-pub fn get_default_context() -> impl BlockContext {
-    blockchain::BlockchainContext::new()
-}
-
-#[cfg(not(feature = "blockchain"))]
-pub fn get_default_context() -> impl BlockContext {
-    StandaloneBlockContext::new()
-}
-```
-
-## Data Flow
-
-The primary data flows in the system are:
-
-### 1. Collection Creation Flow
-
-```
-User Request → LaunchpadFactory → Create OrbitalBondCollection → Return Collection ID
-```
-
-### 2. Bond Minting Flow
-
-```
-User Request + Diesel → Collection → Mint Orbital/Bond → Transfer to User
-```
-
-### 3. Bond Redemption Flow
-
-```
-User + Orbital → Collection → Verify Maturity → Mark Redeemed → Return Principal + Interest
-```
-
-### 4. Collection Query Flow
-
-```
-User Query → LaunchpadFactory → Find Collection → Retrieve Collection Data
-```
-
-### 5. Bond Value Calculation Flow
-
-```
-Bond + Block Context → Calculate Time Elapsed → Compute Current Value
-```
-
-## State Management
-
-State is managed at two primary levels:
-
-### 1. Factory Level State
-
-- **Collections Map**: Tracks all created collections by ID
-- **Next Collection ID**: Counter for generating unique collection IDs
-
-### 2. Collection Level State
-
-- **Bonds Map**: Tracks bonds by ID
-- **Orbital-to-Bond Map**: Maps orbital token IDs to bond IDs
-- **Collection Parameters**: Interest rate, maturity period, etc.
-- **Active Status**: Whether the collection can mint new bonds
-
-### 3. Bond Level State
-
-- **Financial Details**: Amount, interest rate, maturity
-- **Status**: Active, Mature, Redeemed, or Canceled
-- **Creation Information**: When the bond was created
-- **Metadata**: Optional additional bond information
-
-## Error Handling Strategy
-
-The system uses Rust's Result type for error handling, with a focus on:
-
-1. **Early Returns**: Functions exit early when errors are detected
-2. **Clear Error Messages**: String-based error messages for debugging
-3. **Propagation**: Errors bubble up through the call stack with the `?` operator
-4. **Validation**: Input validation before state changes
-
-```rust
-pub fn mint_bond<T: BlockContext>(
-    &mut self,
-    orbital_token_id: String,
-    amount: u64,
-    block_context: &T,
-) -> Result<String, &'static str> {
-    // Validate collection state
-    if !self.active {
-        return Err("Collection is inactive");
-    }
-    
-    // Validate inputs
-    if self.orbital_to_bond.contains_key(&orbital_token_id) {
-        return Err("Orbital token already has a bond");
-    }
-    
-    // Proceed with operation...
-    Ok(bond_id)
-}
-```
-
-## Testing Patterns
-
-The project employs several testing patterns:
-
-1. **Unit Testing**: Testing individual components in isolation
-2. **Block Context Mocking**: Simulating different block heights for testing time-dependent behavior
-3. **Scenario Testing**: Testing complete workflows from creation to redemption
-4. **Property-Based Testing**: Verifying that properties hold across different inputs
-5. **Mock-Free Testing**: Avoiding global mocks in favor of dependency injection
-
-## Interface Patterns
-
-The system exports several key traits and interfaces:
-
-1. **BlockContext**: Abstraction for accessing block height information
-2. **LaunchpadFactory**: Interface for creating and managing collections
-3. **OrbitalBondCollection**: Interface for managing bonds within a collection
-
-These interfaces are designed to be:
-
-- **Minimal**: Exposing only necessary functionality
-- **Consistent**: Following similar patterns across the system
-- **Self-Contained**: Not requiring external dependencies
-- **Ergonomic**: Providing intuitive, easy-to-use methods
-
-## Security Patterns and Architecture
-
-### Security Model Foundation
-
-The SLOP security architecture is built around the central principle that "the orbital token IS the bond" - creating a possession-based authentication system that provides strong security guarantees through cryptographic proof of ownership.
-
-#### Core Security Principles
-
-1. **Possession-Based Authentication**: The orbital token itself proves ownership
-2. **No Direct State Manipulation**: All state changes go through verified interfaces
-3. **Active Collection Guard**: Only active collections can mint new bonds
-4. **Maturity Verification**: Bonds can only be redeemed after reaching maturity
-5. **Single Redemption**: Bonds cannot be redeemed multiple times
-6. **Status Tracking**: Bond status transitions are strictly controlled
-7. **Checks-Effects-Interactions Pattern**: State changes occur before external calls to prevent re-entrancy
-8. **Collection Isolation**: Cross-collection operations are strictly prohibited
-9. **Mathematical Safety**: Financial calculations protect against overflow/underflow
-10. **Information Privacy**: Error messages are designed to not leak sensitive information
-
-### Authentication Architecture
-
-```mermaid
-graph TD
-    User[User] -->|presents| OrbitalToken[Orbital Token]
-    OrbitalToken -->|verifies ownership| TokenVerifier[Token Verifier]
-    TokenVerifier -->|if valid| BondOperation[Bond Operation]
-    TokenVerifier -->|if invalid| RejectedOperation[Operation Rejected]
-    
-    OrbitalToken -->|mapped to| Bond[Bond Record]
-    Bond -->|checked by| MaturityVerifier[Maturity Verifier]
-    MaturityVerifier -->|if mature| BondOperation
-    MaturityVerifier -->|if not mature| RejectedOperation
-```
-
-### Unified Redemption Flow
-
-#### Secure Redemption Sequence
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant LaunchpadFactory as LF
-    participant OrbitalCollection as OBC
-    participant TransactionContext as TC
-    participant BlockContext as BC
-    participant Bond
-    
-    User->>LF: redeem_bond_secure(collection_id, tx_context, redeemer_id)
-    LF->>OBC: get_collection(collection_id)
-    LF->>OBC: redeem_bond_secure(tx_context, redeemer_id, block_context)
-    OBC->>TC: orbital_token_id()
-    
-    alt No orbital token
-        TC-->>OBC: Error("No orbital token in transaction context")
-        OBC-->>LF: Error
-        LF-->>User: Error
-    end
-    
-    OBC->>OBC: orbital_to_bond.get(orbital_token_id)
-    
-    alt No associated bond
-        OBC-->>LF: Error("Token validation failure")
-        LF-->>User: Error
-    end
-    
-    OBC->>OBC: bonds.get_mut(bond_id)
-    OBC->>Bond: is_mature(block_context)
-    
-    alt Bond not mature
-        Bond-->>OBC: false
-        OBC-->>LF: Error("Bond is not yet mature")
-        LF-->>User: Error
-    end
-    
-    Note over OBC: Checks-Effects-Interactions Pattern
-    OBC->>Bond: status = Redeemed
-    OBC->>OBC: orbital_to_bond.remove(orbital_token_id)
-    
-    OBC->>Bond: calculate redemption amount
-    Bond-->>OBC: amount
-    OBC-->>LF: amount
-    LF-->>User: amount
-```
-
-### Critical Security Implementation Patterns
-
-#### 1. Token Validation and Authentication
-
-```rust
-pub fn redeem_bond_secure<T: BlockContext, C: TransactionContextExt>(
-    &mut self,
-    tx_context: &C,
-    redeemer_id: &str,
-    block_context: &T,
-) -> Result<u64, &'static str> {
-    // Extract orbital token from transaction context (proves ownership)
-    let orbital_token_id = tx_context.orbital_token_id()
-        .map_err(|_| "No orbital token in transaction context")?;
-
-    // Use the verified token ID for redemption
-    self.redeem_bond_internal(&orbital_token_id, redeemer_id, block_context)
-}
-```
-
-#### 2. Checks-Effects-Interactions Pattern
-
-```rust
-// SECURITY: Update state immediately (effects part of checks-effects-interactions)
-bond.status = BondStatus::Redeemed;
-
-// SECURITY: Clean up the mapping to prevent future redemption attempts
-self.orbital_to_bond.remove(orbital_token_id);
-
-// SECURITY: Return value only after all state changes are complete
-Ok(redemption_amount)
-```
-
-#### 3. Mathematical Safety
-
-```rust
-// Calculate with overflow protection
-let principal = bond.amount as u128;
-let interest = principal * bond.interest_rate_bps as u128 / 10_000;
-let total = principal + interest;
-        
-// Handle overflow with saturation
-let amount = if total > u64::MAX as u128 {
-    u64::MAX // Saturate to maximum value
+// Complex data storage
+let tx_hashes_json = storage::get_string("/tx-hashes").unwrap_or_default();
+let tx_hashes: HashSet<String> = if tx_hashes_json.is_empty() {
+    HashSet::new()
 } else {
-    total as u64
+    serde_json::from_str(&tx_hashes_json).unwrap_or_default()
 };
+
+// Guard flags
+storage::get_bool("/initialized").unwrap_or(false)
 ```
 
-### Comprehensive Security Testing Patterns
+### 4. Security Patterns
 
-#### Property-Based Testing Pattern
+#### 4.1 Initialization Guard Pattern
 
-The property-based testing approach systematically explores edge cases and verifies that system invariants hold across a wide range of inputs.
+The contract uses an initialization guard to prevent multiple initializations:
 
 ```rust
-proptest! {
-    #[test]
-    fn test_bond_redemption_security_properties(
-        amount in 1..1_000_000u64,
-        interest_rate in 1..10000u16,
-        maturity in 50..1000u64,
-        time_delta in 0..2000u64
-    ) {
-        // Test setup with randomized parameters
-        let base_context = StandaloneBlockContext::new();
-        let mut collection = OrbitalBondCollection::new(
-            "test-collection".to_string(),
-            "Test Bonds".to_string(),
-            "TBND".to_string(),
-            interest_rate,
-            maturity,
-            &base_context
-        );
-        
-        // Property 1: Early redemption should fail
-        let early_context = context_at_height(10);
-        let tx_context = create_tx_context(&orbital_id);
-        let early_result = collection.redeem_bond_secure(
-            &tx_context,
-            "owner",
-            &early_context
-        );
-        prop_assert!(early_result.is_err(), "Early redemption should fail");
-        
-        // Property 2: Mature redemption should succeed
-        let mature_context = context_at_height(1000);
-        let redemption_result = collection.redeem_bond_secure(
-            &tx_context,
-            "owner",
-            &mature_context
-        );
-        prop_assert!(redemption_result.is_ok(), "Mature redemption should succeed");
-        
-        // Additional properties...
+fn observe_initialization() -> Result<(), &'static str> {
+    if storage::get_bool("/initialized").unwrap_or(false) {
+        return Err("Already initialized");
     }
+    storage::set_bool("/initialized", true);
+    Ok(())
 }
 ```
 
-#### Formal Verification Pattern
+This pattern ensures:
+- The contract can only be initialized once
+- All required setup happens in a single atomic operation
+- Descriptive error messages provide clear feedback
 
-Formal verification uses mathematical proofs to ensure critical security properties are guaranteed:
+#### 4.2 Transaction Hash Tracking Pattern
 
-1. **Pre-conditions**: Validate inputs before operations
-2. **Post-conditions**: Verify outputs meet expected requirements
-3. **Invariants**: Ensure system-wide properties hold at all times
-4. **Mathematical Proving**: Usage of mathematical techniques to prove correctness
+The contract implements a robust transaction hash tracking system:
 
 ```rust
-pub fn verify_redemption_amount(
-    principal: u128,
-    interest_rate_bps: u16,
-    amount: u64
-) -> Result<(), VerificationError> {
-    // Pre-condition: Inputs must be within valid ranges
-    if interest_rate_bps > 10000 {
-        return Err(VerificationError::InvalidInterestRate);
-    }
-    
-    // Calculate expected result
-    let interest = principal * interest_rate_bps as u128 / 10_000;
-    let expected_total = principal + interest;
-    let expected_amount = if expected_total > u64::MAX as u128 {
-        u64::MAX
+fn validate_and_track_transaction(tx_hash: &str) -> Result<(), &'static str> {
+    // Retrieve the current set of transaction hashes
+    let tx_hashes_json = storage::get_string("/tx-hashes").unwrap_or_default();
+    let mut tx_hashes: HashSet<String> = if tx_hashes_json.is_empty() {
+        HashSet::new()
     } else {
-        expected_total as u64
+        serde_json::from_str(&tx_hashes_json).unwrap_or_default()
     };
     
-    // Post-condition: Output must match expected calculation
-    if amount != expected_amount {
-        return Err(VerificationError::IncorrectAmount);
+    // Check if this transaction hash has been used
+    if tx_hashes.contains(tx_hash) {
+        return Err("Transaction hash already used");
     }
     
-    // Invariant: Amount must be >= principal
-    if amount < principal as u64 {
-        return Err(VerificationError::InvariantViolation);
-    }
+    // Add the transaction hash to the set
+    tx_hashes.insert(tx_hash.to_string());
+    
+    // Store the updated set
+    let updated_json = serde_json::to_string(&tx_hashes)
+        .map_err(|_| "Failed to serialize transaction hashes")?;
+    storage::set_string("/tx-hashes", &updated_json);
     
     Ok(())
 }
 ```
 
-### Security Audit Framework
+This pattern ensures:
+- Each transaction can only be used once for minting
+- Replay attacks are prevented
+- The state is consistently updated
 
-The security audit process systematically assesses the system:
+#### 4.3 Supply Cap Enforcement Pattern
 
-1. **Static Analysis**: Compiler warnings checks and linting
-2. **Automated Testing**: Unit tests, penetration tests, security fix tests
-3. **Vulnerability Scanning**: Dependency scanning and CVE checks
-4. **Manual Security Review**: Code review following a security checklist
-5. **Penetration Testing**: Simulation of sophisticated attacks
-6. **Documentation**: Comprehensive security documentation
+The contract enforces supply constraints through validation:
 
-### Attack Vectors and Mitigations
+```rust
+fn validate_cap(minted: u128, cap: u128) -> Result<(), &'static str> {
+    if cap > 0 && minted >= cap {
+        return Err("Maximum supply cap reached");
+    }
+    Ok(())
+}
+```
 
-The security architecture addresses numerous attack vectors:
+This pattern ensures:
+- Total supply cannot exceed configured cap
+- Clear error messages explain constraint violations
+- Zero cap value allows for unlimited supply
 
-| Attack Vector | Description | Mitigation |
-|---------------|-------------|------------|
-| Token Forgery | Attempts to use forged tokens | Transaction context verification |
-| Double Redemption | Attempts to redeem twice | Immediate mapping removal after redemption |
-| Time Manipulation | Manipulation of block height | Block context validation checks |
-| Cross-Collection | Using tokens across collections | Strict collection isolation |
-| Re-entrancy | Callback-based attacks | Checks-effects-interactions pattern |
-| Integer Overflow | Overflow in calculations | u128 intermediates and saturation logic |
+#### 4.4 Overflow Protection Pattern
+
+The contract implements overflow checks for all numeric operations:
+
+```rust
+fn safe_add(a: u128, b: u128) -> Result<u128, &'static str> {
+    a.checked_add(b).ok_or("Numeric overflow")
+}
+```
+
+This pattern ensures:
+- All arithmetic operations are safe from overflow
+- Descriptive error messages explain failures
+- Contract state remains consistent even with extreme values
+
+### 5. Trait-Based Interface Pattern
+
+The contract separates interface from implementation using traits:
+
+```rust
+// The trait defines the interface
+pub trait MintableToken {
+    fn name(&self) -> String;
+    fn symbol(&self) -> String;
+    fn total_supply(&self) -> u128;
+    fn get_data(&self, key: &str) -> Option<String>;
+    fn observe_initialization(&self) -> Result<(), &'static str>;
+    // Other interface methods...
+}
+
+// The implementation fulfills the interface
+impl MintableToken for MintableAlkane {
+    fn name(&self) -> String {
+        storage::get_string("/name").unwrap_or_default()
+    }
+    
+    fn symbol(&self) -> String {
+        storage::get_string("/symbol").unwrap_or_default()
+    }
+    
+    // Other implementation methods...
+}
+```
+
+This pattern ensures:
+- Clear separation between interface and implementation
+- Consistent method signatures across implementations
+- Possibility for alternative implementations
+- Support for polymorphic usage
+
+## Advanced Architectural Patterns
+
+### 1. WebAssembly Export Pattern
+
+The contract exports its functionality through WebAssembly exports:
+
+```rust
+// Entry point for WebAssembly
+#[no_mangle]
+pub extern "C" fn call(opcode: i32, bytes: *mut u8, bytes_len: usize) -> *mut u8 {
+    // MessageDispatch handles the routing based on opcode
+    MintableAlkane::default().dispatch(opcode, bytes, bytes_len)
+}
+```
+
+This pattern ensures:
+- Single entry point for all contract operations
+- Standardized parameter passing
+- Compatible memory model with WebAssembly
+- Consistent return value handling
+
+### 2. View Function Pattern
+
+The contract implements view functions as read-only operations:
+
+```rust
+#[opcode(99)]
+#[returns(String)]
+GetName {},
+
+#[opcode(100)]
+#[returns(String)]
+GetSymbol {},
+
+// Implementation
+fn handle_get_name(&self) -> String {
+    self.name()
+}
+
+fn handle_get_symbol(&self) -> String {
+    self.symbol()
+}
+```
+
+This pattern ensures:
+- Clear separation between state-changing and read-only operations
+- Explicit return type declaration
+- No state modification in view functions
+- Consistent opcode numbering convention (99-104 for view functions)
+
+### 3. Error Handling Pattern
+
+The contract uses Result types for error handling:
+
+```rust
+fn mint(&mut self, tx_hash: &str) -> Result<(), &'static str> {
+    // Validate transaction hash
+    self.validate_and_track_transaction(tx_hash)?;
+    
+    // Get current values
+    let value_per_mint = self.value_per_mint();
+    let minted = self.minted();
+    let cap = self.cap();
+    
+    // Validate cap
+    self.validate_cap(minted, cap)?;
+    
+    // Update state
+    let new_minted = minted.checked_add(1).ok_or("Minted overflow")?;
+    storage::set_u128("/minted", new_minted);
+    
+    // Update total supply
+    let total = self.total_supply();
+    let new_total = total.checked_add(value_per_mint).ok_or("Total supply overflow")?;
+    storage::set_u128("/totalsupply", new_total);
+    
+    Ok(())
+}
+```
+
+This pattern ensures:
+- Early returns when errors are detected
+- Clear error messages for debugging
+- Error propagation through the call stack
+- Consistent validation before state changes
+
+## Integration Patterns
+
+### 1. Factory Integration Pattern
+
+The contract implements standardized traits for factory compatibility:
+
+```rust
+// Factory creates tokens that implement this trait
+pub trait MintableToken {
+    fn name(&self) -> String;
+    fn symbol(&self) -> String;
+    fn total_supply(&self) -> u128;
+    fn get_data(&self, key: &str) -> Option<String>;
+    fn observe_initialization(&self) -> Result<(), &'static str>;
+}
+
+// Contract implementation must fulfill the trait
+impl MintableToken for MintableAlkane {
+    // Implementation of trait methods
+}
+```
+
+This pattern ensures:
+- Compatibility with token factory systems
+- Standardized interface for token operations
+- Clear contract capabilities definition
+- Support for contract creation through factories
+
+### 2. Opcode Interface Pattern
+
+The contract exposes a standardized opcode interface:
+
+- Standard operations (0, 77, 88, 99-101, 1000)
+- Contract-specific operations (102-104)
+- Consistent parameter formats
+- Explicit return type specifications
+
+This pattern ensures:
+- Interoperability with existing systems
+- Consistent interface across different contracts
+- Clear operation signatures
+- Compatibility with tools and libraries
+
+## Testing Patterns
+
+### 1. Component Testing Pattern
+
+The contract can be tested at the component level:
+
+```rust
+#[test]
+fn test_initialization() {
+    let mut token = MintableAlkane::default();
+    
+    // Initialize the token
+    let result = token.initialize(18, 1000, 1000000, "Test Token", "TST");
+    assert!(result.is_ok());
+    
+    // Check the initialized state
+    assert_eq!(token.name(), "Test Token");
+    assert_eq!(token.symbol(), "TST");
+    assert_eq!(token.cap(), 1000000);
+    assert_eq!(token.value_per_mint(), 1000);
+}
+```
+
+### 2. Transaction Validation Testing Pattern
+
+The contract can be tested for transaction validation:
+
+```rust
+#[test]
+fn test_transaction_validation() {
+    let mut token = MintableAlkane::default();
+    token.initialize(18, 1000, 1000000, "Test Token", "TST").unwrap();
+    
+    // First mint with a transaction should succeed
+    let result1 = token.mint("tx1");
+    assert!(result1.is_ok());
+    
+    // Second mint with the same transaction should fail
+    let result2 = token.mint("tx1");
+    assert!(result2.is_err());
+    
+    // Mint with a new transaction should succeed
+    let result3 = token.mint("tx2");
+    assert!(result3.is_ok());
+}
+```
+
+### 3. Cap Enforcement Testing Pattern
+
+The contract can be tested for cap enforcement:
+
+```rust
+#[test]
+fn test_cap_enforcement() {
+    let mut token = MintableAlkane::default();
+    token.initialize(18, 1000, 2, "Test Token", "TST").unwrap();
+    
+    // First mint should succeed
+    assert!(token.mint("tx1").is_ok());
+    
+    // Second mint should succeed
+    assert!(token.mint("tx2").is_ok());
+    
+    // Third mint should fail due to cap
+    assert!(token.mint("tx3").is_err());
+}
+```
+
+## Deployment Considerations
+
+### 1. WebAssembly Compilation
+
+The contract must be compiled to WebAssembly for deployment:
+
+```toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+```
+
+### 2. Initialization Sequence
+
+The contract must be initialized after deployment:
+
+1. Deploy the WebAssembly module
+2. Call the `Initialize` method with appropriate parameters:
+   - Token units (e.g., 18 for 18 decimal places)
+   - Value per mint (e.g., 1000 for 1000 tokens per mint)
+   - Supply cap (e.g., 1000000 for a cap of 1 million tokens, 0 for unlimited)
+   - Name and symbol
+
+### 3. Opcode Usage
+
+Clients interact with the contract through opcodes:
+- `0`: Initialize the contract
+- `77`: Mint tokens
+- `88`: Set name and symbol
+- `99-104`: View functions
+- `1000`: Get custom data
+
+## Architectural Decision Records
+
+### ADR-1: Monolithic vs. Multi-Contract Architecture
+
+**Context:** The contract architecture needed to balance simplicity, security, and flexibility.
+
+**Decision:** Adopt a monolithic architecture with a single WebAssembly module.
+
+**Rationale:**
+- Simpler deployment process with a single transaction
+- Lower on-chain storage requirements
+- Easier state management without cross-contract calls
+- Cleaner security model with unified validation
+
+**Consequences:**
+- All functionality must fit within a single contract
+- Upgrades require full contract replacement
+- Clear internal separation becomes more important
+
+### ADR-2: MessageDispatch for Opcode Routing
+
+**Context:** The contract needed a clean way to route messages based on opcodes.
+
+**Decision:** Use the MessageDispatch derive macro for opcode-based routing.
+
+**Rationale:**
+- Automatic code generation reduces boilerplate
+- Strong type safety for parameters and return values
+- Clear mapping between opcodes and functions
+- Consistent error handling across operations
+
+**Consequences:**
+- All external interactions must go through the dispatch system
+- Return types must be explicitly specified
+- All operations must have unique opcode values
+
+### ADR-3: Transaction Hash Tracking for Mint Limits
+
+**Context:** The contract needed to enforce one mint per transaction.
+
+**Decision:** Implement transaction hash tracking using a HashSet and storage.
+
+**Rationale:**
+- Cryptographic guarantee against replay attacks
+- Efficient validation using HashSet containment checks
+- Persistent tracking across contract invocations
+- Clear error messages for validation failures
+
+**Consequences:**
+- Storage grows with the number of mint transactions
+- Serialization/deserialization overhead for the hash set
+- Need for efficient HashSet implementation
+
+## Component Interactions
+
+### Initialization Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Dispatcher as MessageDispatch
+    participant Contract as MintableAlkane
+    participant Storage as StoragePointer
+
+    Client->>Dispatcher: call(0, params)
+    Dispatcher->>Contract: handle_initialize(params)
+    Contract->>Storage: get_bool("/initialized")
+    Storage-->>Contract: false
+    Contract->>Storage: set_bool("/initialized", true)
+    Contract->>Storage: set_u128("/value-per-mint", value)
+    Contract->>Storage: set_u128("/cap", cap)
+    Contract->>Storage: set_string("/name", name)
+    Contract->>Storage: set_string("/symbol", symbol)
+    Contract-->>Dispatcher: Ok(())
+    Dispatcher-->>Client: Success response
+```
+
+### Mint Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Dispatcher as MessageDispatch
+    participant Contract as MintableAlkane
+    participant Storage as StoragePointer
+
+    Client->>Dispatcher: call(77, tx_hash)
+    Dispatcher->>Contract: handle_mint(tx_hash)
+    Contract->>Storage: get_string("/tx-hashes")
+    Storage-->>Contract: tx_hashes_json
+    Contract->>Contract: parse tx_hashes from json
+    Contract->>Contract: validate tx_hash not in tx_hashes
+    Contract->>Storage: get_u128("/minted")
+    Storage-->>Contract: minted
+    Contract->>Storage: get_u128("/cap")
+    Storage-->>Contract: cap
+    Contract->>Contract: validate minted < cap
+    Contract->>Storage: get_u128("/value-per-mint")
+    Storage-->>Contract: value_per_mint
+    Contract->>Storage: get_u128("/totalsupply")
+    Storage-->>Contract: total_supply
+    Contract->>Storage: set_u128("/minted", minted + 1)
+    Contract->>Storage: set_u128("/totalsupply", total + value)
+    Contract->>Contract: update tx_hashes with tx_hash
+    Contract->>Storage: set_string("/tx-hashes", updated_json)
+    Contract-->>Dispatcher: Ok(())
+    Dispatcher-->>Client: Success response
+```
+
+### View Function Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Dispatcher as MessageDispatch
+    participant Contract as MintableAlkane
+    participant Storage as StoragePointer
+
+    Client->>Dispatcher: call(99, params)
+    Dispatcher->>Contract: handle_get_name()
+    Contract->>Storage: get_string("/name")
+    Storage-->>Contract: token_name
+    Contract-->>Dispatcher: token_name
+    Dispatcher-->>Client: token_name

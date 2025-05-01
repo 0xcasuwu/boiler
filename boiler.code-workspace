@@ -2,18 +2,6 @@
     "folders": [
         {
             "path": "."
-        },
-        {
-            "path": "../free-mint"
-        },
-        {
-            "path": "../orbital-collection"
-        },
-        {
-            "path": "../alkanes-rs"
-        },
-        {
-            "path": "../subfrost"
         }
     ]
 }

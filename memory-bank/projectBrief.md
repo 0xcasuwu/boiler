@@ -1,111 +1,306 @@
-# SLOP Project Brief
+# Bitcoin Smart Contract Project Brief
 
-## Overview
+## Executive Summary
 
-SLOP (Smart contract Launchpad for Orbital Payments) is a specialized launchpad implementation that enables the creation, management, and redemption of bonds using orbital tokens. It's designed to provide a decentralized way to issue financial instruments that combine bond-like characteristics with the authentication properties of orbitals.
+The Bitcoin Smart Contract project provides a robust architecture and implementation patterns for creating secure token contracts on Bitcoin using WebAssembly. It follows the Alkanes framework with a focus on security, standardization, and developer experience. The architecture enables tokens with free mint capabilities while enforcing security constraints such as initialization guards, transaction replay protection, and supply caps.
 
-## Core Components
+## Architectural Vision
 
-1. **Orbital Bonds**: Tokens that ARE bonds, not just representing them. The orbital token itself functions as both the financial instrument and the authentication mechanism.
+The project follows these core architectural principles:
 
-2. **LaunchpadFactory**: A factory pattern implementation that creates and manages bond collections, allowing for multiple independent bond issuances.
+1. **Security First**: All patterns prioritize security above other concerns
+2. **Clear Interfaces**: Standardized interfaces promote interoperability
+3. **Modular Design**: Components have clear responsibilities and constraints
+4. **Developer Experience**: Patterns are designed for clarity and maintainability
+5. **Bitcoin Compatibility**: All designs consider Bitcoin's unique constraints
 
-3. **OrbitalBondCollection**: Individual collections of bonds with specific parameters like interest rates and maturity periods.
+## Key Components
 
-4. **Block-Based Maturity**: A mechanism that uses block numbers instead of timestamps for determining bond maturity, providing more reliable and consistent calculations.
+### Core Components
 
-## Key Features
+![Architecture Diagram](https://mermaid.ink/img/pako:eNp1kk9rwzAMxb-K0GmD7ZBTYIcNuqbQQWGHXYqRa2u1WX5BJrTL8t1nJ20TsrE5WO_po_dkZEtKKAiVP1KuNl4SfqlXeG9SGQOdk_RI8X2nYQLCGM-WmmO15204RrwYYwwTCXgojcV8JXuSMOwPo0ULmizk9KbxYYGk0WxsHKvOSg2eCOd2m7F2R3jKK0_WORocnUr9HVpTs-fyUO8Pn5YwTlI5DU-0mqKHmlDnpWGAAs6Sk3TQ5vasTw8bM2HNxgyE1z8LCDXtXm93L7BfUozCzl1fekSLq5L7hmSTIegrQX82pDOtIR9C2hiScvYj8merdH9NluP-ztd5PM4zCY_dcp7O0-Gcxvw1yeJZulzMS5vm6XK5uDuOo_I6lhRzuHy075wCKjJYQUXCYKKHZF1cURV6qxSYsmmFYpV4sP7iusGeqkuL4ZfRCdVG7GvlDQwH6KA9N5WEwvI5APQ_pP8AAuHlfg)
 
-1. **Bond Issuance**: Users can deposit diesel tokens to mint orbital bonds with the amount and terms specified by the collection parameters.
+```mermaid
+graph TD
+    Client[Client] --> Dispatch[MessageDispatch]
+    Dispatch --> Contract[MintableAlkane]
+    Contract --> Storage[Storage Layer]
+    Contract --> Security[Security Layer]
+    Contract --> Interface[Interface Layer]
+    Interface --> MintableToken[MintableToken Trait]
+    Security --> InitGuard[Initialization Guard]
+    Security --> TxValidation[Transaction Validation]
+    Security --> CapEnforcement[Cap Enforcement]
+    Security --> OverflowProtection[Overflow Protection]
+    Storage --> StoragePaths[Storage Paths]
+    Storage --> Serialization[Serialization]
+```
 
-2. **Bond Redemption**: Bond holders can redeem their bonds after maturity by presenting the orbital token itself, without requiring user address verification.
+### Component Descriptions
 
-3. **Factory Pattern**: Each new bond is a completely new collection issuance from the factory, ensuring isolation and independence.
+**Client Layer**: External clients that interact with the contract through opcodes
 
-4. **Context-Based Authentication**: Authentication is performed based on the orbital token itself, making user addresses irrelevant to the authentication process.
+**MessageDispatch**: Routes opcodes to appropriate handler functions, manages parameter serialization
 
-5. **Interest Management**: Bonds accrue interest over time until maturity, with configurable rates per collection.
+**MintableAlkane**: Core contract implementation that handles token operations
 
-6. **Collection Management**: Ability to create, activate, deactivate, and manage multiple bond collections from a single factory.
+**Storage Layer**: Manages persistent state using storage pointers
 
-## Project Goals
+**Security Layer**: Implements security patterns for contract protection
 
-1. **Simplicity**: Create a clean, understandable bond system that doesn't require complex user identification.
+**Interface Layer**: Defines standardized interfaces for contract interaction
 
-2. **Security**: Implement strong security through the orbital token model, where possession of the token constitutes ownership.
+## File Structure
 
-3. **Flexibility**: Support multiple independent bond collections with different parameters.
+```
+bitcoin-smart-contract/
+├── Cargo.toml               # Project dependencies
+├── build.rs                 # Build script for WASM compilation
+├── src/
+│   ├── lib.rs               # Main contract implementation with MessageDispatch
+│   ├── constants.rs         # Constants for opcodes and storage paths
+│   └── factory.rs           # Factory trait implementation
+├── tests/
+│   ├── integration_test.rs  # Integration tests
+│   └── security_test.rs     # Security-focused tests
+└── scripts/
+    ├── wasm-build.sh        # Build script for WebAssembly
+    └── deploy.js            # Deployment script
+```
 
-4. **Performance**: Optimize for gas efficiency and computational performance.
+## Development Workflow
 
-5. **Testability**: Implement comprehensive testing to ensure the system works as expected under all conditions.
+### 1. Setup Development Environment
 
-## Critical Principles
+```bash
+# Install Rust and WebAssembly target
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup target add wasm32-unknown-unknown
 
-### Orbitals ARE Bonds
+# Install wasm-opt
+npm install -g wasm-opt
 
-**CRITICAL PRINCIPLE**: The orbital token IS the bond, not just a reference to it. This fundamentally changes how we model and interact with bonds, as there is no separate "bond" entity that needs to be linked to an orbital token - the orbital token itself contains all the bond properties and behaviors.
+# Clone the repository
+git clone https://github.com/example/bitcoin-smart-contract.git
+cd bitcoin-smart-contract
+```
 
-### Address-Free Authentication
+### 2. Implement Contract Logic
 
-**CRITICAL PRINCIPLE**: User addresses should never be considered in the authentication flow. The presence of the orbital token in the transaction context is the only authentication mechanism required. This strengthens the system by removing user identity dependencies.
+```rust
+// Core implementation in lib.rs
+#[derive(MessageDispatch)]
+enum MintableAlkaneMessage {
+    #[opcode(0)]
+    Initialize { 
+        units: u8, 
+        value_per_mint: u128,
+        cap: u128, 
+        name: String, 
+        symbol: String 
+    },
+    
+    // Add additional operations...
+}
 
-### Factory Independence
+// Implement handlers
+fn handle_initialize(
+    &mut self, 
+    units: u8, 
+    value_per_mint: u128,
+    cap: u128, 
+    name: String, 
+    symbol: String
+) -> Result<(), &'static str> {
+    // Implementation...
+}
+```
 
-**CRITICAL PRINCIPLE**: Each bond collection created by the factory should be completely independent, with its own state and parameters. This ensures isolation and prevents issues in one collection from affecting others.
+### 3. Build for WebAssembly
 
-## Success Criteria
+```bash
+# Build for WebAssembly
+./scripts/wasm-build.sh
+```
 
-1. **Functional Completeness**: All specified features are implemented and working correctly.
+### 4. Test Contract
 
-2. **Test Coverage**: Comprehensive test coverage across all components and scenarios.
+```bash
+# Run unit tests
+cargo test
 
-3. **Security Verification**: Security audits pass and the system is resistant to common attack vectors.
+# Run integration tests
+cargo test --test integration_test
+```
 
-4. **Performance Optimization**: Efficient gas usage and computational performance.
+### 5. Deploy and Initialize
 
-5. **Documentation**: Complete and accurate documentation of the system's functionality and API.
+```bash
+# Deploy the contract
+node scripts/deploy.js
 
-## Security Architecture
+# Initialize the contract
+node scripts/initialize.js \
+  --name "Example Token" \
+  --symbol "EXT" \
+  --units 18 \
+  --value-per-mint 1000 \
+  --cap 1000000
+```
 
-### "Fort Knox" Security Principles
+## Getting Started Guide
 
-The project is designed with "Fort Knox" level security based on these principles:
+### Step 1: Create a New Project
 
-1. **Orbital-IS-Bond Model**: The orbital token itself IS the bond, creating a possession-based authentication system that provides strong security guarantees through cryptographic proof of ownership.
+```bash
+# Create project directory
+mkdir my-bitcoin-token
+cd my-bitcoin-token
 
-2. **Transaction Context-Based Verification**: Secure redemption requires cryptographic proof of token ownership through transaction context validation.
+# Initialize Cargo project
+cargo init --lib
+```
 
-3. **Checks-Effects-Interactions Pattern**: State changes happen before external interactions to prevent re-entrancy attacks.
+### Step 2: Configure Dependencies
 
-4. **Collection Isolation**: Cross-collection operations are strictly prohibited to prevent collection interference.
+Add to Cargo.toml:
 
-5. **Mathematical Safety**: All financial calculations use u128 intermediates and boundary checks to prevent overflow/underflow.
+```toml
+[package]
+name = "my-bitcoin-token"
+version = "0.1.0"
+edition = "2021"
 
-6. **Single Redemption Pathway**: Unified secure redemption method with consistent validation provides a single source of truth for security checks.
+[lib]
+crate-type = ["cdylib", "rlib"]
 
-### Security Implementation 
+[dependencies]
+alkanes-support = "0.1.0"
+alkanes-runtime = "0.1.0"
+metashrew-support = "0.1.0"
+protorune-support = "0.1.0"
+alkane-factory-support = "0.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
-The implementation includes these key security elements:
+[features]
+default = []
+blockchain = ["alkanes-runtime/blockchain", "alkanes-support/blockchain"]
+```
 
-1. **Token Validation and Authentication**: All redemption operations verify token ownership via transaction context.
+### Step 3: Implement Core Contract
 
-2. **State Protection**: Bond status is updated to "Redeemed" before calculating redemption amounts, and token mappings are removed immediately after redemption.
+Create lib.rs:
 
-3. **Mathematical Safeguards**: Overflow protection and saturation logic prevent integer overflow/underflow in financial calculations.
+```rust
+use alkanes_support::*;
+use std::collections::HashSet;
+use serde_json;
 
-4. **Error Handling Security**: Error messages are designed to not leak sensitive information about system state.
+// Define message structure
+#[derive(MessageDispatch)]
+enum MyTokenMessage {
+    #[opcode(0)]
+    Initialize { 
+        units: u8, 
+        value_per_mint: u128,
+        cap: u128, 
+        name: String, 
+        symbol: String 
+    },
+    
+    // Additional operations...
+}
 
-### Security Verification
+// Implement contract
+pub struct MyToken {}
 
-The project includes a comprehensive security verification framework:
+impl Default for MyToken {
+    fn default() -> Self {
+        Self {}
+    }
+}
 
-1. **Security Audit Process**: Structured methodology for conducting thorough security assessments.
+// Implement handlers
+impl MyToken {
+    fn handle_initialize(
+        &mut self, 
+        units: u8, 
+        value_per_mint: u128,
+        cap: u128, 
+        name: String, 
+        symbol: String
+    ) -> Result<(), &'static str> {
+        // Implementation...
+        Ok(())
+    }
+    
+    // Additional handlers...
+}
+```
 
-2. **Penetration Testing**: Simulations of sophisticated attacks including token forgery, double redemption, and cross-collection attacks.
+### Step 4: Implement Security Patterns
 
-3. **Property-Based Testing**: Systematic exploration of edge cases to verify system invariants across many inputs.
+Add to lib.rs:
 
-4. **Formal Verification**: Mathematical proofs of financial operation correctness.
+```rust
+impl MyToken {
+    fn observe_initialization(&self) -> Result<(), &'static str> {
+        if storage::get_bool("/initialized").unwrap_or(false) {
+            return Err("Already initialized");
+        }
+        storage::set_bool("/initialized", true);
+        Ok(())
+    }
+    
+    fn validate_and_track_transaction(&self, tx_hash: &str) -> Result<(), &'static str> {
+        // Implementation...
+        Ok(())
+    }
+    
+    // Additional security patterns...
+}
+```
 
-5. **Bitcoin-specific Security**: Special focus on transaction context verification and block-based vulnerabilities.
+### Step 5: Implement Storage Patterns
+
+Add to lib.rs:
+
+```rust
+impl MyToken {
+    fn name(&self) -> String {
+        storage::get_string("/name").unwrap_or_default()
+    }
+    
+    fn symbol(&self) -> String {
+        storage::get_string("/symbol").unwrap_or_default()
+    }
+    
+    // Additional storage patterns...
+}
+```
+
+### Step 6: Build and Deploy
+
+Create wasm-build.sh:
+
+```bash
+#!/bin/bash
+RUSTFLAGS='-C link-arg=-s' cargo build --target wasm32-unknown-unknown --release --features "blockchain"
+wasm-opt -Oz -o my_token_opt.wasm target/wasm32-unknown-unknown/release/my_bitcoin_token.wasm
+cp my_token_opt.wasm my_token.wasm
+```
+
+## Key Resources
+
+- [Alkanes Framework Documentation](https://example.com/alkanes-docs) (example link)
+- [MessageDispatch Macro Guide](https://example.com/message-dispatch) (example link)
+- [Bitcoin WebAssembly Best Practices](https://example.com/wasm-best-practices) (example link)
+- [Security Patterns for Bitcoin Contracts](https://example.com/security-patterns) (example link)
+
+## Contact and Community
+
+- GitHub Repository: [github.com/example/bitcoin-smart-contract](https://github.com/example/bitcoin-smart-contract) (example link)
+- Discord: [discord.gg/bitcoin-smart-contracts](https://discord.gg/bitcoin-smart-contracts) (example link)
+- Documentation: [docs.bitcoin-smart-contracts.org](https://docs.bitcoin-smart-contracts.org) (example link)
+- Issues and Feature Requests: [github.com/example/bitcoin-smart-contract/issues](https://github.com/example/bitcoin-smart-contract/issues) (example link)
