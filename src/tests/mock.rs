@@ -44,21 +44,66 @@ pub mod storage {
         pub fn get_value<T: Copy + Default>(&self) -> T {
             let storage = STORAGE.lock().unwrap();
             
+            // Initialize with default value
+            let mut result = T::default();
+            
             if let Some(bytes) = storage.get(&self.path) {
-                if std::mem::size_of::<T>() <= bytes.len() {
-                    unsafe {
-                        let mut value = std::mem::MaybeUninit::<T>::uninit();
-                        std::ptr::copy_nonoverlapping(
-                            bytes.as_ptr(),
-                            value.as_mut_ptr() as *mut u8,
-                            std::mem::size_of::<T>(),
-                        );
-                        return value.assume_init();
+                // We need to make sure we have enough bytes to read
+                if bytes.len() >= std::mem::size_of::<T>() {
+                    // Create a properly sized buffer
+                    let mut buffer = vec![0u8; std::mem::size_of::<T>()];
+                    buffer.copy_from_slice(&bytes[0..std::mem::size_of::<T>()]);
+                    
+                    // Use from_le_bytes for common numeric types
+                    if std::mem::size_of::<T>() == 16 {
+                        // This is likely a u128
+                        let value = u128::from_le_bytes(buffer.try_into().unwrap());
+                        // Copy the bytes to the result
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                &value as *const u128 as *const u8,
+                                &mut result as *mut T as *mut u8,
+                                std::mem::size_of::<T>(),
+                            );
+                        }
+                    } else if std::mem::size_of::<T>() == 8 {
+                        // This is likely a u64
+                        let value = u64::from_le_bytes(buffer.try_into().unwrap());
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                &value as *const u64 as *const u8,
+                                &mut result as *mut T as *mut u8,
+                                std::mem::size_of::<T>(),
+                            );
+                        }
+                    } else if std::mem::size_of::<T>() == 4 {
+                        // This is likely a u32
+                        let value = u32::from_le_bytes(buffer.try_into().unwrap());
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                &value as *const u32 as *const u8,
+                                &mut result as *mut T as *mut u8,
+                                std::mem::size_of::<T>(),
+                            );
+                        }
+                    } else if std::mem::size_of::<T>() == 2 {
+                        // This is likely a u16
+                        let value = u16::from_le_bytes(buffer.try_into().unwrap());
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                &value as *const u16 as *const u8,
+                                &mut result as *mut T as *mut u8,
+                                std::mem::size_of::<T>(),
+                            );
+                        }
+                    } else if std::mem::size_of::<T>() == 1 {
+                        // This is likely a u8 or bool
+                        result = unsafe { std::mem::transmute_copy(&bytes[0]) };
                     }
                 }
             }
             
-            T::default()
+            result
         }
         
         pub fn set_value<T: Copy>(&self, value: T) {

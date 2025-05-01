@@ -7,7 +7,7 @@
             "path": "../free-mint"
         },
         {
-            "path": "../alkanes"
+            "path": "../alkanes-rs"
         }
     ]
 }
