@@ -1,57 +1,44 @@
-//! SLOP - Smart Contract Launchpad for Orbital Bonds
-//!
-//! This library implements a launchpad for creating and managing bond collections
-//! where bonds are represented as orbital tokens. The orbital tokens themselves ARE the bonds,
-//! functioning as both the financial instrument and the authentication mechanism.
-//!
-//! ## Key Components
-//!
-//! * **LaunchpadFactory**: Creates and manages bond collections
-//! * **OrbitalBondCollection**: Manages a collection of orbital bonds
-//! * **Bond**: Core model representing bond financial attributes
-//!
-//! ## Usage Overview
-//!
-//! 1. Create a LaunchpadFactory
-//! 2. Create one or more bond collections with desired parameters
-//! 3. Mint orbital tokens (which ARE bonds) for users who deposit funds
-//! 4. When bonds mature, owners redeem them by presenting their orbital tokens
-//!
-//! ## Authentication
-//!
-//! This system leverages orbitals as both bonds and authentication tokens.
-//! When a user mints a bond, they receive an orbital token that represents
-//! and IS the bond itself. To redeem the bond at maturity, they simply present
-//! the orbital token, which proves ownership without requiring user addresses.
+extern crate alkanes_runtime;
+extern crate serde;
+extern crate serde_json;
+extern crate anyhow;
 
-// Re-export key modules
 pub mod contracts;
 pub mod models;
 pub mod utils;
+pub mod tests;
+pub mod interfaces;
+pub mod helpers;
 
-// Mock implementation of alkanes_support
-pub mod alkanes_support {
-    pub mod parcel {
-        use serde::{Deserialize, Serialize};
-        
-        #[derive(Debug, Clone, Serialize, Deserialize)]
-        pub struct AlkaneTransfer {
-            pub id: Vec<u8>,
-            pub value: u128,
-            pub from: Option<String>,
-            pub to: Option<String>,
-        }
-    }
-    
-    pub mod context {
-        pub trait Context {
-            fn get_current_block_height(&self) -> u64;
-        }
-    }
+// Re-export key types that are commonly used
+pub use alkanes_runtime::message::MessageDispatch;
+pub use alkanes_support::context::Context;
+pub use alkanes_support::parcel::AlkaneTransferParcel;
+pub use alkanes_runtime::runtime::AlkaneResponder;
+pub use alkanes_support::response::CallResponse;
+
+pub use anyhow::{
+    Result,
+    anyhow,
+};
+
+// Re-export helpers module
+pub use helpers::*;
+
+// Re-export interfaces for binary wrappers
+pub use interfaces::bond_curve::BondCurveWrapper;
+pub use interfaces::launchpad_factory::LaunchpadFactoryWrapper;
+pub use interfaces::orbital_bond::OrbitalBondWrapper;
+
+// Re-export constructor functions for WebAssembly exports
+pub fn new_bond_curve() -> BondCurveWrapper {
+    BondCurveWrapper::new()
 }
-#[cfg(test)]
-mod tests;
 
-// Re-export important types
-pub use contracts::{LaunchpadFactory, OrbitalBondCollection};
-pub use models::{Bond, BondStatus};
+pub fn new_launchpad_factory() -> LaunchpadFactoryWrapper {
+    LaunchpadFactoryWrapper::new()
+}
+
+pub fn new_orbital_bond_collection() -> OrbitalBondWrapper {
+    OrbitalBondWrapper::new()
+}

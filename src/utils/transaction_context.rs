@@ -1,68 +1,64 @@
+//! Transaction Context for Security
+//!
+//! This module provides utilities for working with transaction contexts
+//! in both blockchain and standalone environments.
+
 use anyhow::Result;
 
-/// Extension trait for transaction contexts that provides token identification
-///
-/// This trait enables secure bond redemption by allowing verification that
-/// the transaction context contains a specific orbital token, thus proving
-/// ownership of that token.
+/// Transaction context extension trait
+/// 
+/// This trait defines methods that transaction context implementations
+/// should provide for identity and security verification.
 pub trait TransactionContextExt {
-    /// Retrieves the orbital token ID from the transaction context
-    ///
-    /// # Returns
-    /// * `Ok(String)` - The orbital token ID if found in the context
-    /// * `Err` - If no orbital token exists in the context
+    /// Get the caller ID for the current transaction
+    fn get_caller_id(&self) -> &str;
+    
+    /// Verify a signature from the given address
+    fn verify_signature(&self, address: &str) -> bool;
+    
+    /// Get the orbital token ID associated with the transaction
     fn orbital_token_id(&self) -> Result<String>;
 }
 
-#[cfg(test)]
-pub mod test_impl {
-    use super::*;
-    use std::cell::RefCell;
-    
-    /// Mock implementation of transaction context for testing
-    #[derive(Debug, Default)]
-    pub struct MockTransactionContext {
-        pub orbital_token_id: Option<String>,
-        pub transaction_id: Option<String>,
-        pub logs: RefCell<Vec<String>>,
-    }
-    
-    impl MockTransactionContext {
-        /// Creates a new empty mock transaction context
-        pub fn new() -> Self {
-            Self {
-                orbital_token_id: None,
-                transaction_id: None,
-                logs: RefCell::new(Vec::new()),
-            }
-        }
-        
-        /// Sets the orbital token ID for this context and returns self for chaining
-        pub fn with_orbital_token(mut self, token_id: impl Into<String>) -> Self {
-            self.orbital_token_id = Some(token_id.into());
-            self
-        }
-        
-        /// Sets the transaction ID for this context and returns self for chaining
-        pub fn with_transaction_id(mut self, tx_id: impl Into<String>) -> Self {
-            self.transaction_id = Some(tx_id.into());
-            self
-        }
-        
-        /// Logs a message for debugging purposes
-        pub fn log(&self, message: &str) {
-            self.logs.borrow_mut().push(message.to_string());
-        }
-        
-        /// Retrieves all logs recorded by this context
-        pub fn get_logs(&self) -> Vec<String> {
-            self.logs.borrow().clone()
+/// A mock transaction context for testing
+pub struct MockTransactionContext {
+    caller_id: String,
+}
+
+impl MockTransactionContext {
+    /// Create a new mock transaction context with default values
+    pub fn new() -> Self {
+        Self {
+            caller_id: "default_caller".to_string(),
         }
     }
     
-    impl TransactionContextExt for MockTransactionContext {
-        fn orbital_token_id(&self) -> Result<String> {
-            self.orbital_token_id.clone().ok_or_else(|| anyhow::anyhow!("No orbital token ID in context"))
+    /// Create a new mock transaction context with a specific caller ID
+    pub fn new_with_caller(caller_id: &str) -> Self {
+        Self {
+            caller_id: caller_id.to_string(),
         }
+    }
+
+    /// Set the caller ID for this transaction context
+    pub fn with_caller(mut self, caller_id: &str) -> Self {
+        self.caller_id = caller_id.to_string();
+        self
+    }
+}
+
+impl TransactionContextExt for MockTransactionContext {
+    fn get_caller_id(&self) -> &str {
+        &self.caller_id
+    }
+    
+    fn verify_signature(&self, _address: &str) -> bool {
+        // Always return true in test mode
+        true
+    }
+    
+    fn orbital_token_id(&self) -> Result<String> {
+        // Return a mock token ID
+        Ok("mock-token-id".to_string())
     }
 }

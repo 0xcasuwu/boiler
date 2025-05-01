@@ -254,8 +254,23 @@ pub mod blockchain {
     impl BlockContext for BlockchainContext {
         fn get_current_block_height(&self) -> u64 {
             // In real implementation, this would get block height from blockchain
-            // Using the runtime context from alkanes_runtime
-            crate::blockchain::alkanes_runtime::get_block_height()
+            #[cfg(feature = "blockchain")]
+            {
+                // Get current block height using system time for now - this should be
+                // replaced with actual blockchain API call in production
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() / 10
+            }
+            #[cfg(not(feature = "blockchain"))]
+            {
+                // Fallback to system time based value when not in blockchain context
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() / 10
+            }
         }
     }
 }

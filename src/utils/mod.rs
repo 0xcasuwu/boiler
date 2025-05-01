@@ -1,8 +1,15 @@
-// Block context utilities for handling blockchain and standalone environments
-pub mod block_context;
-pub mod transaction_context;
-pub mod formal_verification;
+//! Utility modules for the SLOP system
+//!
+//! This module provides common utilities used across the SLOP system.
 
-// Re-export commonly used utilities
-pub use self::block_context::{BlockContext, get_default_context, StandaloneBlockContext};
-pub use self::formal_verification::{FinancialInvariant, PreCondition, PostCondition, FinancialVerificationHarness, VerificationError};
+// Block context implementations for both blockchain and standalone
+pub mod block_context;
+pub use block_context::{BlockContext, StandaloneBlockContext}; 
+pub use block_context::blockchain::BlockchainContext;
+
+// Transaction context for security
+pub mod transaction_context;
+pub use transaction_context::{TransactionContextExt, MockTransactionContext};
+
+// Formal verification
+pub mod formal_verification;
