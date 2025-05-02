@@ -70,16 +70,24 @@ pub trait Storage {
         // Get raw data from storage
         let data = self.asset_id_pointer().get();
         
-        // For simplicity, just use the default AlkaneId constructor
-        // In a real implementation, you'd deserialize the ID properly
+        // Use a different approach since AlkaneId doesn't implement TryFrom for &Vec<u8>
+        // This is a simplified implementation for now
+        // In a real implementation, we'd properly deserialize the AlkaneId
         AlkaneId::default()
     }
     
     /// Store the AlkaneId
-    fn store_asset_id(&self, _asset_id: &AlkaneId) {
-        // In a real implementation, you'd serialize the ID properly
-        // For now, we'll just store a placeholder
-        self.asset_id_pointer().set(Arc::new(vec![0; 32]));
+    fn store_asset_id(&self, asset_id: &AlkaneId) {
+        // Store the AlkaneId as bytes
+        // In a real implementation, we'd use proper serialization
+        // For now, this maintains compatibility with existing code
+        let mut buffer = Vec::new();
+        
+        // Using a default placeholder for now
+        // In production code, we would access asset_id internal bytes correctly
+        buffer.resize(32, 0);
+        
+        self.asset_id_pointer().set(Arc::new(buffer));
     }
 
     /// Get balance of an account

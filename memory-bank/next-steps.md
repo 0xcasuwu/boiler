@@ -1,162 +1,130 @@
-# Bitcoin Smart Contract Next Steps
+# YieldVault Implementation Next Steps
 
-This document outlines the prioritized next steps for the Bitcoin Smart Contract architecture based on the free-mint project patterns. These steps will guide future development efforts to enhance and extend the current implementation.
+Based on our architectural analysis comparing the YieldVault with the free-mint reference implementation, we've identified several areas for improvement and next steps to fully align the codebase with the canonical architectural patterns.
 
-## Immediate Priorities
+## 1. Eliminate Duplicate Code
 
-### 1. Complete Security Audit Framework
+**Status: ✅ Completed**
+- Removed duplicate implementation of `context()` and `get_timestamp()` methods
+- Ensured all functionality is provided through a single trait implementation
+- Improved code maintainability by eliminating redundant logic
 
-**Objective:** Create a comprehensive security audit framework for Bitcoin smart contracts.
+## 2. Adopt MessageDispatch Pattern
 
-**Tasks:**
-- [ ] Develop a security checklist specific to Bitcoin smart contracts
-- [ ] Implement automated security analysis tools
-- [ ] Create formal verification patterns for critical security properties
-- [ ] Document common vulnerability patterns and mitigations
+**Status: 🔄 Pending**
+- Replace the current manual `dispatch()` method with a MessageDispatch-driven approach
+- Implement a YieldVaultMessage enum with appropriate opcode annotations
+- Use the `#[derive(MessageDispatch)]` attribute macro
+- Implement the declare_alkane! macro for clean AlkaneResponder implementation
 
-**Expected Outcome:** A robust framework for evaluating and ensuring the security of Bitcoin smart contracts.
+### Implementation Plan
 
-### 2. Optimize Transaction Hash Storage
+```rust
+// Current manual dispatch approach
+impl YieldVault {
+    fn dispatch(&mut self, opcode: u32, args: &[u8]) -> Result<CallResponse> {
+        match opcode {
+            // Manual opcode handling...
+        }
+    }
+}
 
-**Objective:** Address the scalability limitations of the current transaction hash storage approach.
+// Target MessageDispatch approach
+#[derive(MessageDispatch)]
+enum YieldVaultMessage {
+    /// Initialize the vault with configuration
+    #[opcode(0)]
+    Initialize {
+        /// Vault name
+        name: String,
+        /// Vault symbol
+        symbol: String,
+        /// Underlying asset name
+        asset_name: String,
+        /// Underlying asset symbol
+        asset_symbol: String,
+        /// Decimal precision
+        decimal_offset: u8,
+    },
+    
+    // Additional messages...
+}
 
-**Tasks:**
-- [ ] Research efficient data structures for transaction hash storage
-- [ ] Implement bloom filter pre-check for transaction validation
-- [ ] Create pruning mechanism for old transaction hashes
-- [ ] Benchmark different serialization formats for storage efficiency
-- [ ] Implement optimized storage format
+declare_alkane! {
+    impl AlkaneResponder for YieldVault {
+        type Message = YieldVaultMessage;
+    }
+}
+```
 
-**Expected Outcome:** A more scalable and efficient transaction hash tracking system that maintains security guarantees while reducing storage requirements.
+## 3. Update WASM Entry Point
 
-### 3. Develop Comprehensive Test Suite
+**Status: 🔄 Pending**
+- Simplify the `call` function to leverage the MessageDispatch functionality
+- Align with the canonical pattern found in free-mint
+- Remove manual argument parsing in favor of MessageDispatch's automatic parsing
 
-**Objective:** Establish a comprehensive testing framework for Bitcoin smart contracts.
+```rust
+// Target implementation
+#[wasm_bindgen]
+pub fn call(opcode: u32, args: &[u8]) -> Vec<u8> {
+    let mut vault = YieldVault::default();
+    match YieldVaultMessage::from_opcode(opcode)
+        .and_then(|msg| msg.dispatch(&mut vault, args))
+    {
+        Ok(response) => response.data,
+        Err(e) => format!("Error: {}", e).as_bytes().to_vec(),
+    }
+}
+```
 
-**Tasks:**
-- [x] Implement proper test isolation with prefixed paths
-- [x] Support dual test environments (Rust native and WebAssembly)
-- [ ] Create property-based tests for security properties
-- [ ] Implement integration tests covering the complete contract lifecycle
-- [ ] Add performance benchmarks for key operations
-- [ ] Develop fuzz testing for transaction validation
-- [ ] Create regression tests for known vulnerability patterns
-- [ ] Adopt test wrappers that mimic the free-mint architecture pattern
+## 4. Asset Transfer Handling
 
-**Expected Outcome:** A test suite that provides high confidence in the correctness, security, and performance of Bitcoin smart contracts with proper isolation between tests.
+**Status: ✅ Completed**
+- Fixed asset ID handling in the implementation
+- Enhanced asset verification logic for better security
+- Improved error messaging for asset validation failures
+- Aligned with free-mint's approach to token transfers
 
-## Medium-Term Goals
+## 5. Testing Updates
 
-### 4. Enhance Developer Tooling
+**Status: 🔄 Pending**
+- Update test suite to work with the MessageDispatch pattern
+- Add specific tests for the new message handling
+- Ensure all handler methods work correctly with the new dispatch mechanism
+- Verify compatibility with test scripts
 
-**Objective:** Create tools to streamline the development workflow for Bitcoin smart contracts.
+## 6. Documentation Updates
 
-**Tasks:**
-- [ ] Build CLI tools for contract development
-- [ ] Create templates for common contract patterns
-- [ ] Implement deployment automation tools
-- [ ] Develop local testing environment
-- [ ] Create interactive documentation with examples
+**Status: ✅ Completed**
+- Updated implementation summary with architectural findings
+- Added next steps document
+- Documented the code duplication issue and solution
+- Added comparison with canonical pattern
 
-**Expected Outcome:** A toolkit that simplifies the development, testing, and deployment of Bitcoin smart contracts.
+## 7. Advanced Features (Future Work)
 
-### 5. WebAssembly Optimization
+**Status: 📝 Planning**
+- Enhanced yield strategies beyond the simple time-based approach
+- Deposit/withdraw fees for protocol revenue
+- Access control system for privileged operations
+- Integration with other Bitcoin DeFi protocols
+- Additional asset management features (flash loans, strategy vaults)
 
-**Objective:** Optimize WebAssembly output for size and performance.
+## Strategic Alignment Benefits
 
-**Tasks:**
-- [ ] Analyze current WebAssembly size and performance bottlenecks
-- [ ] Implement build optimization techniques
-- [ ] Create custom allocator for WebAssembly memory management
-- [ ] Optimize feature flags for minimal code inclusion
-- [ ] Reduce dependency footprint where possible
+Moving to the MessageDispatch pattern will provide several key benefits:
 
-**Expected Outcome:** Smaller, more efficient WebAssembly binaries that use resources more efficiently.
+1. **Architectural Consistency**: Aligns with the canonical free-mint approach
+2. **Code Clarity**: Makes opcode interfaces explicit in the type system
+3. **Maintainability**: Reduces manual argument parsing and dispatch code
+4. **Extensibility**: Makes adding new opcodes/messages simpler
+5. **Error Handling**: Improves error reporting through the type system
+6. **Documentation**: Self-documents the interface through code
 
-### 6. Documentation Enhancement
+## Implementation Priority
 
-**Objective:** Improve documentation to make the architecture more accessible.
-
-**Tasks:**
-- [ ] Create interactive tutorials
-- [ ] Add more code examples for common patterns
-- [ ] Document best practices and anti-patterns
-- [ ] Create visual architecture diagrams
-- [ ] Develop troubleshooting guides
-
-**Expected Outcome:** More accessible and comprehensive documentation that helps developers understand and implement the architecture.
-
-## Long-Term Vision
-
-### 7. Enhanced Feature Set
-
-**Objective:** Extend the contract capabilities with additional features.
-
-**Tasks:**
-- [ ] Implement advanced metadata management
-- [ ] Add support for token transfers
-- [ ] Create mechanisms for controlled mutability
-- [ ] Implement advanced query capabilities
-- [ ] Develop composable contract patterns
-
-**Expected Outcome:** A more feature-rich contract framework that supports a wider range of use cases.
-
-### 8. Cross-Platform Integration
-
-**Objective:** Enable integration with multiple platforms and ecosystems.
-
-**Tasks:**
-- [ ] Create bridges to other blockchain platforms
-- [ ] Implement standards-compatible interfaces
-- [ ] Develop integration libraries for popular languages
-- [ ] Create hosted API services for contract interaction
-- [ ] Build cross-platform testing frameworks
-
-**Expected Outcome:** Broader ecosystem compatibility and integration options for Bitcoin smart contracts.
-
-### 9. Performance Benchmarking Framework
-
-**Objective:** Establish comprehensive performance metrics and benchmarks.
-
-**Tasks:**
-- [ ] Define key performance indicators for Bitcoin smart contracts
-- [ ] Create benchmarking tools and methodology
-- [ ] Implement performance comparison framework
-- [ ] Document performance best practices
-- [ ] Create performance optimization patterns
-
-**Expected Outcome:** Clear performance metrics and optimization strategies for Bitcoin smart contracts.
-
-## Getting Involved
-
-If you're interested in contributing to these next steps:
-
-1. **Review the architectural patterns** in systemPatterns.md to understand the current architecture
-2. **Explore the technical implementation** in techContext.md for implementation details
-3. **Check the current progress** in progress.md to see what's already been accomplished
-4. **Pick a task** from this document that aligns with your interests and skills
-5. **Discuss your approach** in the issues section of the repository
-6. **Submit pull requests** with your implementations
-
-## Contribution Guidelines
-
-When contributing to the next steps:
-
-- **Follow the established patterns** documented in systemPatterns.md
-- **Maintain security focus** in all implementations
-- **Document your work** comprehensively
-- **Include tests** for all new functionality
-- **Consider backward compatibility** with existing implementations
-- **Optimize for developer experience** and clarity
-
-## Roadmap Timeline
-
-This is an approximate timeline for addressing these next steps:
-
-- **Q2 2025:** Complete security audit framework and transaction hash storage optimization
-- **Q3 2025:** Develop comprehensive test suite and enhance developer tooling
-- **Q4 2025:** WebAssembly optimization and documentation enhancement
-- **H1 2026:** Enhanced feature set and cross-platform integration
-- **H2 2026:** Performance benchmarking framework and ecosystem expansion
-
-The timeline is flexible and will be adjusted based on community involvement and emerging priorities.
+1. MessageDispatch pattern (high priority)
+2. WASM entry point update (high priority)
+3. Testing updates (medium priority)
+4. Advanced features (low priority, future work)

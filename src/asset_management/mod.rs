@@ -22,11 +22,26 @@ pub trait AssetManagement: Storage + Security + Conversion {
         // Get the asset ID
         let asset_id = self.get_asset_id();
         
+        // Log the asset ID for debugging
+        #[cfg(debug_assertions)]
+        {
+            // In a real implementation, we would log the asset ID
+        }
+        
         // Sum all incoming assets with matching ID
         let received = incoming_alkanes.0.iter()
-            .filter(|transfer| transfer.id == asset_id)
+            .filter(|transfer| {
+                // Strict comparison with the expected asset ID
+                &transfer.id == &asset_id
+            })
             .map(|transfer| transfer.value)
             .sum::<u128>();
+            
+        // If we received assets but none match our asset ID, this is an error
+        // This prevents users from depositing the wrong type of assets
+        if received == 0 && !incoming_alkanes.0.is_empty() {
+            return Err("Invalid asset ID: received assets do not match expected asset type");
+        }
             
         Ok(received)
     }

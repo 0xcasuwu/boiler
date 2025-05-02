@@ -83,25 +83,7 @@ impl Default for YieldVault {
 impl Storage for YieldVault {}
 impl Security for YieldVault {}
 
-// Implement the remaining required methods for AssetManagement trait
-impl YieldVault {
-    /// Get the current context
-    fn context(&self) -> Result<Context> {
-        let mut cursor = Cursor::new(CONTEXT.transaction());
-        Context::parse(&mut cursor)
-            .map_err(|_| anyhow!("Failed to parse context"))
-    }
-    
-    /// Get the current timestamp
-    fn get_timestamp(&self) -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    }
-}
-
-// Now implement the AssetManagement trait
+// Implement the AssetManagement trait
 impl AssetManagement for YieldVault {
     fn context(&self) -> Result<Context> {
         let mut cursor = Cursor::new(CONTEXT.transaction());
