@@ -1,9 +1,9 @@
 use alkanes_runtime::storage::StoragePointer;
-use metashrew_support::index_pointer::KeyValuePointer; // Add this import
+use metashrew_support::index_pointer::KeyValuePointer;
 use crate::storage::Storage;
-use std::collections::HashSet;
+// No longer needed: use std::collections::HashSet;
+// No longer needed: use serde_json;
 use std::sync::Arc;
-use serde_json;
 
 /// Security trait for the YieldVault
 pub trait Security: Storage {
@@ -24,41 +24,28 @@ pub trait Security: Storage {
     }
     
     /// Validate and track a transaction hash to prevent replay attacks
+    /// This implementation is aligned with free-mint's approach
     fn validate_and_track_transaction(&self, tx_hash: &str) -> Result<(), &'static str> {
-        // Get the current set of transaction hashes
-        let json_data = self.tx_hashes_pointer().get();
-        
-        let tx_hashes: HashSet<String> = if json_data.len() == 0 {
-            HashSet::new()
-        } else {
-            // Convert bytes to string, return empty set if conversion fails
-            let json = match String::from_utf8(json_data.as_ref().to_vec()) {
-                Ok(s) => s,
-                Err(_) => return Err("Failed to parse transaction hashes"),
-            };
-            
-            // Parse JSON, return empty set if parsing fails
-            serde_json::from_str(&json).unwrap_or_else(|_| HashSet::new())
-        };
+        // Convert the string hash to bytes for storage
+        // In a real implementation, this would be a proper Txid object
+        let tx_bytes = tx_hash.as_bytes().to_vec();
         
         // Check if this transaction hash has been used
-        if tx_hashes.contains(tx_hash) {
+        // We're using the same pattern as free-mint: select the exact key and check its value
+        if self.tx_hashes_pointer()
+            .select(&tx_bytes)
+            .get_value::<u8>() == 1 {
             return Err("Transaction hash already used");
         }
         
-        // Add the transaction hash to the set
-        let mut new_tx_hashes = tx_hashes;
-        new_tx_hashes.insert(tx_hash.to_string());
-        
-        // Serialize to JSON, handle failures
-        let json = match serde_json::to_string(&new_tx_hashes) {
-            Ok(j) => j,
-            Err(_) => return Err("Failed to serialize transaction hashes"),
-        };
-        
-        // Store the serialized data
-        let bytes = json.as_bytes().to_vec();
-        self.tx_hashes_pointer().set(Arc::new(bytes));
+        // Mark this transaction hash as used with a binary flag (1)
+        // This directly aligns with free-mint's implementation:
+        // StoragePointer::from_keyword("/tx-hashes/")
+        //     .select(&txid.as_byte_array().to_vec())
+        //     .set_value::<u8>(0x01);
+        self.tx_hashes_pointer()
+            .select(&tx_bytes)
+            .set_value(1u8);
         
         Ok(())
     }
