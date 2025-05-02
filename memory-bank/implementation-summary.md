@@ -106,25 +106,33 @@ The ERC-4626 standard was adapted to fit the Bitcoin smart contract environment:
 
 ## Testing Strategy
 
-The implementation includes comprehensive tests:
+The implementation includes comprehensive tests with proper isolation techniques:
 
 1. **Initialization Tests**
    - Verifies proper initialization
    - Tests double-initialization protection
+   - Isolates each test with unique storage prefixes
 
 2. **Core Functionality Tests**
    - Deposit/withdrawal operations
    - Minting/redemption operations
    - Multiple user interactions
+   - Test wrapper for storage isolation
 
 3. **Security Tests**
    - Transaction replay protection
    - Authorization checks
+   - Proper error handling and propagation
 
 4. **Yield-Specific Tests**
    - Yield accrual over time
    - Share price changes due to yield
    - Partial withdrawals with yield
+
+5. **Dual Test Runner Support**
+   - Standard Rust test runner compatibility
+   - WebAssembly test runner compatibility
+   - Clean environment between tests
 
 ## Modular Architecture
 

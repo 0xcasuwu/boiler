@@ -34,13 +34,16 @@ This document outlines the prioritized next steps for the Bitcoin Smart Contract
 **Objective:** Establish a comprehensive testing framework for Bitcoin smart contracts.
 
 **Tasks:**
+- [x] Implement proper test isolation with prefixed paths
+- [x] Support dual test environments (Rust native and WebAssembly)
 - [ ] Create property-based tests for security properties
 - [ ] Implement integration tests covering the complete contract lifecycle
 - [ ] Add performance benchmarks for key operations
 - [ ] Develop fuzz testing for transaction validation
 - [ ] Create regression tests for known vulnerability patterns
+- [ ] Adopt test wrappers that mimic the free-mint architecture pattern
 
-**Expected Outcome:** A test suite that provides high confidence in the correctness, security, and performance of Bitcoin smart contracts.
+**Expected Outcome:** A test suite that provides high confidence in the correctness, security, and performance of Bitcoin smart contracts with proper isolation between tests.
 
 ## Medium-Term Goals
 

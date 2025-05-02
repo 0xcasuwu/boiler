@@ -409,7 +409,72 @@ This pattern ensures:
 
 ## Testing Patterns
 
-### 1. Component Testing Pattern
+### 1. Test Isolation Pattern
+
+WebAssembly tests require proper isolation since storage is effectively global. The prefixed path pattern ensures tests don't interfere with each other:
+
+```rust
+// A test wrapper for isolation
+struct TestVault {
+    prefix: String,
+}
+
+impl TestVault {
+    fn new(test_name: &str) -> Self {
+        Self {
+            prefix: format!("/test/{}", test_name),
+        }
+    }
+
+    fn get_prefixed_path(&self, key: &str) -> String {
+        format!("{}{}", self.prefix, key)
+    }
+    
+    // Storage access methods that use prefixed paths
+    fn name_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword(&self.get_prefixed_path("/name"))
+    }
+    
+    // Implement functionality using isolated storage paths
+}
+
+#[test]
+#[wasm_bindgen_test]
+fn test_initialization() {
+    // Each test gets its own isolated vault instance
+    let vault = TestVault::new("init_test");
+    
+    // Test uses isolated storage
+    assert_eq!(vault.name_pointer().get().len(), 0);
+}
+```
+
+This pattern ensures:
+- Each test has a completely isolated storage area
+- Tests can run in parallel without interference
+- Storage collisions are eliminated
+- More realistic simulation of production behavior
+
+### 2. Dual Test Runner Pattern
+
+Tests should support both standard Rust test runner and WebAssembly test runner:
+
+```rust
+// Supports both standard Rust tests and WASM tests
+#[test]                 // For standard Rust test runner
+#[wasm_bindgen_test]    // For WebAssembly test runner
+fn test_functionality() {
+    // Test code...
+}
+```
+
+This enables:
+- Local development with fast test cycles
+- WebAssembly validation for production behavior
+- CI/CD pipeline flexibility
+- Testing in multiple environments
+
+### 3. Component Testing Pattern
 
 The contract can be tested at the component level:
 
@@ -430,7 +495,7 @@ fn test_initialization() {
 }
 ```
 
-### 2. Transaction Validation Testing Pattern
+### 4. Transaction Validation Testing Pattern
 
 The contract can be tested for transaction validation:
 
@@ -454,7 +519,7 @@ fn test_transaction_validation() {
 }
 ```
 
-### 3. Cap Enforcement Testing Pattern
+### 5. Cap Enforcement Testing Pattern
 
 The contract can be tested for cap enforcement:
 
@@ -474,6 +539,30 @@ fn test_cap_enforcement() {
     assert!(token.mint("tx3").is_err());
 }
 ```
+
+### 6. Error Propagation Pattern
+
+For proper error handling in tests, errors should be mapped to a common error type:
+
+```rust
+#[test]
+#[wasm_bindgen_test]
+fn test_with_error_handling() -> Result<()> {
+    let vault = TestVault::new("error_test");
+    
+    // Map string errors to anyhow errors
+    vault.observe_initialization().map_err(anyhow::Error::msg)?;
+    
+    // Test functionality
+    Ok(())
+}
+```
+
+This pattern ensures:
+- Consistent error handling across tests
+- Proper propagation of errors
+- Clear error messages in test failures
+- Compatibility with the Result-based test pattern
 
 ## Deployment Considerations
 

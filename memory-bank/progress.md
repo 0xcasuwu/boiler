@@ -98,18 +98,20 @@ The current implementation compiles to WebAssembly but may include unnecessary c
 
 ### Testing Coverage
 
-Test coverage has been significantly improved, but further enhancements are needed:
+Test coverage has been significantly improved with proper test isolation and WebAssembly compatibility:
 
 - ✅ Basic functionality tests for core operations
 - ✅ Mock time control for testing yield accrual
-- ✅ Test isolation to prevent segmentation faults
+- ✅ Test isolation via prefixed storage paths
+- ✅ Dual test runner support (standard Rust and WebAssembly)
 - ✅ Robust testing of ERC-4626 functionality
+- ✅ Module-specific tests with proper isolation
 - 🔄 Need property-based tests for security properties
 - 🔄 Need integration tests for the complete contract lifecycle
 - 🔄 Need performance benchmarks for key operations
 - 🔄 Need formal verification of critical security properties
 
-See the detailed documentation in `memory-bank/test-suite-improvements.md`.
+See the detailed documentation in `memory-bank/testing-architecture.md`.
 
 ## Next Milestones
 
