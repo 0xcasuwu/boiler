@@ -108,3 +108,46 @@ Project Intelligence for yield-vault.wasm
 - Compile to WebAssembly for deployment
 - Use git for version control
 - Build with blockchain feature enabled for production deployment
+
+## WebAssembly Build Process
+
+### Standard Build Command
+- Use `cargo build --target wasm32-unknown-unknown --release` for WebAssembly compilation
+
+### Mac M1/M2/M3 (Apple Silicon) Special Requirements
+- Building WebAssembly on Apple Silicon requires special handling for secp256k1-sys compatibility
+- Mac M1 detection is handled automatically in the build script (build.rs)
+- Run `sh memory-bank/check_mac_m1.sh` to verify Mac detection and LLVM installation
+
+#### Required LLVM Setup for Apple Silicon
+1. Install Homebrew using Rosetta:
+   ```bash
+   arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+   ```
+
+2. Install LLVM using Rosetta-enabled Homebrew:
+   ```bash
+   arch -x86_64 /usr/local/bin/brew install llvm
+   ```
+
+3. Add LLVM to your path when building:
+   ```bash
+   export PATH="/usr/local/opt/llvm/bin:$PATH"
+   ```
+
+#### Mac M1/M2/M3 WebAssembly Build Command
+```bash
+PATH="/usr/local/opt/llvm/bin:$PATH" CC="/usr/local/opt/llvm/bin/clang" AR="/usr/local/opt/llvm/bin/llvm-ar" RUSTFLAGS="-C embed-bitcode=no" cargo build --target wasm32-unknown-unknown --release
+```
+
+### Common Build Issues
+- If encountering "secp256k1-sys" compilation failures on Mac M1/M2/M3, ensure proper LLVM installation
+- Missing LLVM tools can be resolved by installing via Homebrew and adding to PATH
+- WebAssembly size optimization can be achieved using `wasm-opt -Oz yield_vault.wasm -o yield_vault.opt.wasm`
+- See `memory-bank/build-process.md` for detailed build documentation
+
+## Test Suite Status
+- Some tests are currently failing due to architectural changes in the code
+- Test fixtures need to implement AlkaneResponder trait
+- References to last_yield_update_pointer need to be updated to last_yield_height_pointer
+- Test suite improvement plan documented in memory-bank/test-updates.md

@@ -3,19 +3,20 @@ use alkanes_support::utils::overflow_error;
 use alkanes_support::parcel::{AlkaneTransfer, AlkaneTransferParcel};
 use alkanes_support::response::CallResponse;
 use alkanes_support::context::Context;
+use alkanes_runtime::runtime::AlkaneResponder;
 use anyhow::{anyhow, Result};
 
 use crate::storage::Storage;
 use crate::security::Security;
 use crate::utils::Conversion;
+use crate::utils::BLOCKS_PER_YEAR;
 
 /// Asset management trait for the YieldVault
-pub trait AssetManagement: Storage + Security + Conversion {
-    /// Get the current context
-    fn context(&self) -> Result<Context>;
-    
-    /// Get the current timestamp
-    fn get_timestamp(&self) -> u64;
+pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
+    /// Get the current block height
+    fn get_block_height(&self) -> u64 {
+        self.height()
+    }
 
     /// Helper function to verify incoming assets
     fn verify_incoming_assets(&self, incoming_alkanes: &AlkaneTransferParcel) -> Result<u128, &'static str> {
@@ -54,7 +55,7 @@ pub trait AssetManagement: Storage + Security + Conversion {
         receiver: String,
         assets: u128
     ) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         // Verify we received the correct amount of underlying assets
@@ -119,7 +120,7 @@ pub trait AssetManagement: Storage + Security + Conversion {
         receiver: String,
         shares: u128
     ) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         // Validate the transaction
@@ -185,7 +186,7 @@ pub trait AssetManagement: Storage + Security + Conversion {
         owner: String,
         assets: u128
     ) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         // Validate the transaction
@@ -248,7 +249,7 @@ pub trait AssetManagement: Storage + Security + Conversion {
         owner: String,
         shares: u128
     ) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         // Validate the transaction
@@ -301,17 +302,17 @@ pub trait AssetManagement: Storage + Security + Conversion {
     
     /// Update the accumulated yield
     fn update_yield(&self) -> Result<(), &'static str> {
-        let current_time = self.get_timestamp();
-        let last_update = self.last_yield_update_pointer().get_value::<u64>();
+        let current_height = self.get_block_height();
+        let last_update_height = self.last_yield_height_pointer().get_value::<u64>();
         
-        // Calculate time elapsed in seconds
-        if current_time <= last_update {
-            return Ok(());  // No time passed or clock issues
+        // Calculate blocks elapsed
+        if current_height <= last_update_height {
+            return Ok(());  // No blocks passed or replay protection
         }
         
-        let time_elapsed = current_time - last_update;
-        if time_elapsed == 0 {
-            return Ok(());  // No time passed
+        let blocks_elapsed = current_height - last_update_height;
+        if blocks_elapsed == 0 {
+            return Ok(());  // No blocks passed
         }
         
         // Get current yield rate (in basis points)
@@ -326,13 +327,13 @@ pub trait AssetManagement: Storage + Security + Conversion {
             return Ok(());  // No assets to apply yield to
         }
         
-        // Calculate yield: assets * rate * timeElapsed / YIELD_CALCULATION_DENOMINATOR
+        // Calculate yield: assets * rate * blocks_elapsed / YIELD_CALCULATION_DENOMINATOR
         // Rate is in basis points (1/100 of a percent)
-        // This gives a per-second compounding
-        let yield_multiplier = overflow_error(yield_rate.checked_mul(time_elapsed as u128))
+        // This gives a per-block compounding
+        let yield_multiplier = overflow_error(yield_rate.checked_mul(blocks_elapsed as u128))
             .map_err(|_| "Yield calculation overflow")?;
             
-        // Use constant for the yield calculation denominator (BASIS_POINTS_DENOMINATOR * SECONDS_PER_YEAR)
+        // Use constant for the yield calculation denominator (BASIS_POINTS_DENOMINATOR * BLOCKS_PER_YEAR)
         let yield_amount = overflow_error(total_assets.checked_mul(yield_multiplier))
             .map_err(|_| "Yield amount overflow")?
             .checked_div(crate::utils::YIELD_CALCULATION_DENOMINATOR)
@@ -346,8 +347,8 @@ pub trait AssetManagement: Storage + Security + Conversion {
             self.total_assets_pointer().set_value(new_total);
         }
         
-        // Update the last yield timestamp
-        self.last_yield_update_pointer().set_value(current_time);
+        // Update the last yield height
+        self.last_yield_height_pointer().set_value(current_height);
         
         Ok(())
     }

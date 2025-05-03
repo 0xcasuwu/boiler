@@ -1,5 +1,5 @@
-// YieldVault - Bitcoin Smart Contract
-// An adaptation of ERC-4626 for Bitcoin WebAssembly
+//! YieldVault - Bitcoin Smart Contract
+//! An adaptation of ERC-4626 for Bitcoin WebAssembly
 
 // Module declarations
 mod storage;
@@ -17,7 +17,7 @@ use utils::Conversion;
 use asset_management::AssetManagement;
 
 // Import required crates
-use alkanes_runtime::runtime::AlkaneResponder;
+use alkanes_runtime::{declare_alkane, message::MessageDispatch, runtime::AlkaneResponder};
 use alkanes_support::context::Context;
 use alkanes_support::parcel::{AlkaneTransfer, AlkaneTransferParcel};
 use alkanes_support::response::CallResponse;
@@ -26,46 +26,9 @@ use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 use metashrew_support::index_pointer::KeyValuePointer;
 use alkanes_runtime::storage::StoragePointer;
+use metashrew_support::compat::to_arraybuffer_layout;
 
-// Bitcoin stubs for non-bitcoin environments
-#[cfg(not(feature = "bitcoin"))]
-mod bitcoin_stubs {
-    use std::fmt;
-    
-    #[derive(Clone, Debug)]
-    pub struct Txid(pub [u8; 32]);
-    
-    impl Txid {
-        pub fn from_slice(slice: &[u8]) -> Result<Self, &'static str> {
-            if slice.len() != 32 {
-                return Err("Invalid length for Txid");
-            }
-            let mut data = [0u8; 32];
-            data.copy_from_slice(slice);
-            Ok(Txid(data))
-        }
-    }
-    
-    impl fmt::Display for Txid {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "{}", hex::encode(self.0))
-        }
-    }
-    
-    // Mock Transaction struct
-    pub struct Transaction {}
-    
-    impl Transaction {
-        pub fn compute_txid(&self) -> Txid {
-            Txid([0; 32])
-        }
-    }
-}
-
-#[cfg(not(feature = "bitcoin"))]
-use bitcoin_stubs::Txid;
-
-#[cfg(feature = "bitcoin")]
+// Import Bitcoin types directly without conditionals
 use bitcoin::Txid;
 
 /// YieldVault implements an ERC-4626 style vault on Bitcoin
@@ -82,24 +45,9 @@ impl Default for YieldVault {
 // Implement the trait requirements for YieldVault
 impl Storage for YieldVault {}
 impl Security for YieldVault {}
+impl AssetManagement for YieldVault {}
 
-// Implement the AssetManagement trait
-impl AssetManagement for YieldVault {
-    fn context(&self) -> Result<Context> {
-        let mut cursor = Cursor::new(CONTEXT.transaction());
-        Context::parse(&mut cursor)
-            .map_err(|_| anyhow!("Failed to parse context"))
-    }
-    
-    fn get_timestamp(&self) -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    }
-}
-
-// Add direct convenience methods for tests (without _api suffix)
+// Convenience methods for YieldVault
 impl YieldVault {
     /// Preview deposit - calculates shares to be minted for a given asset amount
     pub fn preview_deposit(&self, assets: u128) -> Result<u128, &'static str> {
@@ -116,179 +64,70 @@ impl YieldVault {
     }
 }
 
-// Manual implementation of message dispatching
-impl YieldVault {
-    fn dispatch(&mut self, opcode: u32, args: &[u8]) -> Result<CallResponse> {
-        match opcode {
-            // == Initialization ==
-            0 => {
-                #[cfg(test)]
-                {
-                    use crate::tests::test_utils;
-                    return test_utils::handle_test_initialize(self, args);
-                }
-                
-                #[cfg(not(test))]
-                {
-                    let mut args_iter = args.split(|&b| b == 0);
-                    let name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let asset_name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let asset_symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let decimal_offset = 8u8; // Default to 8 decimals for Bitcoin
-                    
-                    self.initialize(name, symbol, asset_name, asset_symbol, decimal_offset)
-                }
-            },
-            
-            // == Asset Management ==
-            10 => {
-                // Deposit
-                let tx_hash = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let caller = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let assets = 0u128; // Parse from args in real implementation
-                
-                #[cfg(test)]
-                {
-                    return self.test_deposit(tx_hash, caller, receiver, assets);
-                }
-                
-                #[cfg(not(test))]
-                self.deposit(tx_hash, caller, receiver, assets)
-            },
-            
-            11 => {
-                // Mint
-                let tx_hash = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let caller = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let shares = 0u128; // Parse from args in real implementation
-                
-                self.mint(tx_hash, caller, receiver, shares)
-            },
-            
-            12 => {
-                // Withdraw
-                let tx_hash = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let caller = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let assets = 0u128; // Parse from args in real implementation
-                
-                self.withdraw(tx_hash, caller, receiver, owner, assets)
-            },
-            
-            13 => {
-                // Redeem
-                let tx_hash = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let caller = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let shares = 0u128; // Parse from args in real implementation
-                
-                self.redeem(tx_hash, caller, receiver, owner, shares)
-            },
-            
-            // == View Functions: Metadata ==
-            100 => self.get_name(),
-            101 => self.get_symbol(),
-            102 => self.get_decimals(),
-            103 => self.get_asset(),
-            
-            // == View Functions: Accounting ==
-            200 => self.get_total_assets(),
-            201 => {
-                let assets = 0u128; // Parse from args in real implementation
-                self.convert_to_shares(assets)
-            },
-            202 => {
-                let shares = 0u128; // Parse from args in real implementation
-                self.convert_to_assets(shares)
-            },
-            
-            // == View Functions: Limits ==
-            300 => {
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_max_deposit(receiver)
-            },
-            301 => {
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_max_mint(receiver)
-            },
-            302 => {
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_max_withdraw(owner)
-            },
-            303 => {
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_max_redeem(owner)
-            },
-            
-            // == View Functions: Preview ==
-            400 => {
-                let assets = 0u128; // Parse from args in real implementation
-                self.preview_deposit_api(assets)
-            },
-            401 => {
-                let shares = 0u128; // Parse from args in real implementation
-                self.preview_mint_api(shares)
-            },
-            402 => {
-                let assets = 0u128; // Parse from args in real implementation
-                self.preview_withdraw_api(assets)
-            },
-            403 => {
-                let shares = 0u128; // Parse from args in real implementation
-                self.preview_redeem_api(shares)
-            },
-            
-            // == Custom Data Management ==
-            500 => {
-                let key = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let value = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.set_data(key, value)
-            },
-            501 => {
-                let key = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_data(key)
-            },
-            
-            // == Balance Management ==
-            600 => {
-                let account = String::from_utf8(args.to_vec()).unwrap_or_default();
-                self.get_balance_of(account)
-            },
-            601 => self.get_total_supply(),
-            
-            // == Security Operations ==
-            900 => {
-                let yield_rate = 0u128; // Parse from args in real implementation
-                self.update_yield_rate(yield_rate)
-            },
-            
-            // Unknown opcode
-            _ => Err(anyhow!("Unknown opcode: {}", opcode))
-        }
-    }
+// We'll define our opcodes as constants for better type safety and readability
+/// Opcode definitions for all operations
+pub mod opcodes {
+    // Initialization
+    pub const INITIALIZE: u32 = 0;
+    
+    // Asset Management
+    pub const DEPOSIT: u32 = 10;
+    pub const MINT: u32 = 11;
+    pub const WITHDRAW: u32 = 12;
+    pub const REDEEM: u32 = 13;
+    
+    // Metadata View Functions
+    pub const GET_NAME: u32 = 100;
+    pub const GET_SYMBOL: u32 = 101;
+    pub const GET_DECIMALS: u32 = 102;
+    pub const GET_ASSET: u32 = 103;
+    
+    // Accounting View Functions
+    pub const GET_TOTAL_ASSETS: u32 = 200;
+    pub const CONVERT_TO_SHARES: u32 = 201;
+    pub const CONVERT_TO_ASSETS: u32 = 202;
+    
+    // Limit View Functions
+    pub const GET_MAX_DEPOSIT: u32 = 300;
+    pub const GET_MAX_MINT: u32 = 301;
+    pub const GET_MAX_WITHDRAW: u32 = 302;
+    pub const GET_MAX_REDEEM: u32 = 303;
+    
+    // Preview View Functions
+    pub const PREVIEW_DEPOSIT: u32 = 400;
+    pub const PREVIEW_MINT: u32 = 401;
+    pub const PREVIEW_WITHDRAW: u32 = 402;
+    pub const PREVIEW_REDEEM: u32 = 403;
+    
+    // Custom Data Operations
+    pub const SET_DATA: u32 = 500;
+    pub const GET_DATA: u32 = 501;
+    
+    // Balance Management
+    pub const GET_BALANCE_OF: u32 = 600;
+    pub const GET_TOTAL_SUPPLY: u32 = 601;
+    
+    // Administrative Operations
+    pub const UPDATE_YIELD_RATE: u32 = 900;
 }
 
-// Additional methods needed for the dispatch function
+// Implementation of message handlers for YieldVault
 impl YieldVault {
+    // Message handlers
     // Initialize the vault with its base parameters
     fn initialize(
-        &mut self,
+        &self,
         name: String, 
         symbol: String,
         asset_name: String,
         asset_symbol: String,
-        decimal_offset: u8
+        decimal_offset: u128
     ) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let response = CallResponse::forward(&context.incoming_alkanes);
         
         // Use the initialization guard to prevent multiple initializations
-        self.observe_initialization()
+        Security::observe_initialization(self)
             .map_err(|e| anyhow!("Initialization error: {}", e))?;
         
         // Store basic token metadata
@@ -296,7 +135,15 @@ impl YieldVault {
         self.symbol_pointer().set(std::sync::Arc::new(symbol.as_bytes().to_vec()));
         self.asset_name_pointer().set(std::sync::Arc::new(asset_name.as_bytes().to_vec()));
         self.asset_symbol_pointer().set(std::sync::Arc::new(asset_symbol.as_bytes().to_vec()));
-        self.decimals_pointer().set_value(decimal_offset);
+        
+        // Convert u128 to u8 for storage, as the original contract used u8
+        let decimal_offset_u8 = if decimal_offset > u8::MAX.into() {
+            // Default to 8 if out of range
+            8u8
+        } else {
+            decimal_offset as u8
+        };
+        self.decimals_pointer().set_value(decimal_offset_u8);
         
         // Store the asset ID (using the first incoming alkane's ID)
         if let Some(incoming) = context.incoming_alkanes.0.first() {
@@ -310,15 +157,15 @@ impl YieldVault {
         // Initialize yield rate (basis points, e.g. 500 = 5%)
         self.yield_rate_pointer().set_value(0u128);
         
-        // Initialize the last yield timestamp
-        self.last_yield_update_pointer().set_value(self.get_timestamp());
+        // Initialize the last yield block height
+        self.last_yield_height_pointer().set_value(self.height());
         
         Ok(response)
     }
     
     // Update the yield rate
-    fn update_yield_rate(&mut self, yield_rate: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+    fn update_yield_rate(&self, yield_rate: u128) -> Result<CallResponse> {
+        let context = AlkaneResponder::context(self)?;
         let response = CallResponse::forward(&context.incoming_alkanes);
         
         // Update the yield first with the old rate
@@ -333,7 +180,7 @@ impl YieldVault {
     
     // Get vault name
     fn get_name(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let name = String::from_utf8(self.name_pointer().get().as_ref().clone())
@@ -345,7 +192,7 @@ impl YieldVault {
     
     // Get vault symbol
     fn get_symbol(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let symbol = String::from_utf8(self.symbol_pointer().get().as_ref().clone())
@@ -357,18 +204,20 @@ impl YieldVault {
     
     // Get decimals
     fn get_decimals(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let decimals = self.decimals_pointer().get_value::<u8>();
-        response.data = vec![decimals];
+        // Convert to u128 for better compatibility
+        let decimals_u128: u128 = decimals.into();
+        response.data = decimals_u128.to_le_bytes().to_vec();
         
         Ok(response)
     }
     
     // Get asset symbol
     fn get_asset(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let asset_symbol = String::from_utf8(self.asset_symbol_pointer().get().as_ref().clone())
@@ -380,7 +229,7 @@ impl YieldVault {
     
     // Get total assets
     fn get_total_assets(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -390,8 +239,9 @@ impl YieldVault {
     }
     
     // Convert to shares API endpoint
+    // Convert to shares API endpoint
     fn convert_to_shares(&self, assets: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -405,8 +255,9 @@ impl YieldVault {
     }
     
     // Convert to assets API endpoint
+    // Convert to assets API endpoint
     fn convert_to_assets(&self, shares: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -421,7 +272,7 @@ impl YieldVault {
     
     // Get max deposit API endpoint
     fn get_max_deposit(&self, receiver: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let max_deposit = self.max_deposit(&receiver)
@@ -433,7 +284,7 @@ impl YieldVault {
     
     // Get max mint API endpoint
     fn get_max_mint(&self, receiver: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let max_mint = self.max_mint(&receiver)
@@ -445,7 +296,7 @@ impl YieldVault {
     
     // Get max withdraw API endpoint
     fn get_max_withdraw(&self, owner: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let max_withdraw = self.max_withdraw(&owner)
@@ -457,7 +308,7 @@ impl YieldVault {
     
     // Get max redeem API endpoint
     fn get_max_redeem(&self, owner: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let max_redeem = self.max_redeem(&owner)
@@ -469,7 +320,7 @@ impl YieldVault {
     
     // Preview deposit API endpoint
     fn preview_deposit_api(&self, assets: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -484,7 +335,7 @@ impl YieldVault {
     
     // Preview mint API endpoint
     fn preview_mint_api(&self, shares: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -499,7 +350,7 @@ impl YieldVault {
     
     // Preview withdraw API endpoint
     fn preview_withdraw_api(&self, assets: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -514,7 +365,7 @@ impl YieldVault {
     
     // Preview redeem API endpoint
     fn preview_redeem_api(&self, shares: u128) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_assets = self.total_assets_pointer().get_value::<u128>();
@@ -528,8 +379,8 @@ impl YieldVault {
     }
     
     // Set custom data
-    fn set_data(&mut self, key: String, value: String) -> Result<CallResponse> {
-        let context = self.context()?;
+    fn set_data(&self, key: String, value: String) -> Result<CallResponse> {
+        let context = AlkaneResponder::context(self)?;
         let response = CallResponse::forward(&context.incoming_alkanes);
         
         // Prefix with /data/ to separate from core storage
@@ -542,7 +393,7 @@ impl YieldVault {
     
     // Get custom data
     fn get_data(&self, key: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         // Prefix with /data/ to separate from core storage
@@ -559,7 +410,7 @@ impl YieldVault {
     
     // Get account balance API endpoint
     fn get_balance_of(&self, account: String) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let balance = self.get_balance(&account);
@@ -570,7 +421,7 @@ impl YieldVault {
     
     // Get total supply API endpoint
     fn get_total_supply(&self) -> Result<CallResponse> {
-        let context = self.context()?;
+        let context = AlkaneResponder::context(self)?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
         
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -602,10 +453,258 @@ impl YieldVault {
     }
 }
 
+// Implement AlkaneResponder for YieldVault
+impl AlkaneResponder for YieldVault {}
+
+// Manual dispatch implementation with clean structure - inspired by MessageDispatch pattern
+impl YieldVault {
+    // Main dispatch method that routes opcodes to their handlers
+    fn dispatch(&self, opcode: u32, args: &[u8]) -> Result<CallResponse> {
+        match opcode {
+            // == Initialization ==
+            opcodes::INITIALIZE => {
+                #[cfg(test)]
+                {
+                    use crate::tests::test_utils;
+                    return test_utils::handle_test_initialize(self, args);
+                }
+                
+                #[cfg(not(test))]
+                {
+                    let mut args_iter = args.split(|&b| b == 0);
+                    let name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                    let symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                    let asset_name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                    let asset_symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                    let decimal_offset = 8u128; // Default to 8 decimals for Bitcoin
+                    
+                    self.initialize(name, symbol, asset_name, asset_symbol, decimal_offset)
+                }
+            },
+            
+            // == Asset Management ==
+            opcodes::DEPOSIT => {
+                // Parse deposit arguments
+                let mut args_iter = args.split(|&b| b == 0);
+                let tx_hash = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let caller = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let receiver = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                
+                // Parse assets as u128 from bytes
+                let assets_bytes = args_iter.next().unwrap_or(&[]);
+                let mut assets = 0u128;
+                if !assets_bytes.is_empty() {
+                    let mut buf = [0u8; 16];
+                    let len = std::cmp::min(assets_bytes.len(), 16);
+                    buf[..len].copy_from_slice(&assets_bytes[..len]);
+                    assets = u128::from_le_bytes(buf);
+                }
+                
+                self.deposit(tx_hash, caller, receiver, assets)
+            },
+            
+            opcodes::MINT => {
+                // Parse mint arguments
+                let mut args_iter = args.split(|&b| b == 0);
+                let tx_hash = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let caller = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let receiver = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                
+                // Parse shares as u128 from bytes
+                let shares_bytes = args_iter.next().unwrap_or(&[]);
+                let mut shares = 0u128;
+                if !shares_bytes.is_empty() {
+                    let mut buf = [0u8; 16];
+                    let len = std::cmp::min(shares_bytes.len(), 16);
+                    buf[..len].copy_from_slice(&shares_bytes[..len]);
+                    shares = u128::from_le_bytes(buf);
+                }
+                
+                self.mint(tx_hash, caller, receiver, shares)
+            },
+            
+            opcodes::WITHDRAW => {
+                // Parse withdraw arguments
+                let mut args_iter = args.split(|&b| b == 0);
+                let tx_hash = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let caller = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let receiver = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let owner = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                
+                // Parse assets as u128 from bytes
+                let assets_bytes = args_iter.next().unwrap_or(&[]);
+                let mut assets = 0u128;
+                if !assets_bytes.is_empty() {
+                    let mut buf = [0u8; 16];
+                    let len = std::cmp::min(assets_bytes.len(), 16);
+                    buf[..len].copy_from_slice(&assets_bytes[..len]);
+                    assets = u128::from_le_bytes(buf);
+                }
+                
+                self.withdraw(tx_hash, caller, receiver, owner, assets)
+            },
+            
+            opcodes::REDEEM => {
+                // Parse redeem arguments
+                let mut args_iter = args.split(|&b| b == 0);
+                let tx_hash = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let caller = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let receiver = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let owner = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                
+                // Parse shares as u128 from bytes
+                let shares_bytes = args_iter.next().unwrap_or(&[]);
+                let mut shares = 0u128;
+                if !shares_bytes.is_empty() {
+                    let mut buf = [0u8; 16];
+                    let len = std::cmp::min(shares_bytes.len(), 16);
+                    buf[..len].copy_from_slice(&shares_bytes[..len]);
+                    shares = u128::from_le_bytes(buf);
+                }
+                
+                self.redeem(tx_hash, caller, receiver, owner, shares)
+            },
+            
+            // == View Functions: Metadata ==
+            opcodes::GET_NAME => self.get_name(),
+            opcodes::GET_SYMBOL => self.get_symbol(),
+            opcodes::GET_DECIMALS => self.get_decimals(),
+            opcodes::GET_ASSET => self.get_asset(),
+            
+            // == View Functions: Accounting ==
+            opcodes::GET_TOTAL_ASSETS => self.get_total_assets(),
+            opcodes::CONVERT_TO_SHARES => {
+                // Parse assets from args
+                let assets = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.convert_to_shares(assets)
+            },
+            opcodes::CONVERT_TO_ASSETS => {
+                // Parse shares from args
+                let shares = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.convert_to_assets(shares)
+            },
+            
+            // == View Functions: Limits ==
+            opcodes::GET_MAX_DEPOSIT => {
+                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_max_deposit(receiver)
+            },
+            opcodes::GET_MAX_MINT => {
+                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_max_mint(receiver)
+            },
+            opcodes::GET_MAX_WITHDRAW => {
+                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_max_withdraw(owner)
+            },
+            opcodes::GET_MAX_REDEEM => {
+                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_max_redeem(owner)
+            },
+            
+            // == View Functions: Preview ==
+            opcodes::PREVIEW_DEPOSIT => {
+                // Parse assets from args
+                let assets = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.preview_deposit_api(assets)
+            },
+            opcodes::PREVIEW_MINT => {
+                // Parse shares from args
+                let shares = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.preview_mint_api(shares)
+            },
+            opcodes::PREVIEW_WITHDRAW => {
+                // Parse assets from args
+                let assets = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.preview_withdraw_api(assets)
+            },
+            opcodes::PREVIEW_REDEEM => {
+                // Parse shares from args
+                let shares = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.preview_redeem_api(shares)
+            },
+            
+            // == Custom Data Management ==
+            opcodes::SET_DATA => {
+                let mut args_iter = args.split(|&b| b == 0);
+                let key = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                let value = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
+                self.set_data(key, value)
+            },
+            opcodes::GET_DATA => {
+                let key = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_data(key)
+            },
+            
+            // == Balance Management ==
+            opcodes::GET_BALANCE_OF => {
+                let account = String::from_utf8(args.to_vec()).unwrap_or_default();
+                self.get_balance_of(account)
+            },
+            opcodes::GET_TOTAL_SUPPLY => self.get_total_supply(),
+            
+            // == Security Operations ==
+            opcodes::UPDATE_YIELD_RATE => {
+                // Parse yield rate from args
+                let yield_rate = if args.len() >= 16 {
+                    let mut buf = [0u8; 16];
+                    buf.copy_from_slice(&args[..16]);
+                    u128::from_le_bytes(buf)
+                } else {
+                    0u128
+                };
+                self.update_yield_rate(yield_rate)
+            },
+            
+            // Unknown opcode
+            _ => Err(anyhow!("Unknown opcode: {}", opcode))
+        }
+    }
+}
+
 // WebAssembly exports through wasm-bindgen
 #[wasm_bindgen]
 pub fn call(opcode: u32, args: &[u8]) -> Vec<u8> {
-    let mut vault = YieldVault::default();
+    // Create a default vault instance
+    let vault = YieldVault::default();
+    
+    // Use a structured dispatch pattern
     match vault.dispatch(opcode, args) {
         Ok(response) => response.data,
         Err(e) => format!("Error: {}", e).as_bytes().to_vec(),

@@ -55,9 +55,9 @@ pub trait Storage {
         StoragePointer::from_keyword("/yield-rate")
     }
 
-    /// Returns a StoragePointer for last yield update timestamp
-    fn last_yield_update_pointer(&self) -> StoragePointer {
-        StoragePointer::from_keyword("/last-yield-update")
+    /// Returns a StoragePointer for last yield update block height
+    fn last_yield_height_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword("/last-yield-height")
     }
     
     /// Returns a StoragePointer for the underlying asset ID

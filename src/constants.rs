@@ -34,6 +34,6 @@ pub const TOTAL_ASSETS_KEY: &str = "/total-assets";
 pub const TX_HASHES_KEY: &str = "/tx-hashes";
 pub const INITIALIZED_KEY: &str = "/initialized";
 pub const YIELD_RATE_KEY: &str = "/yield-rate";
-pub const LAST_YIELD_UPDATE_KEY: &str = "/last-yield-update";
+pub const LAST_YIELD_HEIGHT_KEY: &str = "/last-yield-height";
 pub const BALANCES_PREFIX: &str = "/balances/";
 pub const DATA_PREFIX: &str = "/data/";

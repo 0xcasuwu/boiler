@@ -7,7 +7,9 @@ use anyhow::Result;
 use metashrew_support::index_pointer::KeyValuePointer;
 
 /// Handle test initialization during unit tests
-pub fn handle_test_initialize(vault: &mut YieldVault, args: &[u8]) -> Result<CallResponse> {
+/// 
+/// This function now accepts an immutable reference to match our MessageDispatch implementation
+pub fn handle_test_initialize(vault: &YieldVault, args: &[u8]) -> Result<CallResponse> {
     // Create a dummy response
     let response = CallResponse::default();
     
@@ -37,7 +39,7 @@ pub fn handle_test_initialize(vault: &mut YieldVault, args: &[u8]) -> Result<Cal
     vault.yield_rate_pointer().set_value(0u128);
     
     // Initialize the last yield timestamp
-    vault.last_yield_update_pointer().set_value(0u64);
+    vault.last_yield_height_pointer().set_value(0u64);
     
     Ok(response)
 }

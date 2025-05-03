@@ -72,6 +72,49 @@ Run WebAssembly tests:
 ./scripts/test-wasm.sh
 ```
 
+## Building for WebAssembly
+
+The project is designed to compile to WebAssembly for deployment on Bitcoin-based smart contract platforms.
+
+```bash
+cargo build --target wasm32-unknown-unknown --release
+```
+
+### WebAssembly on Mac M1 (Apple Silicon)
+
+Mac M1 users may encounter issues when building for WebAssembly due to compatibility problems between secp256k1-sys and Apple's default clang compiler.
+
+If you encounter errors like `error: unable to create target: 'No available targets are compatible with triple "wasm32-unknown-unknown"'` when building for WebAssembly, follow these steps:
+
+1. Install Homebrew (if not already installed) under Rosetta:
+   ```bash
+   arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+   ```
+
+2. Install LLVM:
+   ```bash
+   arch -x86_64 /usr/local/bin/brew install llvm
+   ```
+
+3. Add LLVM to your PATH:
+   ```bash
+   export PATH="/usr/local/opt/llvm/bin:$PATH"
+   ```
+
+4. Set the AR environment variable:
+   ```bash
+   export AR="/usr/local/opt/llvm/bin/llvm-ar"
+   ```
+
+5. Build with these environment variables:
+   ```bash
+   PATH="/usr/local/opt/llvm/bin:$PATH" CC="/usr/local/opt/llvm/bin/clang" cargo build --target wasm32-unknown-unknown --release
+   ```
+
+This workaround uses x86_64 LLVM instead of Apple's clang when building for WebAssembly on Mac M1. 
+
+For details, see [the relevant GitHub issue](https://github.com/rust-bitcoin/rust-secp256k1/issues/283).
+
 ## Core Concepts
 
 ### Asset/Share Mechanics

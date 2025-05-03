@@ -280,7 +280,69 @@ This pattern ensures:
 
 ## Advanced Architectural Patterns
 
-### 1. WebAssembly Export Pattern
+### 1. Blockchain Context Access Pattern
+
+The contract can access critical blockchain context data, including the current block height:
+
+```rust
+// Access block height within AlkaneResponder implementation
+fn height(&self) -> u64 {
+    unsafe {
+        let mut buffer: Vec<u8> = to_arraybuffer_layout(vec![0; 8]);
+        __height(to_ptr(&mut buffer) + 4);
+        u64::from_le_bytes((&buffer[4..]).try_into().unwrap())
+    }
+}
+```
+
+This pattern relies on WebAssembly imports from the host environment:
+```rust
+#[link(wasm_import_module = "env")]
+extern "C" {
+    // Other imports...
+    pub fn __height(output: i32);
+    // Other imports...
+}
+```
+
+The pattern enables:
+- Time-locked features activated at specific block heights
+- Block-based interest or yield calculations
+- Halving mechanisms based on block height milestones
+- Historical verification of transaction age
+- Secure time-based validation that can't be manipulated by transaction timestamps
+
+Usage example for yield calculation based on block height:
+```rust
+fn update_yield(&self) -> Result<(), &'static str> {
+    let current_height = self.height();
+    let last_update_height = self.last_height_pointer().get_value::<u64>();
+    
+    // Calculate blocks elapsed
+    if current_height <= last_update_height {
+        return Ok(());  // No blocks passed or replay protection
+    }
+    
+    let blocks_elapsed = current_height - last_update_height;
+    if blocks_elapsed == 0 {
+        return Ok(());  // No blocks passed
+    }
+    
+    // Apply yield based on blocks elapsed
+    let yield_rate = self.yield_rate_pointer().get_value::<u128>();
+    let yield_per_block = yield_rate / BLOCKS_PER_YEAR;
+    
+    // Calculate and apply yield
+    // ...
+    
+    // Update the last yield height
+    self.last_height_pointer().set_value(current_height);
+    
+    Ok(())
+}
+```
+
+### 2. WebAssembly Export Pattern
 
 The contract exports its functionality through WebAssembly exports:
 

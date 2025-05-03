@@ -21,7 +21,7 @@ fn reset_test_storage() {
     StoragePointer::from_keyword("/total-supply").set(Arc::new(Vec::new()));
     StoragePointer::from_keyword("/total-assets").set(Arc::new(Vec::new()));
     StoragePointer::from_keyword("/yield-rate").set(Arc::new(Vec::new()));
-    StoragePointer::from_keyword("/last-yield-update").set(Arc::new(Vec::new()));
+    StoragePointer::from_keyword("/last-yield-height").set(Arc::new(Vec::new()));
     StoragePointer::from_keyword("/tx-hashes").set(Arc::new(Vec::new()));
     
     // Clear example balances
@@ -246,27 +246,25 @@ fn test_yield_accrual() {
     let yield_rate = 500u128;
     vault.yield_rate_pointer().set_value(yield_rate);
     
-    // Set initial timestamp
-    let initial_timestamp = 1651388400u64; // May 1, 2022
-    vault.last_yield_update_pointer().set_value(initial_timestamp);
+    // Set initial block height
+    let initial_height = 740000u64; // Example Bitcoin block height
+    vault.last_yield_height_pointer().set_value(initial_height);
     
-    // Simulate one year later
-    let one_year_later = initial_timestamp + 31536000u64; // Add seconds in a year
-    
-    // Set current timestamp for test
-    let current_time = one_year_later;
+    // Simulate blocks passed for one year (approximately 52,560 blocks per year)
+    let blocks_per_year = crate::utils::BLOCKS_PER_YEAR as u64;
+    let one_year_later_height = initial_height + blocks_per_year;
     
     // Calculate expected new assets (5% increase)
     let expected_new_assets = initial_assets * 105 / 100; // 1000 * 1.05 = 1050
     
-    // Update total assets and timestamp to simulate yield accrual
+    // Update total assets and block height to simulate yield accrual
     vault.total_assets_pointer().set_value(expected_new_assets);
-    vault.last_yield_update_pointer().set_value(one_year_later);
+    vault.last_yield_height_pointer().set_value(one_year_later_height);
     
     // Verify the state
     assert_eq!(vault.total_assets_pointer().get_value::<u128>(), expected_new_assets);
     assert_eq!(vault.total_supply_pointer().get_value::<u128>(), initial_shares); // supply should remain unchanged
-    assert_eq!(vault.last_yield_update_pointer().get_value::<u64>(), one_year_later);
+    assert_eq!(vault.last_yield_height_pointer().get_value::<u64>(), one_year_later_height);
     
     // New ratio should be 1.05:1 (assets:shares)
     // Test conversion at new ratio

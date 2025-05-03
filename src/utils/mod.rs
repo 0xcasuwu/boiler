@@ -2,8 +2,10 @@ use metashrew_support::index_pointer::KeyValuePointer; // Add this import
 
 // Constants for yield calculations
 pub const BASIS_POINTS_DENOMINATOR: u128 = 10000;
-pub const SECONDS_PER_YEAR: u128 = 365 * 24 * 60 * 60;
-pub const YIELD_CALCULATION_DENOMINATOR: u128 = BASIS_POINTS_DENOMINATOR * SECONDS_PER_YEAR;
+// Bitcoin produces ~1 block per 10 minutes = 6 blocks per hour
+pub const BLOCKS_PER_DAY: u128 = 144; // 24 hours * 6 blocks per hour
+pub const BLOCKS_PER_YEAR: u128 = BLOCKS_PER_DAY * 365; // 52,560 blocks
+pub const YIELD_CALCULATION_DENOMINATOR: u128 = BASIS_POINTS_DENOMINATOR * BLOCKS_PER_YEAR;
 
 /// Helper function to calculate ceil division
 pub fn ceil_div(numerator: u128, denominator: u128) -> Result<u128, &'static str> {
