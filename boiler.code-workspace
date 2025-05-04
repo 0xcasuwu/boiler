@@ -5,6 +5,12 @@
         },
         {
             "path": "../free-mint"
+        },
+        {
+            "path": "../alkanes-rs"
+        },
+        {
+            "path": "../orbital-collection"
         }
     ]
 }

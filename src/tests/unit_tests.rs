@@ -57,15 +57,26 @@ fn test_asset_id_storage() {
     // Create the test vault instance
     let vault = TestVault::new();
     
-    // Store an asset ID
-    let asset_id = AlkaneId::default();
-    vault.store_asset_id(&asset_id);
-    
-    // Retrieve the stored asset ID
+    // Test with default AlkaneId
+    let default_id = AlkaneId::default();
+    vault.store_asset_id(&default_id);
     let retrieved_id = vault.get_asset_id();
+    assert_eq!(retrieved_id.block, default_id.block);
+    assert_eq!(retrieved_id.tx, default_id.tx);
     
-    // Check if the IDs match (note: our implementation returns a default for now)
-    assert_eq!(format!("{:?}", retrieved_id), format!("{:?}", AlkaneId::default()));
+    // Test with custom AlkaneId values
+    let custom_id = AlkaneId { block: 2, tx: 42 };
+    vault.store_asset_id(&custom_id);
+    let retrieved_custom_id = vault.get_asset_id();
+    assert_eq!(retrieved_custom_id.block, custom_id.block);
+    assert_eq!(retrieved_custom_id.tx, custom_id.tx);
+    
+    // Test with another set of values
+    let another_id = AlkaneId { block: 4, tx: 999 };
+    vault.store_asset_id(&another_id);
+    let retrieved_another_id = vault.get_asset_id();
+    assert_eq!(retrieved_another_id.block, another_id.block);
+    assert_eq!(retrieved_another_id.tx, another_id.tx);
 }
 
 #[test]

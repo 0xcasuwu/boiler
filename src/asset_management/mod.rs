@@ -200,6 +200,21 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         // Check authorization
         self.check_authorization(&caller, &owner)
             .map_err(|e| anyhow!("Authorization error: {}", e))?;
+            
+        // Get the asset ID for transferring out the assets
+        let asset_id = self.get_asset_id();
+        
+        // Verify that if there are any incoming assets, at least one has the correct ID
+        // Do this check early to prevent burning shares if asset ID is incorrect
+        // Note: For redeem operation, incoming assets are NOT required
+        if !context.incoming_alkanes.0.is_empty() {
+            let valid_asset_found = context.incoming_alkanes.0.iter()
+                .any(|transfer| transfer.id == asset_id);
+                
+            if !valid_asset_found {
+                return Err(anyhow!("Invalid asset ID: received assets do not match expected asset type"));
+            }
+        }
         
         // Check withdrawal limit
         let max_withdraw = self.max_withdraw(&owner)
@@ -224,9 +239,6 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
         self.burn_shares(&owner, shares)
             .map_err(|e| anyhow!("Share burn error: {}", e))?;
-        
-        // Get the asset ID for transferring out the assets
-        let asset_id = self.get_asset_id();
         
         // Create asset transfer to receiver
         let asset_transfer = AlkaneTransfer {
@@ -263,6 +275,20 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         // Check authorization
         self.check_authorization(&caller, &owner)
             .map_err(|e| anyhow!("Authorization error: {}", e))?;
+            
+        // Get the asset ID for transferring out the assets
+        let asset_id = self.get_asset_id();
+        
+        // Verify that if there are any incoming assets, at least one has the correct ID
+        // Do this check early to prevent burning shares if asset ID is incorrect
+        if !context.incoming_alkanes.0.is_empty() {
+            let valid_asset_found = context.incoming_alkanes.0.iter()
+                .any(|transfer| transfer.id == asset_id);
+                
+            if !valid_asset_found {
+                return Err(anyhow!("Invalid asset ID: received assets do not match expected asset type"));
+            }
+        }
         
         // Check redemption limit
         let max_redeem = self.max_redeem(&owner)
@@ -284,9 +310,6 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
         self.burn_shares(&owner, shares)
             .map_err(|e| anyhow!("Share burn error: {}", e))?;
-        
-        // Get the asset ID for transferring out the assets
-        let asset_id = self.get_asset_id();
         
         // Create asset transfer to receiver
         let asset_transfer = AlkaneTransfer {

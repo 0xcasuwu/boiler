@@ -1,7 +1,7 @@
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_support::id::AlkaneId;
 use std::sync::Arc;
-use metashrew_support::index_pointer::KeyValuePointer; // Add this import
+use metashrew_support::index_pointer::KeyValuePointer;
 
 /// Storage trait for the YieldVault
 pub trait Storage {
@@ -75,51 +75,34 @@ pub trait Storage {
             return AlkaneId::default();
         }
         
-        // In a full production implementation, we would:
-        // 1. Use AlkaneId.from_bytes() if available
-        // 2. Use a factory method that's compatible with our serialization approach
+        // Check if we have the expected data size (32 bytes for two u128 values)
+        if data.len() == 32 {
+            // Extract block and tx fields
+            let mut block_bytes = [0u8; 16];
+            let mut tx_bytes = [0u8; 16];
+            
+            block_bytes.copy_from_slice(&data.as_ref()[0..16]);
+            tx_bytes.copy_from_slice(&data.as_ref()[16..32]);
+            
+            let block = u128::from_le_bytes(block_bytes);
+            let tx = u128::from_le_bytes(tx_bytes);
+            
+            return AlkaneId { block, tx };
+        }
         
-        // For our test environment, we return a default AlkaneId
-        // In production with real AlkaneIds, you would reconstruct from the stored bytes
-        // This matches the pattern in free-mint where stored txids are 
-        // recovered using fixed-length byte arrays
-        
-        // The key point is that in production:
-        // 1. We'd store real AlkaneId byte representations
-        // 2. We'd recover AlkaneIds from those bytes using official methods
-        // 3. Equality comparison would work as expected
-        
-        // For now, the default implementation is sufficient
-        // as we only need consistent identity and equality behavior
+        // Fallback to default if data format is unexpected
         AlkaneId::default()
     }
     
     /// Store the AlkaneId
     fn store_asset_id(&self, asset_id: &AlkaneId) {
-        // This implementation aligns with free-mint's pattern for storing IDs
-        // In free-mint, txids are stored using txid.as_byte_array().to_vec()
+        // Store block and tx fields directly as serialized bytes
+        // Using 16 bytes for each u128 field (little-endian encoding)
+        let mut buffer = Vec::with_capacity(32);
+        buffer.extend_from_slice(&asset_id.block.to_le_bytes());
+        buffer.extend_from_slice(&asset_id.tx.to_le_bytes());
         
-        // Since AlkaneId doesn't have direct serialization methods we can use,
-        // and we don't have access to its internal representation,
-        // we'll use a consistent approach to generate a unique byte representation
-        
-        // Create a deterministic byte representation
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        
-        // Use the debug representation to capture the identity
-        // In a production environment with real AlkaneIds, you would:
-        // 1. Use the AlkaneId.to_bytes() method if available
-        // 2. Access the internal byte representation directly
-        let repr = format!("{:?}", asset_id);
-        repr.hash(&mut hasher);
-        let hash = hasher.finish();
-        
-        // Create buffer with consistent size (32 bytes like txid)
-        let mut buffer = hash.to_le_bytes().to_vec();
-        buffer.resize(32, 0);
-        
-        // Store the bytes using the same pattern as free-mint
+        // Store the serialized bytes
         self.asset_id_pointer().set(Arc::new(buffer));
     }
 
