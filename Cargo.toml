@@ -46,3 +46,15 @@ lto = true            # Link-time optimization
 codegen-units = 1     # Maximize optimization
 panic = 'abort'       # Smaller panic handler
 strip = true          # Strip debug symbols
+
+# Explicitly patch ALL references to secp256k1-sys to use our fork
+[patch.crates-io]
+secp256k1-sys = { path = "/Users/erickdelgado/Documents/GitHub/boiler/fork-repos/secp256k1-sys" }
+
+# Also patch any specific Git references
+[patch."https://github.com/alkimake/secp256k1-sys"]
+secp256k1-sys = { path = "/Users/erickdelgado/Documents/GitHub/boiler/fork-repos/secp256k1-sys" }
+
+# Also patch the rust-bitcoin repository reference 
+[patch."https://github.com/rust-bitcoin/rust-secp256k1"]
+secp256k1-sys = { path = "/Users/erickdelgado/Documents/GitHub/boiler/fork-repos/secp256k1-sys" }

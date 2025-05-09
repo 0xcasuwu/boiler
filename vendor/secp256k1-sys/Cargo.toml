@@ -1,0 +1,21 @@
+[package]
+name = "secp256k1-sys"
+version = "0.8.1"
+edition = "2021"
+links = "secp256k1"
+license = "Apache-2.0"
+description = "Forked/vendored FFI bindings to libsecp256k1 for WebAssembly compatibility"
+
+[lib]
+name = "secp256k1_sys"
+path = "src/lib.rs"
+
+[dependencies]
+cc = { version = "1.0", optional = true }
+
+[features]
+default = []
+static-secp = []
+recovery = []
+lowmemory = []
+std = []

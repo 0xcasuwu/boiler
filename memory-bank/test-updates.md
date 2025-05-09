@@ -1,8 +1,8 @@
-# Test Suite Update Requirements and Progress
+Test Suite Update Requirements and Progress
 
 ## Overview
 
-After successfully aligning the build.rs script with the production-ready approach from free-mint and verifying WebAssembly compilation, we identified and addressed several test failures. This document summarizes the issues found and the fixes implemented.
+After successfully aligning the build.rs script with the production-ready approach from free-mint and verifying WebAssembly compilation, we identified and addressed several test failures. This document summarizes the issues found and the fixes implemented, as well as our progress with OylNet deployment testing.
 
 ## Test Failures Summary
 
@@ -39,11 +39,11 @@ impl AlkaneResponder for PenTestVault {
             Err(anyhow!("No mock context provided"))
         }
     }
-    
+
     fn transaction(&self) -> Vec<u8> {
         Vec::new() // Mock implementation
     }
-    
+
     fn height(&self) -> u64 {
         self.mock_timestamp.unwrap_or(1000) // Default for testing
     }
@@ -56,11 +56,11 @@ impl AlkaneResponder for E2EVault {
             None => Err(anyhow::anyhow!("No mock context provided"))
         }
     }
-    
+
     fn transaction(&self) -> Vec<u8> {
         Vec::new() // Mock implementation
     }
-    
+
     fn height(&self) -> u64 {
         1000 // Constant timestamp for testing
     }
@@ -93,10 +93,58 @@ Some tests experienced memory safety issues that were mitigated by:
 ### 5. WebAssembly Build Verification
 
 Successfully built for WebAssembly target:
-- Generated WebAssembly binary: `target/wasm32-unknown-unknown/release/yield_vault.wasm` (265,760 bytes)
-- Created compressed WebAssembly file: `alkanes/target/wasm32-unknown-unknown/release/yield_vault.wasm.gz` (139,709 bytes)
+- Generated WebAssembly binary: `target/wasm32-unknown-unknown/release/yield_vault.wasm` (102,433 bytes)
+- Created compressed WebAssembly file: `alkanes/target/wasm32-unknown-unknown/release/yield_vault.wasm.gz` (~140KB)
 - Generated test support files in `src/tests/std/`
 - Used proper LLVM integration for Mac M1/M2/M3 architecture compatibility
+- Applied custom dependency fork to resolve secp256k1-sys issues
+
+## OylNet Deployment Testing
+
+After successfully building the WebAssembly binary, we deployed and tested the contract on OylNet:
+
+### 1. Deployment Process
+
+- Created a deployment script (`deploy_to_oylnet.sh`) to automate the deployment workflow
+- Set initialization parameters (name: "YieldVault", symbol: "YVT", etc.)
+- Successfully deployed to OylNet with transaction ID: `c70dcaec55f6a8c05532fb4f6c2f2c2630f55337dd0c37de4ce3711a7c49fd19`
+- Confirmed deployment with block generation
+
+### 2. Network Integration Test Results
+
+**Successful Operations**:
+- ✅ GetName (opcode 100) - Returns contract name correctly
+- ✅ GetSymbol (opcode 101) - Returns symbol correctly
+- ✅ GetDecimals (opcode 102) - Returns 8 as expected
+- ✅ GetAsset (opcode 103) - Returns "Bitcoin" as expected
+- ✅ GetTotalAssets (opcode 200) - Returns total assets value
+- ✅ GetTotalSupply (opcode 601) - Returns total supply value
+- ✅ UpdateYield (opcode 900) - Updates yield rate successfully
+
+**Failed Operations**:
+- ❌ Deposit (opcode 10) - Failed with "scriptpubkey" error
+- ❌ GetBalanceOf (opcode 600) - Failed with "scriptpubkey" error when passing account address
+
+### 3. Network Integration Issues
+
+The primary issues encountered during OylNet testing were:
+
+1. **Scriptpubkey Errors**:
+   - Error occurs when passing Bitcoin addresses as parameters
+   - Possible causes:
+     - Address format/encoding incompatibility
+     - Parameter serialization issues
+     - Transaction structure validation failures
+   - Error message: `Error: scriptpubkey at Provider.pushPsbt`
+
+2. **Address Parameter Format**:
+   - Need to investigate proper formatting for Bitcoin addresses in OylNet
+   - Current format: Converting address to hex (`echo -n "$address" | xxd -p | tr -d '\n'`)
+   - May need different encoding or validation
+
+3. **Parameter Length Limitations**:
+   - Long parameters may exceed size limits
+   - Parameters might need different serialization approach
 
 ## Remaining Issues
 
@@ -115,6 +163,10 @@ Despite the fixes implemented, some challenges remain:
    - Many unused imports and variables could be cleaned up
    - This could be addressed with `cargo fix --lib -p yield-vault --tests`
 
+4. **Network Integration**
+   - "Scriptpubkey" errors with Deposit and GetBalanceOf operations
+   - Need proper address format and parameter encoding for OylNet
+
 ## Test Success Status
 
 Currently:
@@ -122,21 +174,30 @@ Currently:
 - ❌ e2e_tests still have issues (memory unsafe accesses)
 - ⚠️ basic_tests partially pass (3/4 visible passing, then thread panic)
 - ⚠️ unit_tests need to be verified
+- ✅ OylNet metadata view functions work correctly
+- ✅ OylNet administrative operations work correctly
+- ❌ OylNet deposit/balance operations fail with errors
 
 ## Path Forward
 
-1. To fully resolve the remaining test issues, more invasive changes would be needed:
+1. **Resolving Local Test Issues**:
    - Rewrite the problematic e2e tests with much stricter memory safety
    - Refactor basic tests to prevent thread panics during cleanup
    - Consider changing the test approach to focus on isolated unit tests
 
-2. For now, the most critical tests (adversarial_tests) are passing, which validates:
-   - Security mechanisms (transaction replay protection, auth checks)
-   - Basic asset management operations
-   - Yield accrual functionality
-   - Error handling for edge cases
+2. **Resolving OylNet Integration Issues**:
+   - Investigate proper Bitcoin address encoding for OylNet
+   - Review the SDK documentation for parameter passing
+   - Test alternative address formats and encodings
+   - Implement proper serialization for address parameters
 
-3. The WebAssembly build process is now successfully working, which was the primary goal:
-   - Build works properly on Mac M1/M2/M3 systems
-   - All necessary post-processing is functioning
-   - Test integration with WebAssembly is working
+3. **Build and Deployment Improvements**:
+   - Push secp256k1-sys fork to a proper Git repository
+   - Implement automated CI/CD pipeline
+   - Create fully documented deployment workflow
+   - Establish performance benchmarks for contract operations
+
+4. **Security Testing**:
+   - Perform comprehensive security audit of deployed contracts
+   - Test for edge cases and potential exploits
+   - Validate all security patterns in live environment
