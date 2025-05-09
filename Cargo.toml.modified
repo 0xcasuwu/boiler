@@ -9,7 +9,13 @@ authors = ["Alkane Team"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# Standard crates from crates.io
+# Use path references to local copy of dependencies if available
+# Otherwise use stable versions from crates.io
+alkanes-support = { path = "./vendor/alkanes-rs/alkanes-support", optional = true }
+alkanes-runtime = { path = "./vendor/alkanes-rs/alkanes-runtime", optional = true }
+metashrew-support = { path = "./vendor/metashrew/metashrew-support", optional = true }
+protorune-support = { path = "./vendor/alkanes-rs/protorune-support", optional = true }
+ordinals = { path = "./vendor/alkanes-rs/ordinals", optional = true }
 anyhow = "1.0.94"
 bitcoin = { version = "0.32.4", features = ["rand"] }
 serde_json = "1.0"
@@ -39,5 +45,6 @@ codegen-units = 1     # Maximize optimization
 panic = 'abort'       # Smaller panic handler
 strip = true          # Strip debug symbols
 
+# Explicitly patch ALL references to secp256k1-sys to use our local fork only
 [patch.crates-io]
-secp256k1-sys = { path = "./fork-repos/secp256k1-sys" }
+secp256k1-sys = { path = "/Users/erickdelgado/Documents/GitHub/boiler/fork-repos/secp256k1-sys" }

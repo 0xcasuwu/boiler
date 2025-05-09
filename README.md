@@ -1,197 +1,85 @@
-# YieldVault: ERC-4626 for Bitcoin Smart Contracts
+# Bitcoin Yield Vault Smart Contract
 
-A Bitcoin smart contract implementation of the ERC-4626 tokenized vault standard, built using the memory-bank architecture.
+A fully functional ERC-4626 compatible yield-bearing vault implementation for Bitcoin, with stable build support for all platforms including Apple Silicon.
 
-## Overview
+## Project Overview
 
-YieldVault adapts the Ethereum ERC-4626 standard to Bitcoin's WebAssembly-based smart contract platform. It provides a standardized API for yield-bearing vaults on Bitcoin, allowing users to deposit assets into a yield-generating vault and receive shares that represent their proportional claim on the underlying assets.
+The Yield Vault is a Bitcoin smart contract that implements the tokenized vault standard (ERC-4626), enabling yield-bearing functionality directly on the Bitcoin blockchain. This implementation provides:
 
-## Features
+- Secure token issuance and management
+- Yield accrual based on configurable rates
+- Complete ERC-4626 interface with deposit/withdraw and mint/redeem operations
+- Comprehensive test suite and security validation
 
-- **Vault Operations**: Deposit assets, mint shares, withdraw assets, redeem shares
-- **Yield Generation**: Time-based yield accrual system with configurable rates
-- **Security Features**: Initialization guard, transaction hash validation, overflow protection
-- **View Functions**: Comprehensive query methods for vault state and calculations
-- **Preview Functions**: Simulate operations without executing them
-- **Limit Functions**: Get maximum deposit, mint, withdraw, and redeem amounts
+Built for the Alkane framework, the contract uses modern Bitcoin smart contract patterns including the AlkaneResponder trait, storage pointer standardization, and secure transaction validation.
 
-## Architecture
+## Key Features
 
-YieldVault is built following the memory-bank architecture patterns:
+- **Yield-bearing tokens**: Stake assets and earn yield in a secure smart contract
+- **Deposit/withdraw operations**: Flexible entry and exit
+- **Share-based accounting**: Accurate tracking of ownership stakes
+- **Secure authentication model**: AlkaneId validation for all operations
+- **Admin functions**: Yield rate management
+- **Cross-platform support**: Works on all systems including Apple Silicon
 
-- **MessageDispatch Pattern**: Opcode-based message handling
-- **Storage Pattern**: Consistent storage paths and serialization formats
-- **Security Pattern**: Multiple security layers including initialization guards and transaction validation
-- **Testing Patterns**: Comprehensive unit and integration testing
-
-## Repository Structure
+## Directory Structure
 
 ```
-boiler/
-├── src/
-│   ├── lib.rs                       # Main contract implementation
-│   ├── constants.rs                 # Storage pointer definitions and constants
-│   └── tests/
-│       ├── mod.rs                   # Test module organization
-│       ├── mock.rs                  # Mock implementations for testing
-│       ├── minimal_test.rs          # Basic verification tests
-│       ├── basic_tests.rs           # Standard unit tests
-│       ├── yield_vault_test.rs      # Advanced unit tests
-│       ├── yield_vault_test_direct.rs # Direct method call tests
-│       ├── yield_vault_mock_tests.rs  # Tests with mocked dependencies
-│       ├── yield_vault_test_unit_wasm.rs # WASM-specific unit tests
-│       └── yield_vault_test_integration.rs # Integration tests
-├── scripts/
-│   ├── wasm-build.sh               # Build script for WASM
-│   └── test-wasm.sh                # Test script for WASM tests
-├── Cargo.toml                      # Project dependencies
-├── README.md                       # This file
-└── memory-bank/                    # Documentation and context
-    ├── YieldVault.md               # Contract documentation
-    ├── YieldVault.rs               # Original implementation (for reference)
-    └── implementation-summary.md   # Summary of implementation
+yield-vault/
+├── src/                       # Contract source code
+│   ├── asset_management/      # Asset management operations
+│   ├── security/              # Security validations and checks
+│   ├── storage/               # Storage pointer implementations
+│   └── utils/                 # Utility functions
+├── fork-repos/                # Local dependency forks
+│   └── secp256k1-sys/         # Custom secp256k1-sys implementation
+├── scripts/                   # Build and deployment scripts
+│   ├── build_contracts.sh     # Main build script
+│   └── deploy_to_oylnet.sh    # OylNet deployment script
+└── docs/                      # Comprehensive documentation
 ```
 
-## Testing
+## Quick Start
 
-The project features a comprehensive test suite:
+### 1. Build the Contract
 
-- **Unit Tests**: Verify individual components and functions in isolation
-- **WebAssembly Tests**: Specifically test the WASM target functionality
-  - Use `scripts/test-wasm.sh` to run WASM tests
-- **Integration Tests**: Test the contract as a whole system
-- **Mock-based Tests**: Use mock implementations for deterministic testing
-
-Run standard tests:
-```bash
-cargo test
-```
-
-Run WebAssembly tests:
-```bash
-./scripts/test-wasm.sh
-```
-
-## Building for WebAssembly
-
-The project is designed to compile to WebAssembly for deployment on Bitcoin-based smart contract platforms.
+To build the contract with properly configured dependencies for your platform:
 
 ```bash
-cargo build --target wasm32-unknown-unknown --release
+# Use our optimized Apple Silicon build script if on M1/M2/M3 Mac
+./build_minimal.sh
+
+# Alternatively, use the full build script with fork integration
+./final_fork_build.sh
 ```
 
-### WebAssembly on Mac M1 (Apple Silicon)
+The WebAssembly binary will be available at `alkanes/target/wasm32-unknown-unknown/release/yield_vault.wasm`
 
-Mac M1 users may encounter issues when building for WebAssembly due to compatibility problems between secp256k1-sys and Apple's default clang compiler.
+### 2. Deploy the Contract
 
-If you encounter errors like `error: unable to create target: 'No available targets are compatible with triple "wasm32-unknown-unknown"'` when building for WebAssembly, follow these steps:
-
-1. Install Homebrew (if not already installed) under Rosetta:
-   ```bash
-   arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-   ```
-
-2. Install LLVM:
-   ```bash
-   arch -x86_64 /usr/local/bin/brew install llvm
-   ```
-
-3. Add LLVM to your PATH:
-   ```bash
-   export PATH="/usr/local/opt/llvm/bin:$PATH"
-   ```
-
-4. Set the AR environment variable:
-   ```bash
-   export AR="/usr/local/opt/llvm/bin/llvm-ar"
-   ```
-
-5. Build with these environment variables:
-   ```bash
-   PATH="/usr/local/opt/llvm/bin:$PATH" CC="/usr/local/opt/llvm/bin/clang" cargo build --target wasm32-unknown-unknown --release
-   ```
-
-This workaround uses x86_64 LLVM instead of Apple's clang when building for WebAssembly on Mac M1. 
-
-For details, see [the relevant GitHub issue](https://github.com/rust-bitcoin/rust-secp256k1/issues/283).
-
-## Core Concepts
-
-### Asset/Share Mechanics
-
-YieldVault implements the core ERC-4626 concept of assets (deposited tokens) and shares (representation of ownership):
-
-- When users deposit assets, they receive shares proportional to their contribution
-- Share price (assets per share) increases as yield accrues
-- Later deposits receive fewer shares per asset as the share price increases
-- Withdrawals and redemptions convert between assets and shares at the current exchange rate
-
-### Yield Accrual
-
-The contract features a time-based yield accrual system:
-
-- Yield rate is specified in basis points (1/100th of a percent)
-- Yield is calculated based on time elapsed since last update
-- Yield increases total assets while keeping total shares constant
-- This mechanism increases the asset value of each share over time
-
-## Security Features
-
-- **Initialization Guard**: Prevents multiple initializations
-- **Transaction Hash Tracking**: Prevents transaction replay attacks
-- **Overflow Protection**: Checked arithmetic throughout to prevent numeric overflows
-- **Authorization Checks**: Enforces that only asset owners can withdraw or redeem
-
-## Usage
-
-### Initialization
-
-```javascript
-// Example initialization
-opcall(contractId, 0, {
-  name: "Bitcoin Yield Vault", 
-  symbol: "bYV",
-  asset_name: "Bitcoin",
-  asset_symbol: "BTC",
-  decimal_offset: 8
-});
+```bash
+# Deploy to OylNet testnet
+./deploy_to_oylnet.sh
 ```
 
-### Deposit Assets
+### 3. Interact with the Deployed Contract
 
-```javascript
-// Example deposit
-opcall(contractId, 10, {
-  tx_hash: "0x123...", // Current transaction hash
-  caller: "bc1q...",   // Caller's address
-  receiver: "bc1q...", // Receiver's address
-  assets: 100000000    // 1 BTC (in satoshis)
-});
+```bash
+# Run interaction script to test contract functions
+./interact_with_vault.sh
 ```
 
-### Check Balance
+## Key Documentation Files
 
-```javascript
-// Get balance
-const balance = opcall(contractId, 600, {
-  account: "bc1q..."
-});
+For detailed information on the contract and its usage, see:
 
-// Get share value in assets
-const assetValue = opcall(contractId, 202, {
-  shares: balance
-});
-```
+- [Build and Deployment Guide](./docs/BUILD_AND_DEPLOY.md) - Comprehensive build instructions
+- [Technical Reference](./docs/TECHNICAL_REFERENCE.md) - Contract architecture and design patterns
+- [Testing Guide](./docs/TESTING.md) - Guide to running and extending tests
 
-## Implementation Notes
+## Requirements
 
-This implementation adapts the ERC-4626 standard to fit Bitcoin's environment:
-
-- Added transaction hash validation for replay protection
-- Explicit caller/receiver/owner parameters for authorization
-- Uses opcode-based interface instead of function-based ABI
-- Employs storage patterns optimized for Bitcoin's unique constraints
-
-## Acknowledgements
-
-Based on the [memory-bank architecture](link) and inspired by the [ERC-4626 standard](https://eips.ethereum.org/EIPS/eip-4626).
+- Rust 1.75.0 or later
+- wasm32-unknown-unknown target (`rustup target add wasm32-unknown-unknown`)
+- For Apple Silicon (M1/M2/M3): Homebrew LLVM (`arch -x86_64 brew install llvm`)
+- OylNet SDK for deployment and testing

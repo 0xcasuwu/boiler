@@ -170,32 +170,50 @@ update_yield_rate() {
     echo -e "\n${GREEN}✅ Yield rate update complete${NC}"
 }
 
-# Deposit assets
+# Get yield rate
+get_yield_rate() {
+    echo -e "\n${BOLD}${BLUE}Getting current yield rate...${NC}"
+
+    # Get yield rate (opcode 901)
+    read_contract "901" "" "Get current yield rate"
+
+    echo -e "\n${GREEN}✅ Yield rate retrieval complete${NC}"
+}
+
+# Deposit assets using AlkaneId
 deposit_assets() {
-    echo -e "\n${BOLD}${BLUE}Depositing assets...${NC}"
+    echo -e "\n${BOLD}${BLUE}Depositing assets with numeric test mode values...${NC}"
     
     # Create transaction hash
     local tx_hash=$(openssl rand -hex 32)
     
-    # Parameters: tx_hash, caller, receiver, assets
-    local caller="bcrt1q2dy7lfhttxsqklkds8sjngdvnupd72t648t5cu"
-    local receiver="bcrt1q2dy7lfhttxsqklkds8sjngdvnupd72t648t5cu"
+    # For testing, use numeric block/tx values that the contract accepts in test mode
+    # Parameters: tx_hash, block, tx, assets
+    local block=1  # test mode block
+    local tx=1     # test mode transaction
     local assets=1000000 # 0.01 BTC (assuming 8 decimals)
     
-    # Convert caller and receiver to hex
-    local caller_hex=$(echo -n "$caller" | xxd -p | tr -d '\n')
-    local receiver_hex=$(echo -n "$receiver" | xxd -p | tr -d '\n')
-    
-    # Prepare the parameters
-    local params="0x${tx_hash},0x${caller_hex},0x${receiver_hex},${assets}"
+    # Create parameters with numeric values instead of auth_token_123 string
+    local params="0x${tx_hash},${block},${tx},${assets}"
     
     # Call deposit (opcode 10)
-    write_contract "10" "$params" "Deposit $assets sats"
+    write_contract "10" "$params" "Deposit $assets sats with test mode values"
     
-    # Check the balance after deposit
-    read_contract "600" "0x${receiver_hex}" "Get balance of receiver"
+    echo -e "\n${GREEN}✅ Deposit operation with AlkaneId complete${NC}"
+}
+
+# Check balance with AlkaneId
+check_balance() {
+    echo -e "\n${BOLD}${BLUE}Checking balance with numeric test mode values...${NC}"
     
-    echo -e "\n${GREEN}✅ Deposit operation complete${NC}"
+    # For testing, use numeric block/tx values that the contract accepts in test mode
+    local block=1  # test mode block
+    local tx=1     # test mode transaction
+    
+    # Check the balance using numeric values
+    read_contract "600" "${block},${tx}" "Get balance with test mode values"
+    
+    echo -e "\n${GREEN}✅ Balance check operation complete${NC}"
 }
 
 # Main test process
@@ -211,8 +229,14 @@ main() {
     # Test 3: Update yield rate
     update_yield_rate
     
-    # Test 4: Deposit assets
+    # Test 4: Get updated yield rate
+    get_yield_rate
+
+    # Test 5: Deposit assets using AlkaneId
     deposit_assets
+    
+    # Test 6: Check balance using AlkaneId
+    check_balance
     
     echo -e "\n${BOLD}${GREEN}🎉 Contract Interaction Complete!${NC}"
     echo -e "Your YieldVault contract is deployed and functional on OylNet."
