@@ -6,14 +6,12 @@ echo "🚀 Yield Vault Complete Build and Verification Process"
 echo "======================================================"
 echo ""
 
-# Ensure script is executable
-chmod +x final_fork_build.sh
-chmod +x build_minimal.sh
-chmod +x build_with_fork.sh
+# Set executable permissions for all scripts
+chmod +x scripts/build.sh
+chmod +x scripts/network.sh
+chmod +x scripts/repo_check.sh
 chmod +x scripts/check_mac_m1.sh
-chmod +x repo_check.sh
-chmod +x interact_with_vault.sh
-chmod +x deploy_to_oylnet.sh
+chmod +x scripts/cleanup.sh
 
 # Print system info
 echo "📊 System Information:"
@@ -27,17 +25,17 @@ MAC_CHECK=$?
 
 # Repository structure validation
 echo "🔍 Validating Repository Structure..."
-./repo_check.sh
+./scripts/repo_check.sh
 
 # Build process
 echo "🏗️ Starting Build Process..."
 
 if [ "$MAC_CHECK" -eq 0 ]; then
     echo "✅ On Apple Silicon - Using optimized build script"
-    ./build_minimal.sh
+    ./scripts/build.sh --minimal
 else
     echo "✅ On standard architecture - Using normal build script"
-    ./final_fork_build.sh
+    ./scripts/build.sh --final
 fi
 
 # Verify the WebAssembly file exists
@@ -57,7 +55,7 @@ echo "  - BUILD_AND_DEPLOY.md: Complete build instructions"
 echo "  - TECHNICAL_REFERENCE.md: Contract architecture and design"
 echo "  - TESTING.md: Testing approach and best practices"
 echo ""
-echo "🧪 To deploy to OylNet: ./deploy_to_oylnet.sh"
-echo "🔍 To interact with deployed contract: ./interact_with_vault.sh"
+echo "🧪 To deploy to OylNet: ./scripts/network.sh --deploy"
+echo "🔍 To interact with deployed contract: ./scripts/network.sh --interact"
 echo ""
 echo "======================================================"

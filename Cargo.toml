@@ -17,6 +17,14 @@ wasm-bindgen = "0.2.100"
 hex = "0.4.3"
 bitcoin_hashes = "0.12.0"
 
+# Optional dependencies with path references
+# Comment these out if not available locally
+alkanes-support = { path = "./vendor/alkanes-rs/alkanes-support", optional = true }
+alkanes-runtime = { path = "./vendor/alkanes-rs/alkanes-runtime", optional = true }
+metashrew-support = { path = "./vendor/metashrew/metashrew-support", optional = true }
+protorune-support = { path = "./vendor/alkanes-rs/protorune-support", optional = true }
+ordinals = { path = "./vendor/alkanes-rs/ordinals", optional = true }
+
 [dev-dependencies]
 once_cell = "1.19.0"
 wasm-bindgen-test = "0.3.40"
@@ -39,5 +47,6 @@ codegen-units = 1     # Maximize optimization
 panic = 'abort'       # Smaller panic handler
 strip = true          # Strip debug symbols
 
+# Use relative path for secp256k1-sys to ensure cross-platform compatibility
 [patch.crates-io]
 secp256k1-sys = { path = "./fork-repos/secp256k1-sys" }

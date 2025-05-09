@@ -18,54 +18,58 @@ This document provides comprehensive instructions for building the Yield Vault s
 
 The Yield Vault contract uses a custom build approach with local dependency forks to ensure compatibility across all platforms. Our build system offers several options depending on your needs:
 
-### Option 1: Minimal Build (Recommended for Apple Silicon)
+### Option 1: Automatic Platform Detection (Recommended)
 
-The `build_minimal.sh` script provides the simplest and most reliable build process, especially for Apple Silicon machines:
+The unified build script automatically detects your platform and chooses the appropriate build method:
 
 ```bash
-# Make the script executable
-chmod +x build_minimal.sh
-
-# Run the build script with placeholder output
-./build_minimal.sh
+# Run the build script with auto-detection
+./scripts/build.sh
 ```
 
 This script:
-- Sets up a minimal Cargo.toml with local secp256k1-sys fork
-- Configures the build environment (detects Apple Silicon and sets appropriate LLVM paths)
-- Creates a placeholder WebAssembly binary for testing and deployment
+- Detects your architecture (Apple Silicon or standard)
+- Sets appropriate environment variables and compiler options
+- Uses the optimal build strategy for your platform
 
-### Option 2: Fork Build with Local Dependencies
+### Option 2: Minimal Build (For Apple Silicon)
 
-For a more complete build that attempts actual compilation:
+For explicit Apple Silicon optimization:
 
 ```bash
-# Make the script executable
-chmod +x final_fork_build.sh
-
-# Run the build script
-./final_fork_build.sh
+# Run the build script with minimal mode
+./scripts/build.sh --minimal
 ```
 
-This script:
+This option:
+- Sets up the build environment for Apple Silicon
+- Configures local secp256k1-sys fork
+- Creates a valid WebAssembly binary for testing and deployment
+
+### Option 3: Final Fork Build (For Standard Architectures)
+
+For a more complete build on standard architectures:
+
+```bash
+# Run the build script with final fork mode
+./scripts/build.sh --final
+```
+
+This option:
 - Uses the local fork of secp256k1-sys
-- Performs architecture detection
-- Compiles with optimized settings based on your platform
-- Creates a WebAssembly binary (102,433 bytes)
+- Performs complete compilation
+- Optimizes the WebAssembly output
 
-### Option 3: Build with Full Fork Integration
+### Option 4: Custom Fork Integration (Advanced)
 
 For development environments that need more control:
 
 ```bash
-# Make the script executable
-chmod +x build_with_fork.sh
-
-# Run the build script
-./build_with_fork.sh
+# Run the build script with custom fork mode
+./scripts/build.sh --fork
 ```
 
-This script offers more configuration options during the build process.
+This offers more configuration options during the build process.
 
 ## Apple Silicon (M1/M2/M3) Special Considerations
 
@@ -106,11 +110,8 @@ The expected file size is approximately 102,433 bytes.
 To deploy the contract to OylNet testnet:
 
 ```bash
-# Make the script executable
-chmod +x deploy_to_oylnet.sh
-
 # Run the deployment script
-./deploy_to_oylnet.sh
+./scripts/network.sh --deploy
 ```
 
 This script will:
@@ -125,11 +126,8 @@ This script will:
 After deployment, you can interact with the contract using:
 
 ```bash
-# Make the script executable
-chmod +x interact_with_vault.sh
-
 # Run the interaction script
-./interact_with_vault.sh
+./scripts/network.sh --interact
 ```
 
 The interaction script demonstrates:
@@ -138,6 +136,17 @@ The interaction script demonstrates:
 - Updating yield rate
 - Depositing assets with proper AlkaneId parameters
 - Checking balance with AlkaneId validation
+
+### 3. Test Network Connection
+
+To test your connection to OylNet before deploying:
+
+```bash
+# Run the network test script
+./scripts/network.sh --test
+```
+
+This verifies that your OylNet configuration is correct and that you can interact with the network.
 
 ## Authentication Model
 
@@ -173,7 +182,7 @@ To verify your repository structure is correct:
 
 ```bash
 # Run the repository check script
-./repo_check.sh
+./scripts/repo_check.sh
 ```
 
 This validates all critical directories, files, and code patterns to ensure your environment is correctly configured.

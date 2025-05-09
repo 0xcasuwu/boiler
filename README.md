@@ -1,85 +1,152 @@
-# Bitcoin Yield Vault Smart Contract
+# Yield Vault: Bitcoin Implementation of ERC-4626
 
-A fully functional ERC-4626 compatible yield-bearing vault implementation for Bitcoin, with stable build support for all platforms including Apple Silicon.
+A WebAssembly implementation of the ERC-4626 tokenized vault standard for Bitcoin, optimized for compatibility across all platforms including Apple Silicon.
 
-## Project Overview
+## 🔍 Overview
 
-The Yield Vault is a Bitcoin smart contract that implements the tokenized vault standard (ERC-4626), enabling yield-bearing functionality directly on the Bitcoin blockchain. This implementation provides:
+This project implements a yield-bearing vault on Bitcoin, following the ERC-4626 standard. The vault allows users to deposit Bitcoin and earn yield over time, with all accounting and yield calculations handled on-chain.
 
-- Secure token issuance and management
-- Yield accrual based on configurable rates
-- Complete ERC-4626 interface with deposit/withdraw and mint/redeem operations
-- Comprehensive test suite and security validation
+## 🛠 Architecture
 
-Built for the Alkane framework, the contract uses modern Bitcoin smart contract patterns including the AlkaneResponder trait, storage pointer standardization, and secure transaction validation.
+The contract follows the ERC-4626 interface with Bitcoin-specific adaptations:
 
-## Key Features
+- **Storage Pattern**: Persistent storage using StoragePointer API
+- **Security Model**: Transaction replay protection and proper authorization
+- **Yield Accrual**: Time-based yield that increases assets while maintaining constant shares supply
+- **Opcodes**: Full implementation of asset management, accounting, and administrative operations
 
-- **Yield-bearing tokens**: Stake assets and earn yield in a secure smart contract
-- **Deposit/withdraw operations**: Flexible entry and exit
-- **Share-based accounting**: Accurate tracking of ownership stakes
-- **Secure authentication model**: AlkaneId validation for all operations
-- **Admin functions**: Yield rate management
-- **Cross-platform support**: Works on all systems including Apple Silicon
+## 🚀 Quick Start
 
-## Directory Structure
+### Prerequisites
+
+- Rust 1.75.0 or later
+- wasm32-unknown-unknown target: `rustup target add wasm32-unknown-unknown`
+- For Apple Silicon (M1/M2/M3):
+  - Homebrew LLVM: `arch -x86_64 /usr/local/bin/brew install llvm`
+  - LLVM in PATH: `export PATH="/usr/local/opt/llvm/bin:$PATH"`
+
+### Building the Contract
+
+Using the consolidated build script with auto-detection:
+
+```bash
+# Build with automatic platform detection
+./scripts/build.sh
+```
+
+For specific build modes:
+
+```bash
+# For Apple Silicon optimization
+./scripts/build.sh --minimal
+
+# For standard architecture with complete build
+./scripts/build.sh --final
+
+# For development environments with custom fork
+./scripts/build.sh --fork
+```
+
+### Deployment and Interaction
+
+Test connection to OylNet:
+
+```bash
+./scripts/network.sh --test
+```
+
+Deploy the contract:
+
+```bash
+./scripts/network.sh --deploy
+```
+
+Interact with the deployed contract:
+
+```bash
+./scripts/network.sh --interact
+```
+
+## 📂 Project Structure
 
 ```
 yield-vault/
-├── src/                       # Contract source code
-│   ├── asset_management/      # Asset management operations
-│   ├── security/              # Security validations and checks
-│   ├── storage/               # Storage pointer implementations
-│   └── utils/                 # Utility functions
-├── fork-repos/                # Local dependency forks
-│   └── secp256k1-sys/         # Custom secp256k1-sys implementation
-├── scripts/                   # Build and deployment scripts
-│   ├── build_contracts.sh     # Main build script
-│   └── deploy_to_oylnet.sh    # OylNet deployment script
-└── docs/                      # Comprehensive documentation
+├── .cargo/             # Cargo configuration
+├── docs/               # Documentation
+│   ├── BUILD_AND_DEPLOY.md
+│   ├── TECHNICAL_REFERENCE.md
+│   └── TESTING.md
+├── fork-repos/         # Local dependency forks
+│   └── secp256k1-sys/  # Fork optimized for Apple Silicon
+├── memory-bank/        # Documentation and notes
+├── scripts/            # Build and deployment scripts
+│   ├── build.sh        # Consolidated build script
+│   ├── network.sh      # Network operations (test, deploy, interact)
+│   ├── build_all.sh    # Complete build process
+│   ├── cleanup.sh      # Cleanup script
+│   ├── check_mac_m1.sh # Apple Silicon detection
+│   └── repo_check.sh   # Repository validation
+├── src/                # Contract source code
+│   ├── asset_management/
+│   ├── security/
+│   ├── storage/
+│   ├── utils/
+│   ├── lib.rs
+│   └── constants.rs
+├── Cargo.toml          # Project manifest
+└── build.rs           # Build script
 ```
 
-## Quick Start
+## 🔧 Apple Silicon Special Handling
 
-### 1. Build the Contract
+Building WebAssembly on Apple Silicon (M1/M2/M3) requires special configuration:
 
-To build the contract with properly configured dependencies for your platform:
+1. **LLVM Requirement**: Install LLVM via Rosetta-enabled Homebrew
+   ```
+   arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+   arch -x86_64 /usr/local/bin/brew install llvm
+   ```
+
+2. **Environment Setup**: Our build scripts automatically set the required environment variables:
+   ```
+   PATH="/usr/local/opt/llvm/bin:$PATH"
+   CC="/usr/local/opt/llvm/bin/clang"
+   AR="/usr/local/opt/llvm/bin/llvm-ar"
+   RUSTFLAGS="-C embed-bitcode=no"
+   ```
+
+3. **Local Fork**: We use a custom fork of secp256k1-sys that's compatible with Apple Silicon.
+
+## 📝 Documentation
+
+- [Build and Deployment Guide](docs/BUILD_AND_DEPLOY.md) - Detailed instructions for building and deploying
+- [Technical Reference](docs/TECHNICAL_REFERENCE.md) - Contract architecture and design
+- [Testing Guide](docs/TESTING.md) - Testing approach and best practices
+
+## 📋 Opcode Standards
+
+The contract implements the following opcode standards:
+
+| Opcode Range | Function Group             |
+|--------------|----------------------------|
+| 0            | Initialize                 |
+| 10-19        | Asset Management           |
+| 100-199      | Metadata View Functions    |
+| 200-299      | Accounting View Functions  |
+| 300-399      | Limit View Functions       |
+| 400-499      | Preview View Functions     |
+| 500-599      | Custom Data Operations     |
+| 600-699      | Balance Management         |
+| 900-999      | Administrative Operations  |
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure your changes follow the project's code style and security patterns. Make sure to run the repository check script before submitting changes:
 
 ```bash
-# Use our optimized Apple Silicon build script if on M1/M2/M3 Mac
-./build_minimal.sh
-
-# Alternatively, use the full build script with fork integration
-./final_fork_build.sh
+./scripts/repo_check.sh
 ```
 
-The WebAssembly binary will be available at `alkanes/target/wasm32-unknown-unknown/release/yield_vault.wasm`
+## 📄 License
 
-### 2. Deploy the Contract
-
-```bash
-# Deploy to OylNet testnet
-./deploy_to_oylnet.sh
-```
-
-### 3. Interact with the Deployed Contract
-
-```bash
-# Run interaction script to test contract functions
-./interact_with_vault.sh
-```
-
-## Key Documentation Files
-
-For detailed information on the contract and its usage, see:
-
-- [Build and Deployment Guide](./docs/BUILD_AND_DEPLOY.md) - Comprehensive build instructions
-- [Technical Reference](./docs/TECHNICAL_REFERENCE.md) - Contract architecture and design patterns
-- [Testing Guide](./docs/TESTING.md) - Guide to running and extending tests
-
-## Requirements
-
-- Rust 1.75.0 or later
-- wasm32-unknown-unknown target (`rustup target add wasm32-unknown-unknown`)
-- For Apple Silicon (M1/M2/M3): Homebrew LLVM (`arch -x86_64 brew install llvm`)
-- OylNet SDK for deployment and testing
+This project is licensed under the terms specified in the LICENSE file.
