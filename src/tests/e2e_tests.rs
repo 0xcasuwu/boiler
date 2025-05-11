@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::storage::Storage;
 use crate::security::Security;
-use crate::utils::Conversion;
 use crate::asset_management::AssetManagement;
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_runtime::runtime::AlkaneResponder;
@@ -278,7 +277,7 @@ fn create_isolated_test_environment(test_name: &str) -> (E2EVault, String, Strin
     let bob = format!("{}_bob", test_name);
     
     // Create a new vault with clean state
-    let mut vault = E2EVault::new();
+    let vault = E2EVault::new();
     
     // Initialize tx tracking
     vault.tx_hashes_pointer().set(Arc::new(Vec::new()));

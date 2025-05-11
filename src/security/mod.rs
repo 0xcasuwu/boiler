@@ -1,9 +1,7 @@
-use alkanes_runtime::storage::StoragePointer;
 use metashrew_support::index_pointer::KeyValuePointer;
 use crate::storage::Storage;
 // No longer needed: use std::collections::HashSet;
 // No longer needed: use serde_json;
-use std::sync::Arc;
 
 /// Security trait for the YieldVault
 pub trait Security: Storage {

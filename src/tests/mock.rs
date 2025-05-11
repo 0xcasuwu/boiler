@@ -4,10 +4,8 @@ use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_support::context::Context;
 use alkanes_support::id::AlkaneId;
 use alkanes_support::parcel::AlkaneTransferParcel;
-use alkanes_support::response::CallResponse;
-use anyhow::{anyhow, Result};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}};
+use anyhow::Result;
+use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 use metashrew_support::index_pointer::KeyValuePointer;
 
 // Static atomic counter for mocking timestamp progress

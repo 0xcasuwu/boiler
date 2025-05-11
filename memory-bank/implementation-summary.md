@@ -1,225 +1,89 @@
-# YieldVault Implementation Summary
+# Implementation Summary for Yield Vault
 
-This document summarizes how the YieldVault contract adapts the ERC-4626 tokenized vault standard to Bitcoin smart contracts, highlighting alignment with the canonical memory-bank architecture patterns.
+## Architecture Overview
 
-## Architectural Alignment
+The Yield-Vault WASM contract implements the ERC-4626 tokenized vault standard for Bitcoin. It provides functionality for:
 
-Our implementation of the YieldVault contract follows the key architectural patterns observed in the canonical Bitcoin smart contract repository:
+1. Depositing assets and minting shares
+2. Withdrawing assets by burning shares
+3. Redeeming shares for assets
+4. Account and asset management
+5. Computing yields over time
 
-### 1. Storage Patterns
+## Core Dependencies
 
-| Pattern | Canonical Implementation | YieldVault Implementation |
-|---------|-------------------------|---------------------------|
-| Consistent paths | Uses `/name`, `/symbol`, etc. | Uses `/name`, `/symbol`, `/total-assets`, etc. |
-| Complex data serialization | JSON serialization for complex types | JSON serialization for transaction hash tracking |
-| Path prefixing | Path namespacing for different data types | Uses `/balances/{account}` for account data |
+The contract relies on three key external dependencies:
 
-### 2. Security Patterns
+1. **alkanes-runtime** - Provides the runtime environment for WASM contracts on Bitcoin
+2. **alkanes-support** - Provides support utilities and common functions
+3. **metashrew-support** - Provides storage utilities and index pointer functionality
 
-| Pattern | Canonical Implementation | YieldVault Implementation |
-|---------|-------------------------|---------------------------|
-| Initialization guard | `observe_initialization()` | Similar implementation to prevent multiple initializations |
-| Transaction hash tracking | Stores in `/tx-hashes/` | Stores in `/tx-hashes` as JSON serialized HashSet |
-| Overflow protection | Uses `checked_add` and `overflow_error` | Uses `checked_add`/`checked_mul`/etc. with error messages |
-| Authorization checking | Caller validation | Owner validation via `check_authorization()` |
-
-### 3. Opcode Interface
-
-Both implementations use the MessageDispatch derive macro for opcode-based interfaces:
-
-```rust
-// Canonical
-#[derive(MessageDispatch)]
-enum MintableAlkaneMessage {
-    #[opcode(0)]
-    Initialize { /* params */ },
-    // ...
-}
-
-// YieldVault
-#[derive(MessageDispatch)]
-enum YieldVaultMessage {
-    #[opcode(0)]
-    Initialize { /* params */ },
-    // ...
-}
+All three dependencies are pulled directly from their GitHub repositories:
+```toml
+alkanes-runtime = { git = "https://github.com/kungfuflex/alkanes-rs" }
+alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs" }
+metashrew-support = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
 ```
 
-### 4. Error Handling
+## Key Components
 
-Both implementations use explicit error handling with descriptive error messages:
+### Storage
 
-```rust
-// YieldVault example
-fn mint_shares(&self, account: &str, amount: u128) -> Result<(), &'static str> {
-    // Get current balance
-    let balance = self.get_balance(account);
-    
-    // Calculate new balance
-    let new_balance = balance
-        .checked_add(amount)
-        .ok_or("Balance overflow")?;
-    // ...
-}
-```
+- Uses `StoragePointer::from_keyword()` for all persistent storage as specified in requirements
+- Follows the established naming convention for storage keys (e.g., `/name`, `/symbol`, etc.)
+- Provides helper functions to access storage pointers for various data types
 
-## ERC-4626 Adaptation
+### Security
 
-The ERC-4626 standard was adapted to fit the Bitcoin smart contract environment:
+- Implements `observe_initialization()` in Initialize operation to prevent multiple initializations
+- Uses transaction hash tracking to prevent replay attacks
+- Implements authorization checks to verify transaction permissions
 
-### Original ERC-4626 Features Maintained:
-- Asset deposit/withdrawal functionality
-- Share minting/redemption
-- Conversion between assets and shares
-- Preview functions to simulate operations
-- Accounting functions (totalAssets, totalSupply)
+### Asset Management
 
-### Bitcoin-Specific Adaptations:
+- Follows ERC-4626 interface for yield-bearing vault functionality
+- Updates yield before any state-changing operation
+- Implements deposit, mint, withdraw, and redeem operations
+- Handles asset/share conversions with proper error checking
 
-1. **Transaction Hash Validation**
-   - Added to all state-changing operations
-   - Prevents replay attacks (required for Bitcoin)
+### Utils
 
-2. **Explicit Authorization Parameters**
-   - Each operation includes caller/receiver/owner parameters
-   - Bitcoin doesn't have built-in authorization like Ethereum
+- Provides utilities for converting between assets and shares
+- Implements ceil division for precise financial calculations
+- Defines constants for yield calculations
 
-3. **Opcode-Based Interface**
-   - Uses numeric opcodes instead of function names
-   - Groups related functions by opcode ranges
+## Opcode Implementation
 
-4. **Storage Architecture**
-   - Uses key-value storage with standardized paths
-   - Maintains consistent naming conventions
+The contract implements the required opcodes as specified in the requirements:
+- 0: Initialize - Sets up the vault with initial parameters
+- 10-19: Asset Management Operations (deposit, mint, withdraw, redeem)
+- 100-199: Metadata View Functions (name, symbol, decimals, etc.)
+- 200-299: Accounting View Functions (total assets, conversion methods)
+- 300-399: Limit View Functions (max deposit, max mint, etc.)
+- 400-499: Preview View Functions (preview deposit, preview mint, etc.)
+- 500-599: Custom Data Operations (set/get arbitrary data)
+- 600-699: Balance Management (balance, total supply)
+- 900-999: Administrative Operations (update yield rate)
 
-### Additional Features:
+## Initialization Process
 
-1. **Yield Accrual System**
-   - Time-based yield calculation
-   - Applies yield before any operation
-   - Rate specified in basis points
+1. Checks if already initialized to prevent multiple initializations
+2. Sets token metadata (name, symbol, asset name, asset symbol, decimals)
+3. Initializes accounting state (total supply, total assets)
+4. Initializes yield tracking (yield rate, last update timestamp)
 
-2. **Enhanced Security**
-   - Comprehensive initialization guards
-   - Checked arithmetic throughout
-   - Explicit authorization checks
+## Yield Calculation
 
-## Testing Strategy
+Yield is calculated based on:
+- The time (blocks) elapsed since the last yield update
+- The current yield rate (in basis points)
+- The total assets under management
 
-The implementation includes comprehensive tests with proper isolation techniques:
+The formula used is: `yield = total_assets * yield_rate * blocks_elapsed / YIELD_CALCULATION_DENOMINATOR`
 
-1. **Initialization Tests**
-   - Verifies proper initialization
-   - Tests double-initialization protection
-   - Isolates each test with unique storage prefixes
+## Asset/Share Conversion
 
-2. **Core Functionality Tests**
-   - Deposit/withdrawal operations
-   - Minting/redemption operations
-   - Multiple user interactions
-   - Test wrapper for storage isolation
-
-3. **Security Tests**
-   - Transaction replay protection
-   - Authorization checks
-   - Proper error handling and propagation
-
-4. **Yield-Specific Tests**
-   - Yield accrual over time
-   - Share price changes due to yield
-   - Partial withdrawals with yield
-
-5. **Dual Test Runner Support**
-   - Standard Rust test runner compatibility
-   - WebAssembly test runner compatibility
-   - Clean environment between tests
-
-## Modular Architecture
-
-The implementation has been restructured into a modular architecture for improved maintainability and separation of concerns:
-
-### 1. Module Structure
-
-| Module | Responsibility | Key Components |
-|--------|----------------|----------------|
-| `storage` | Storage access and persistence | `Storage` trait, storage pointers, balance management |
-| `security` | Security patterns and checks | `Security` trait, initialization guards, transaction validation |
-| `utils` | Utility functions and math | `Conversion` trait, mathematical operations, constants |
-| `asset_management` | Core business logic | `AssetManagement` trait, deposit/withdrawal functions, yield management |
-
-This modular approach provides several benefits:
-- Clear separation of concerns for each aspect of the vault
-- Better code organization and maintainability
-- Improved testability of individual components
-- Simplified code navigation and understanding
-
-### 2. Trait-Based Design
-
-Each module exposes a primary trait that defines its interface:
-
-```rust
-// Storage trait example
-pub trait Storage {
-    fn name_pointer(&self) -> StoragePointer { ... }
-    fn symbol_pointer(&self) -> StoragePointer { ... }
-    fn get_balance(&self, account: &str) -> u128 { ... }
-    // ...
-}
-
-// Security trait example
-pub trait Security: Storage {
-    fn observe_initialization(&self) -> Result<(), &'static str> { ... }
-    fn validate_and_track_transaction(&self, tx_hash: &str) -> Result<(), &'static str> { ... }
-    // ...
-}
-```
-
-### 3. Composition Pattern
-
-The main `YieldVault` struct gains functionality through trait implementation:
-
-```rust
-// YieldVault implementation
-impl Storage for YieldVault {}
-impl Security for YieldVault {}
-impl AssetManagement for YieldVault {
-    fn context(&self) -> Result<Context> { ... }
-    fn get_timestamp(&self) -> u64 { ... }
-}
-```
-
-This composition approach enables:
-- Incremental addition of features
-- Simplified implementation testing
-- Better code organization
-- Clearer responsibilities for each component
-
-## Implementation Outcomes
-
-1. **Security**
-   - Protected against common vulnerabilities
-   - Follows the same security patterns as canonical implementation
-   - Additional checks for yield-related operations
-   - Modular security trait isolates security concerns
-
-2. **Standards Compliance**
-   - Successfully adapts ERC-4626 functionality
-   - Maintains expected interfaces with Bitcoin adaptations
-   - Provides all required calculation methods
-   - Trait-based approach ensures interface consistency
-
-3. **Performance Considerations**
-   - Optimized storage access patterns
-   - Efficient transaction hash tracking
-   - Careful handling of complex calculations
-   - Modular design enables targeted optimizations
-
-4. **Maintainability**
-   - Clear separation of concerns
-   - Improved code organization
-   - Simplified troubleshooting
-   - Better extensibility for future features
-
-## Conclusion
-
-The YieldVault implementation successfully adapts the ERC-4626 standard to Bitcoin smart contracts while maintaining alignment with the canonical memory-bank architecture patterns. It provides a secure and efficient tokenized vault implementation for Bitcoin that leverages the strengths of both systems.
+The contract implements the required conversion functions:
+- `convert_assets_to_shares`: Calculates shares for a given asset amount
+- `convert_shares_to_assets`: Calculates assets for a given share amount
+- With special handling for empty vaults (1:1 ratio)

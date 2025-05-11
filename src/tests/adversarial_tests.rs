@@ -11,7 +11,6 @@ use alkanes_support::id::AlkaneId;
 use alkanes_support::parcel::{AlkaneTransfer, AlkaneTransferParcel};
 use anyhow::{anyhow, Result};
 use wasm_bindgen_test::wasm_bindgen_test;
-use wasm_bindgen_test::wasm_bindgen_test_configure;
 // Add this critical import for storage operations
 use metashrew_support::index_pointer::KeyValuePointer;
 

@@ -4,6 +4,10 @@
 
 The YieldVault smart contract requires compilation to WebAssembly (WASM) for deployment on the Bitcoin blockchain. This document outlines the build process, architecture-specific considerations, and key components involved in generating deployment-ready WebAssembly binaries.
 
+## IRONCLAD RULE FOR DEPENDENCIES
+
+**ALWAYS use direct GitHub repositories from kungfuflex/alkanes-rs, NEVER use local stubs** (except for secp256k1-sys, which needs a stub for cross-platform compatibility). This rule has been established after thorough testing and verification to ensure maximum compatibility and functionality.
+
 ## Build Architecture
 
 The build process uses a multi-stage approach:

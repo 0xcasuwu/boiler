@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use crate::{YieldVault};
 use crate::storage::Storage;
 use crate::security::Security;
 use metashrew_support::index_pointer::KeyValuePointer;

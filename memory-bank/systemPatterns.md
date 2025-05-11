@@ -1,5 +1,9 @@
 # Yield Vault System Design and Patterns
 
+## IRONCLAD RULE FOR DEPENDENCIES
+
+**ALWAYS use direct GitHub repositories from kungfuflex/alkanes-rs, NEVER use local stubs** (except for secp256k1-sys, which needs a stub for cross-platform compatibility). This rule has been established after thorough testing and verification to ensure maximum compatibility and functionality.
+
 ## Architecture Overview
 
 The Yield Vault smart contract follows ERC-4626 tokenized vault standards and is designed using a modular architecture with clear separation of concerns. The codebase is organized into components that handle specific functionality, with a core MessageDispatch pattern for operation routing.

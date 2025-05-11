@@ -7,7 +7,6 @@ use alkanes_runtime::storage::StoragePointer;
 use alkanes_support::id::AlkaneId;
 use metashrew_support::index_pointer::KeyValuePointer;
 use wasm_bindgen_test::wasm_bindgen_test;
-use wasm_bindgen_test::wasm_bindgen_test_configure;
 
 
 // Reset all storage keys used in tests - similar to free-mint approach

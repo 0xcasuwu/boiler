@@ -1,5 +1,9 @@
 # Apple Silicon (M1/M2/M3) Build Guide
 
+## IRONCLAD RULE FOR DEPENDENCIES
+
+**ALWAYS use direct GitHub repositories from kungfuflex/alkanes-rs, NEVER use local stubs** (except for secp256k1-sys, which needs a stub for cross-platform compatibility). This rule has been established after thorough testing and verification to ensure maximum compatibility and functionality.
+
 ## Overview
 
 Building Bitcoin smart contracts on Apple Silicon (M1/M2/M3) processors requires special handling due to compatibility issues with various dependencies, particularly `secp256k1-sys`. This guide provides detailed, tested instructions for successfully building WebAssembly targets on Apple Silicon devices.

@@ -1,15 +1,13 @@
-use metashrew_support::index_pointer::KeyValuePointer; // Add this import
+use metashrew_support::index_pointer::KeyValuePointer;
 use alkanes_support::utils::overflow_error;
 use alkanes_support::parcel::{AlkaneTransfer, AlkaneTransferParcel};
 use alkanes_support::response::CallResponse;
-use alkanes_support::context::Context;
 use alkanes_runtime::runtime::AlkaneResponder;
 use anyhow::{anyhow, Result};
 
 use crate::storage::Storage;
 use crate::security::Security;
 use crate::utils::Conversion;
-use crate::utils::BLOCKS_PER_YEAR;
 
 /// Asset management trait for the YieldVault
 pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
@@ -51,7 +49,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
     fn deposit(
         &self,
         tx_hash: String,
-        caller: String,
+        _caller: String,
         receiver: String,
         assets: u128
     ) -> Result<CallResponse> {
@@ -116,7 +114,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
     fn mint(
         &self,
         tx_hash: String,
-        caller: String,
+        _caller: String,
         receiver: String,
         shares: u128
     ) -> Result<CallResponse> {
@@ -182,7 +180,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         &self,
         tx_hash: String,
         caller: String,
-        receiver: String,
+        _receiver: String,
         owner: String,
         assets: u128
     ) -> Result<CallResponse> {
@@ -257,7 +255,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         &self,
         tx_hash: String,
         caller: String,
-        receiver: String,
+        _receiver: String,
         owner: String,
         shares: u128
     ) -> Result<CallResponse> {

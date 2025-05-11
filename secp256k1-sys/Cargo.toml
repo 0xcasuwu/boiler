@@ -1,0 +1,9 @@
+[package]
+name = "secp256k1-sys"
+version = "0.9.3"
+edition = "2021"
+description = "Fork of secp256k1-sys for compatibility with Apple Silicon"
+authors = ["Alkane Team"]
+license = "MIT"
+
+[dependencies]

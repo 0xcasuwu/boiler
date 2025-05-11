@@ -5,6 +5,10 @@ pub mod basic_tests;
 pub mod adversarial_tests;
 pub mod unit_tests;
 pub mod e2e_tests;
+pub mod integration_tests;
+pub mod dependency_tests;
+pub mod native_unit_tests;
+pub mod wasm_tests;
 
 // Re-export mock module for use in the main lib
 pub use mock::MockStoragePointer;

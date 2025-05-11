@@ -1,7 +1,6 @@
 use crate::YieldVault;
 use crate::storage::Storage;
 use crate::security::Security;
-use alkanes_support::context::Context;
 use alkanes_support::response::CallResponse;
 use anyhow::Result;
 use metashrew_support::index_pointer::KeyValuePointer;
