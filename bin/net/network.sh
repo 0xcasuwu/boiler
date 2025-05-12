@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 MODE=""
 
 # Get repository root directory (works even when script is called from another directory)
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd )"
+ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." >/dev/null 2>&1 && pwd )"
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -25,6 +25,7 @@ while [[ "$#" -gt 0 ]]; do
         --test) MODE="test";;
         --deploy) MODE="deploy";;
         --interact) MODE="interact";;
+        --fund) MODE="fund";;
         --help|-h)
             echo -e "${BOLD}OylNet Network Operations Unified Script${NC}"
             echo ""
@@ -32,6 +33,7 @@ while [[ "$#" -gt 0 ]]; do
             echo ""
             echo -e "Options:"
             echo -e "  --test       Test connection to OylNet network"
+            echo -e "  --fund       Fund wallet from OylNet faucet"
             echo -e "  --deploy     Deploy contract to OylNet network"
             echo -e "  --interact   Interact with deployed contract"
             echo -e "  --help, -h   Show this help message"
@@ -93,7 +95,7 @@ generate_blocks() {
     local count=${1:-1}
     
     echo -e "${YELLOW}Generating $count blocks...${NC}"
-    execute_with_retry "source .env && oyl regtest genBlocks -p oylnet -c $count" "Generate blocks" 3 2
+    execute_with_retry "source ${ROOT_DIR}/.env && oyl regtest genBlocks -p oylnet -c $count" "Generate blocks" 3 2
     
     echo -e "${YELLOW}Waiting 3 seconds for block indexing...${NC}"
     sleep 3
@@ -117,7 +119,7 @@ read_contract() {
         calldata="$opcode,$params"
     fi
     
-    local command="source .env && export ACTIVE_CONTRACT=$contract_id && oyl alkane execute -p oylnet --calldata \"${calldata}\""
+    local command="source ${ROOT_DIR}/.env && export ACTIVE_CONTRACT=$contract_id && oyl alkane execute -p oylnet --calldata \"${calldata}\""
     execute_with_retry "$command" "Read operation: $description" 3 2
     
     return $?
@@ -139,7 +141,7 @@ write_contract() {
         calldata="$opcode,$params"
     fi
     
-    local command="source .env && export ACTIVE_CONTRACT=$contract_id && oyl alkane execute -p oylnet --calldata \"${calldata}\""
+    local command="source ${ROOT_DIR}/.env && export ACTIVE_CONTRACT=$contract_id && oyl alkane execute -p oylnet --calldata \"${calldata}\""
     execute_with_retry "$command" "Write operation: $description" 3 2
     local status=$?
     
@@ -182,7 +184,7 @@ deploy_contract() {
     fi
     
     # Check if WebAssembly file exists
-    local wasm_path="${ROOT_DIR}/alkanes/target/wasm32-unknown-unknown/release/yield_vault.wasm"
+    local wasm_path="${ROOT_DIR}/target/wasm32-unknown-unknown/release/yield_vault.wasm"
     if [ ! -f "$wasm_path" ]; then
         echo -e "${RED}❌ Error: WebAssembly binary not found!${NC}"
         echo "Run './scripts/build.sh' first to build the WebAssembly binary."
@@ -222,7 +224,11 @@ deploy_contract() {
     # Deploy contract
     echo -e "${BLUE}Deploying contract to OylNet...${NC}"
     
-    local command="source .env && oyl alkane new-contract --contract \"${ROOT_DIR}/build/yield_vault.wasm\" --provider \"oylnet\" --calldata \"${CALLDATA}\" --feeRate 10"
+    # Generate some blocks to ensure faucet is funded
+    echo -e "${BLUE}Generating blocks to prepare network...${NC}"
+    generate_blocks 10
+    
+    local command="source ${ROOT_DIR}/.env && oyl alkane new-contract --contract \"${ROOT_DIR}/build/yield_vault.wasm\" --provider \"oylnet\" --calldata \"${CALLDATA}\" --feeRate 1"
     
     echo -e "${CYAN}$ $command${NC}"
     local deploy_result=$(eval "$command")
@@ -323,6 +329,36 @@ interact_with_contract() {
     echo -e "Contract ID: ${BOLD}$contract_id${NC}"
 }
 
+# Fund wallet from faucet
+fund_wallet() {
+    echo -e "${BOLD}${BLUE}Funding Wallet from OylNet Faucet...${NC}"
+    echo ""
+    
+    # Check if .env file exists
+    if [ ! -f "${ROOT_DIR}/.env" ]; then
+        echo -e "${RED}❌ Error: .env file not found!${NC}"
+        echo "Create a .env file with your OylNet credentials."
+        exit 1
+    fi
+    
+    # Use a known valid test address for OylNet regtest
+    echo -e "${BLUE}Using test address for OylNet regtest...${NC}"
+    # This is a hardcoded test address compatible with OylNet regtest
+    local address="bcrt1qeyyk6sl5gvr4wzm0dpmfqcjsls9xfkgvurkz7p"
+    
+    echo -e "${BLUE}Funding address: ${address}${NC}"
+    
+    # Request funds from faucet
+    local amount=10000000 # 0.1 BTC
+    execute_with_retry "source ${ROOT_DIR}/.env && oyl regtest sendFromFaucet -p oylnet -t ${address} -s ${amount}" "Fund wallet from faucet" 3 2
+    
+    # Generate blocks to confirm funding
+    generate_blocks 6
+    
+    echo -e "\n${GREEN}✅ Wallet funding complete!${NC}"
+    echo -e "Address ${address} funded with ${amount} satoshis ($(echo "scale=8; ${amount}/100000000" | bc) BTC)"
+}
+
 # Execute the selected mode
 case "$MODE" in
     test)
@@ -333,6 +369,9 @@ case "$MODE" in
         ;;
     interact)
         interact_with_contract
+        ;;
+    fund)
+        fund_wallet
         ;;
     *)
         echo -e "${RED}Error: Unknown mode: $MODE${NC}"

@@ -1,0 +1,477 @@
+
+[1m[34m=== OylNet Address Format Investigation ====[0m
+
+This script will analyze the OylNet address format requirements
+by examining the SDK code and error patterns.
+
+[1m[34m=== Examining Regtest Addresses in OylNet SDK ====[0m
+
+[33mSearching for regtest address patterns...[0m
+[36m$ find ./oyl-sdk -name "*.js" -type f | xargs grep -l "regtest" | xargs grep -l "address"[0m
+Files containing both "regtest" and "address":
+./oyl-sdk/lib/cli/collectible.js
+./oyl-sdk/lib/cli/index.js
+./oyl-sdk/lib/cli/alkane.js
+./oyl-sdk/lib/cli/regtest.js
+./oyl-sdk/lib/cli/rune.js
+./oyl-sdk/lib/cli/utxo.js
+./oyl-sdk/lib/cli/account.js
+./oyl-sdk/lib/cli/btc.js
+./oyl-sdk/lib/cli/provider.js
+./oyl-sdk/lib/cli/constants.js
+./oyl-sdk/lib/cli/brc20.js
+./oyl-sdk/lib/shared/utils.js
+./oyl-sdk/lib/shared/constants.js
+./oyl-sdk/node_modules/bitcoinjs-lib/src/networks.js
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js
+./oyl-sdk/node_modules/bip322-js/dist/Verifier.js
+./oyl-sdk/node_modules/bip322-js/dist/Signer.js
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/addresses/formats.js
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js
+./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.esm.js
+./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.cjs.js
+./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.umd.js
+
+[32mFound potential regtest addresses in ./oyl-sdk/lib/cli/alkane.js:[0m
+  "bcrt1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqvg32hk"
+[32mFound potential regtest addresses in ./oyl-sdk/lib/cli/regtest.js:[0m
+  'bcrt1qz3y37epk6hqlul2pt09hrwgj0s09u5g6kzrkm2'
+  "bcrt1qcr8te4kr609gcawutmrza0j4xv80jy8zeqchgx"
+[32mFound potential regtest addresses in ./oyl-sdk/lib/cli/constants.js:[0m
+  'bcrt1qzr9vhs60g6qlmk7x3dd7g3ja30wyts48sxuemv'
+  'bcrt1p45un5d47hvfhx6mfezr6x0htpanw23tgll7ppn6hj6gfzu3x3dnsaegh8d'
+  'bcrt1qcr8te4kr609gcawutmrza0j4xv80jy8zeqchgx'
+  'bcrt1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqvg32hk'
+[32mFound potential regtest addresses in ./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:[0m
+  'bcrt1q'
+  'bcrt1q'
+  'bcrt1p'
+[32mFound potential regtest addresses in ./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.esm.js:[0m
+  "bcrt1p"
+[32mFound potential regtest addresses in ./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.cjs.js:[0m
+  "bcrt1p"
+[32mFound potential regtest addresses in ./oyl-sdk/node_modules/bitcoin-address-validation/lib/index.umd.js:[0m
+  "bcrt1p"
+
+[33mChecking for examples in test fixtures...[0m
+[36m$ grep -r "address" ./oyl-sdk/src/__fixtures__[0m
+Fixture address examples:
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'bcrt1pklamaklxrdgm7njpudghhq3j7vwxfuak0l7jmrhvluf0cld5etjsga00nj', // Taproot (P2TR)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'bcrt1pklamaklxrdgm7njpudghhq3j7vwxfuak0l7jmrhvluf0cld5etjsga00nj', // Taproot (P2TR)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'bcrt1qrz9sy68vnqfddkqkq4xh56dd9tj0ldypkqyxhs', // Native SegWit (P2WPKH)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'bcrt1qrz9sy68vnqfddkqkq4xh56dd9tj0ldypkqyxhs', // Native SegWit (P2WPKH)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: '2N3dtsJjqbXWLEK2Np6JePpKHyy5ph6wYPy', // Nested SegWit (P2SH-P2WPKH)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: '2N3dtsJjqbXWLEK2Np6JePpKHyy5ph6wYPy', // Nested SegWit (P2SH-P2WPKH)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'mxbBHPuZmf8Ve5pBgdbwDjLP1cR3mqZZQM', // Legacy (P2PKH)
+./oyl-sdk/src/__fixtures__/utxos.ts:    address: 'mxbBHPuZmf8Ve5pBgdbwDjLP1cR3mqZZQM', // Legacy (P2PKH)
+
+
+[1m[34m=== Analyzing bitcoinjs-lib Usage ====[0m
+
+[36m$ grep -r "require.*bitcoinjs-lib" ./oyl-sdk[0m
+Files using bitcoinjs-lib:
+./oyl-sdk/lib/cli/account.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/cli/constants.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/rune/rune.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/rune/rune.js:const bip371_1 = require("bitcoinjs-lib/src/psbt/bip371");
+./oyl-sdk/lib/rune/rune.js:const bip341_1 = require("bitcoinjs-lib/src/payments/bip341");
+./oyl-sdk/lib/collectible/collectible.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/account/account.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/btc/btc.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/alkanes/alkanes.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/alkanes/alkanes.js:const bip371_1 = require("bitcoinjs-lib/src/psbt/bip371");
+./oyl-sdk/lib/alkanes/alkanes.js:const bip341_1 = require("bitcoinjs-lib/src/payments/bip341");
+./oyl-sdk/lib/alkanes/contract.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/alkanes/token.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/signer/signer.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/shared/utils.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/shared/utils.js:const bip371_1 = require("bitcoinjs-lib/src/psbt/bip371");
+./oyl-sdk/lib/shared/constants.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/network/network.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/brc20/brc20.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/brc20/brc20.js:const bip371_1 = require("bitcoinjs-lib/src/psbt/bip371");
+./oyl-sdk/lib/brc20/brc20.js:const bip341_1 = require("bitcoinjs-lib/src/payments/bip341");
+./oyl-sdk/lib/provider/provider.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/psbt/psbt.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/lib/amm/factory.js:const bitcoin = tslib_1.__importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/bitcoinjs-message/README.md:var bitcoin = require('bitcoinjs-lib') // v4.x.x
+./oyl-sdk/node_modules/bitcoinjs-lib/README.md:$ npx browserify --standalone bitcoin - -o bitcoinjs-lib.js <<<"module.exports = require('bitcoinjs-lib');"
+./oyl-sdk/node_modules/bip322-js/dist/index.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/bip322-js/dist/Verifier.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/bip322-js/dist/Signer.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/bip322-js/dist/BIP322.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/InscriberV2.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/PSBTBuilder.js:const bitcoinjs_lib_1 = require("bitcoinjs-lib");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/browser-wallets/unisat/signatures.js:const bitcoinjs_lib_1 = require("bitcoinjs-lib");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/browser-wallets/xverse/signatures.js:const bitcoinjs_lib_1 = require("bitcoinjs-lib");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/inscription/witness.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/fee/FeeEstimator.js:const bitcoinjs_lib_1 = require("bitcoinjs-lib");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/modules/JsonRpcDatasource.js:const bitcoinjs_lib_1 = require("bitcoinjs-lib");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/signatures/psbt.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/wallet/Ordit.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/wallet/Ordit.js:const bip371_1 = require("bitcoinjs-lib/src/psbt/bip371");
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/instant-trade/InstantTradeSellerTxBuilder.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/index.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/Verifier.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/Signer.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/BIP322.js:const bitcoin = __importStar(require("bitcoinjs-lib"));
+
+
+[33mChecking for regtest network definitions...[0m
+[36m$ grep -r "networks\.regtest" ./oyl-sdk[0m
+Regtest network references:
+./oyl-sdk/lib/cli/constants.js:        network: bitcoin.networks.regtest,
+./oyl-sdk/lib/cli/constants.js:        network: bitcoin.networks.regtest,
+./oyl-sdk/lib/cli/constants.js:        network: bitcoin.networks.regtest,
+./oyl-sdk/lib/shared/constants.js:    network: bitcoin.networks.regtest,
+./oyl-sdk/lib/network/network.js:exports.regtest = bitcoin.networks.regtest;
+./oyl-sdk/lib/provider/provider.js:            case bitcoin.networks.regtest:
+./oyl-sdk/src/cli/constants.ts:    network: bitcoin.networks.regtest,
+./oyl-sdk/src/cli/constants.ts:    network: bitcoin.networks.regtest,
+./oyl-sdk/src/cli/constants.ts:    network: bitcoin.networks.regtest,
+./oyl-sdk/src/cli/cli.test.ts:  opts: { network: bitcoin.networks.regtest },
+./oyl-sdk/src/cli/cli.test.ts:    network: bitcoin.networks.regtest,
+./oyl-sdk/src/cli/cli.test.ts:      network: bitcoin.networks.regtest,
+./oyl-sdk/src/rune/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/rune/index.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/rune/index.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/rune/index.test.ts:const signer: Signer = new Signer(bitcoin.networks.regtest, keys)
+./oyl-sdk/src/rune/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/rune/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/collectible/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/collectible/index.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/collectible/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/collectible/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:          network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:        network: bitcoin.networks.regtest,
+./oyl-sdk/src/account/account.test.ts:          network: bitcoin.networks.regtest,
+./oyl-sdk/src/utxo/utxo.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/btc/btc.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/btc/btc.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/btc/btc.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/btc/btc.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/alkanes/alkanes.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/alkanes/alkanes.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/shared/constants.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/shared/utils.test.ts:      opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/shared/utils.test.ts:      opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/network/network.ts:export const regtest = bitcoin.networks.regtest
+./oyl-sdk/src/brc20/index.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/brc20/index.test.ts:  opts: { index: 1, network: bitcoin.networks.regtest },
+./oyl-sdk/src/brc20/index.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/src/brc20/index.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/brc20/index.test.ts:const signer: Signer = new Signer(bitcoin.networks.regtest, keys)
+./oyl-sdk/src/provider/provider.ts:      case bitcoin.networks.regtest:
+./oyl-sdk/src/amm/pool.test.ts:  opts: { index: 0, network: bitcoin.networks.regtest },
+./oyl-sdk/src/amm/pool.test.ts:  network: bitcoin.networks.regtest,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:            return bitcoin.networks.regtest;
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.regtest }),
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        network: bitcoin.networks.regtest
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:            bitcoin.address.toOutputScript(address, bitcoin.networks.regtest);
+./oyl-sdk/node_modules/bip322-js/dist/Signer.js:        let signer = ECPair.fromWIF(privateKey, [bitcoin.networks.bitcoin, bitcoin.networks.testnet, bitcoin.networks.regtest]);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:            bitcoin.address.toOutputScript(address, bitcoin.networks.regtest);
+
+
+[33mChecking for bitcoinjs-lib payment code pattern usage...[0m
+[36m$ grep -r "payments\." ./oyl-sdk[0m
+Address generation code:
+./oyl-sdk/lib/rune/rune.js:        const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/lib/rune/rune.js:        const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/lib/account/account.js:    const addressLegacy = bitcoin.payments.p2pkh({
+./oyl-sdk/lib/account/account.js:    const addressSegwitNested = bitcoin.payments.p2sh({
+./oyl-sdk/lib/account/account.js:        redeem: bitcoin.payments.p2wpkh({
+./oyl-sdk/lib/account/account.js:    const addressSegwit = bitcoin.payments.p2wpkh({
+./oyl-sdk/lib/account/account.js:    const addressTaproot = bitcoin.payments.p2tr({
+./oyl-sdk/lib/alkanes/alkanes.js:        const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/lib/alkanes/alkanes.js:        const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/lib/alkanes/alkanes.js:        const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/lib/shared/interface.d.ts:    payload: false | payments.Payment;
+./oyl-sdk/lib/shared/utils.d.ts:export declare const createInscriptionScript: (pubKey: Buffer, content: string) => bitcoin.payments.Stack;
+./oyl-sdk/lib/shared/utils.js:            const redeemData = bitcoin.payments.p2wpkh({ pubkey: publicKey });
+./oyl-sdk/lib/shared/utils.js:            const p2tr = bitcoin.payments.p2tr({
+./oyl-sdk/lib/brc20/brc20.js:        const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/lib/brc20/brc20.js:        const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/src/rune/rune.ts:    const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/src/rune/rune.ts:    const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/src/rune/index.test.ts:const { address } = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/rune/index.test.ts:const { output } = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/collectible/index.test.ts:const { address } = bitcoin.payments.p2tr({
+./oyl-sdk/src/collectible/index.test.ts:const { output } = bitcoin.payments.p2tr({
+./oyl-sdk/src/account/account.ts:  const addressLegacy = bitcoin.payments.p2pkh({
+./oyl-sdk/src/account/account.ts:  const addressSegwitNested = bitcoin.payments.p2sh({
+./oyl-sdk/src/account/account.ts:    redeem: bitcoin.payments.p2wpkh({
+./oyl-sdk/src/account/account.ts:  const addressSegwit = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/account/account.ts:  const addressTaproot = bitcoin.payments.p2tr({
+./oyl-sdk/src/btc/btc.test.ts:const { address } = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/btc/btc.test.ts:const { output } = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/alkanes/alkanes.ts:    const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/src/alkanes/alkanes.ts:    const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/src/alkanes/alkanes.ts:    const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/src/signer/signer.test.ts:    const address = bitcoin.payments.p2sh({
+./oyl-sdk/src/signer/signer.test.ts:      redeem: bitcoin.payments.p2wpkh({
+./oyl-sdk/src/signer/signer.test.ts:    const address = bitcoin.payments.p2tr({
+./oyl-sdk/src/signer/signer.test.ts:    const address = bitcoin.payments.p2wpkh({
+./oyl-sdk/src/signer/signer.test.ts:    const address = bitcoin.payments.p2pkh({
+./oyl-sdk/src/signer/signer.test.ts:    const address = bitcoin.payments.p2sh({
+./oyl-sdk/src/signer/signer.test.ts:      redeem: bitcoin.payments.p2wpkh({
+./oyl-sdk/src/shared/interface.ts:  payload: false | payments.Payment
+./oyl-sdk/src/shared/utils.ts:      const redeemData = bitcoin.payments.p2wpkh({ pubkey: publicKey })
+./oyl-sdk/src/shared/utils.ts:      const p2tr = bitcoin.payments.p2tr({
+./oyl-sdk/src/brc20/brc20.ts:    const inscriberInfo = bitcoin.payments.p2tr({
+./oyl-sdk/src/brc20/brc20.ts:    const { output, witness } = bitcoin.payments.p2tr({
+./oyl-sdk/src/brc20/index.test.ts:const { output } = bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      const payment = payments.p2tr({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      const p2ms = payments.p2ms({ output: script });
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:const checkRedeemScript = scriptCheckerFactory(payments.p2sh, 'Redeem script');
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:  payments.p2wsh,
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:  const p2wsh = !isP2WSH ? null : payments.p2wsh({ redeem: payment });
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:  const p2sh = !isP2SH ? null : payments.p2sh({ redeem: p2wsh || payment });
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:    const signingScript = payments.p2pkh({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      payment = payments.p2ms({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      payment = payments.p2pk({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      payment = payments.p2pkh({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:      payment = payments.p2wpkh({
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt.js:  const p2ms = payments.p2ms({ output: script });
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2MS = isPaymentFactory(payments.p2ms);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2PK = isPaymentFactory(payments.p2pk);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2PKH = isPaymentFactory(payments.p2pkh);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2WPKH = isPaymentFactory(payments.p2wpkh);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2WSHScript = isPaymentFactory(payments.p2wsh);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2SHScript = isPaymentFactory(payments.p2sh);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/psbt/psbtutils.js:exports.isP2TR = isPaymentFactory(payments.p2tr);
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:    return payments.p2pkh({ output, network }).address;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:    return payments.p2sh({ output, network }).address;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:    return payments.p2wpkh({ output, network }).address;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:    return payments.p2wsh({ output, network }).address;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:    return payments.p2tr({ output, network }).address;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:      return payments.p2pkh({ hash: decodeBase58.hash }).output;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:      return payments.p2sh({ hash: decodeBase58.hash }).output;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:          return payments.p2wpkh({ hash: decodeBech32.data }).output;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:          return payments.p2wsh({ hash: decodeBech32.data }).output;
+./oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:          return payments.p2tr({ pubkey: decodeBech32.data }).output;
+./oyl-sdk/node_modules/alkanes/src.ts/utils/transaction.ts:      bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/alkanes/src.ts/utils/transaction.ts:      bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/alkanes/src.ts/utils/transaction.ts:      bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/alkanes/src.ts/utils/transaction.ts:      bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:            return bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:            return bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2wpkh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2wsh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.testnet }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }),
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.testnet }),
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.regtest }),
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.testnet }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.testnet }).address,
+./oyl-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    regtest: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.regtest }).address
+./oyl-sdk/node_modules/bip322-js/dist/Verifier.js:        const signingScript = bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/bip322-js/dist/Verifier.js:        const signingScript = bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/bip322-js/dist/Signer.js:            const redeemScript = bitcoin.payments.p2wpkh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.js:        this.payment = bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/InscriberV2.js:        this.payment = bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/InscriberV2.d.ts:    getReedemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/InscriberV2.d.ts:    getRecoveryRedeemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.d.ts:    getReedemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.d.ts:    getInscriptionRedeemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.d.ts:    getInscriptionOnlyRedeemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/transactions/Inscriber.d.ts:    getRecoveryRedeemScript(): bitcoin.payments.Payment["redeem"];
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:        return bitcoin.payments.p2tr({ internalPubkey: key, network: networkObj, ...paymentOptions });
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:        return bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:            redeem: bitcoin.payments.p2wpkh({ pubkey: key, network: networkObj }),
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:        return bitcoin.payments.p2wsh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:            redeem: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:                redeem: bitcoin.payments.p2wpkh({ pubkey: key, network: networkObj }),
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2pkh = isPaymentFactory(bitcoin.payments.p2pkh, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2wsh = isPaymentFactory(bitcoin.payments.p2wsh, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2wpkh = isPaymentFactory(bitcoin.payments.p2wpkh, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2wsh = isPaymentFactory(bitcoin.payments.p2wsh, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2sh = isPaymentFactory(bitcoin.payments.p2sh, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.js:    const p2tr = isPaymentFactory(bitcoin.payments.p2tr, network)(script);
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/index.d.ts:export declare function createTransaction(key: Buffer, type: AddressTypes, network: Network | bitcoin.Network, paymentOptions?: bitcoin.Payment): bitcoin.payments.Payment;
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/dist/utils/types.d.ts:    payload: false | payments.Payment;
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:            return bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:            return bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2wpkh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2wsh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                return bitcoin.payments.p2tr({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2pkh({ pubkey: publicKey, network: bitcoin.networks.testnet }).address
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }),
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2sh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                        redeem: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.testnet }),
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2wpkh({ pubkey: publicKey, network: bitcoin.networks.testnet }).address
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    mainnet: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.bitcoin }).address,
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/helpers/Address.js:                    testnet: bitcoin.payments.p2tr({ internalPubkey: internalPubkey, network: bitcoin.networks.testnet }).address
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/Verifier.js:        const signingScript = bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/Verifier.js:        const signingScript = bitcoin.payments.p2pkh({
+./oyl-sdk/node_modules/@sadoprotocol/ordit-sdk/node_modules/bip322-js/dist/Signer.js:            const redeemScript = bitcoin.payments.p2wpkh({
+
+
+[1m[34m=== Querying OylNet Network Info ====[0m
+
+[36m$ /bin/bash -c "source /workspaces/boiler/.env && oyl regtest info -p oylnet"[0m
+error: unknown command 'info'
+(Did you mean init?)
+[33mFailed to get network info:[0m Command failed: /bin/bash -c "source /workspaces/boiler/.env && oyl regtest info -p oylnet"
+error: unknown command 'info'
+(Did you mean init?)
+
+
+[33mTrying alternative command...[0m
+[36m$ /bin/bash -c "source /workspaces/boiler/.env && oyl -h"[0m
+OylNet CLI help:
+Usage: default [options] [command]
+
+All functionality for oyl-sdk in a cli-wrapper
+
+Options:
+  -V, --version   output the version number
+  -h, --help      display help for command
+
+Commands:
+  regtest         Regtest commands
+  alkane          Functions for alkanes
+  utxo            Examine utxos
+  account         Manage accounts
+  btc             Functions for sending bitcoin
+  brc20           Functions for brc20
+  collectible     Functions for collectibles
+  rune            Functions for runes
+  provider        Functions avaialble for all provider services
+  help [command]  display help for command
+
+
+[33mChecking for environment variables with address information...[0m
+[36m$ /bin/bash -c "source /workspaces/boiler/.env && env | grep -i 'addr\|key\|wallet'"[0m
+Relevant environment variables:
+API_[REDACTED]=lasereyes
+FUNDED_ADDRESS=bcrt1q7g0m7sav63h2ms3mjrrxvhugdufexs3t94jjdj
+
+
+[33mChecking for OylNet CLI address commands...[0m
+[36m$ /bin/bash -c "source /workspaces/boiler/.env && oyl regtest -h"[0m
+OylNet regtest commands:
+Usage: default regtest [options] [command]
+
+Regtest commands
+
+Options:
+  -h, --help                display help for command
+
+Commands:
+  init [options]            Generate 260 blocks to initialize regtest chain
+                            (funds faucet address and an optional user address)
+  genBlocks [options]       Generate blocks with transactions from mempool
+  sendFromFaucet [options]  Send funds from regtest faucet to an address
+  help [command]            display help for command
+
+
+[1m[34m=== Trying Different Address Formats ====[0m
+
+[32mSuccessfully loaded bitcoinjs-lib[0m
+[33mGenerating test addresses with fixed seed for reproducibility...[0m
+
+[34mNetwork: Regtest[0m
+[31mError trying different address formats:[0m Cannot read properties of undefined (reading 'isPoint')
+
+[1m[34m=== Analyzing Script Error ====[0m
+
+[33mThe error we're seeing is:[0m
+OylTransactionError: bcrt1q... has no matching Script
+at toOutputScript (/workspaces/boiler/oyl-sdk/node_modules/bitcoinjs-lib/src/address.js:178:9)
+
+[33mFound toOutputScript function (lines 136-178):[0m
+function toOutputScript(address, network) {
+  network = network || networks.bitcoin;
+  let decodeBase58;
+  let decodeBech32;
+  try {
+    decodeBase58 = fromBase58Check(address);
+  } catch (e) {}
+  if (decodeBase58) {
+    if (decodeBase58.version === network.pubKeyHash)
+      return payments.p2pkh({ hash: decodeBase58.hash }).output;
+    if (decodeBase58.version === network.scriptHash)
+      return payments.p2sh({ hash: decodeBase58.hash }).output;
+  } else {
+    try {
+      decodeBech32 = fromBech32(address);
+    } catch (e) {}
+    if (decodeBech32) {
+      if (decodeBech32.prefix !== network.bech32)
+        throw new Error(address + ' has an invalid prefix');
+      if (decodeBech32.version === 0) {
+        if (decodeBech32.data.length === 20)
+          return payments.p2wpkh({ hash: decodeBech32.data }).output;
+        if (decodeBech32.data.length === 32)
+          return payments.p2wsh({ hash: decodeBech32.data }).output;
+      } else if (decodeBech32.version === 1) {
+        if (decodeBech32.data.length === 32)
+          return payments.p2tr({ pubkey: decodeBech32.data }).output;
+      } else if (
+        decodeBech32.version >= FUTURE_SEGWIT_MIN_VERSION &&
+        decodeBech32.version <= FUTURE_SEGWIT_MAX_VERSION &&
+        decodeBech32.data.length >= FUTURE_SEGWIT_MIN_SIZE &&
+        decodeBech32.data.length <= FUTURE_SEGWIT_MAX_SIZE
+      ) {
+        console.warn(FUTURE_SEGWIT_VERSION_WARNING);
+        return bscript.compile([
+          decodeBech32.version + FUTURE_SEGWIT_VERSION_DIFF,
+          decodeBech32.data,
+        ]);
+      }
+    }
+  }
+  throw new Error(address + ' has no matching Script');
+}
+
+[31mError line (178):[0m
+  throw new Error(address + ' has no matching Script');
+
+[33mError context:[0m
+  173:           decodeBech32.data,
+  174:         ]);
+  175:       }
+  176:     }
+  177:   }
+> 178:   throw new Error(address + ' has no matching Script');
+  179: }
+  180: exports.toOutputScript = toOutputScript;
+  181: 
+  182: undefined
+
+[1m[34m=== Investigation Summary ====[0m
+
+Based on the error "bcrt1q... has no matching Script", it appears that:
+1. The OylNet system does not recognize the bech32 address format (bcrt1...) used by default
+2. We likely need to use a legacy address format (starting with m or n) for regtest
+3. The specific networks and parameters needed for generating compatible addresses
+   may not match standard bitcoinjs-lib regtest configurations
+
+Next steps would be to:
+1. Generate a variety of address formats using different parameters
+2. Test each address format with the OylNet faucet until we find one that works
+3. Once we find a working format, implement it in our deployment scripts

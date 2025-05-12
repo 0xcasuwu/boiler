@@ -1,0 +1,20 @@
+
+DEPLOYMENT FAILURE LOG
+======================
+Time: 2025-05-12T16:51:16.856Z
+Error: All deployment attempts failed
+Stack: Error: All deployment attempts failed
+    at deployContract (/workspaces/boiler/deploy_contract.js:196:17)
+    at Object.<anonymous> (/workspaces/boiler/deploy_contract.js:272:17)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+    at node:internal/main/run_main_module:28:49
+
+This typically indicates an issue with OylNet configuration or insufficient funds.
+Please check:
+1. The OylNet environment is correctly set up
+2. The wallet has sufficient funds
+3. The WebAssembly binary is correctly built

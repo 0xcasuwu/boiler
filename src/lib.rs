@@ -9,6 +9,7 @@ pub mod utils;
 pub mod asset_management;
 pub mod simple_utils;
 pub mod mock_vault;
+pub mod mock_vault_extension;
 
 #[cfg(test)]
 pub mod tests;
