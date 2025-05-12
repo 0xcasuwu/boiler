@@ -20,8 +20,31 @@ const COLORS = {
   NC: '\x1b[0m' // No Color
 };
 
-// Contract ID from successful deployment
-const CONTRACT_ID = '7dbd26587f4d058577afa7e180fe1bfbe4941e6b5459e783d14e336c18238f0f';
+// Get Contract ID from contract_details.json or use as parameter
+let CONTRACT_ID = '';
+
+// Try to read contract ID from file
+try {
+  const contractDetailsPath = path.resolve(__dirname, 'contract_details.json');
+  if (fs.existsSync(contractDetailsPath)) {
+    const contractDetails = JSON.parse(fs.readFileSync(contractDetailsPath, 'utf8'));
+    CONTRACT_ID = contractDetails.contractId || '';
+    console.log(`${COLORS.CYAN}Loaded contract ID from contract_details.json: ${CONTRACT_ID}${COLORS.NC}`);
+  }
+} catch (error) {
+  console.log(`${COLORS.YELLOW}Could not load contract ID from file: ${error.message}${COLORS.NC}`);
+}
+
+// Allow contract ID to be passed as command line argument
+if (process.argv.length > 2) {
+  CONTRACT_ID = process.argv[2];
+  console.log(`${COLORS.CYAN}Using contract ID from command line argument${COLORS.NC}`);
+}
+
+if (!CONTRACT_ID) {
+  console.log(`${COLORS.RED}No contract ID provided. Please specify a contract ID or deploy a contract first.${COLORS.NC}`);
+  process.exit(1);
+}
 
 // ERC-4626 opcodes
 const OPCODES = {
@@ -84,7 +107,7 @@ function executeContractCall(opcode, params = []) {
     console.log(`${COLORS.CYAN}Parameters: ${params.join(', ')}${COLORS.NC}`);
     
     // Execute the command
-    const command = `NODE_OPTIONS=--require=./oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "${calldata}" --provider oylnet`;
+    const command = `NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "${calldata}" --provider oylnet`;
     console.log(`${COLORS.CYAN}$ ${command}${COLORS.NC}`);
     
     const result = execSync(command, { encoding: 'utf8' });
@@ -163,7 +186,7 @@ function main() {
   // Generate blocks to ensure we're at the latest state
   try {
     console.log(`${COLORS.YELLOW}Generating blocks to ensure chain state is up to date...${COLORS.NC}`);
-    execSync('NODE_OPTIONS=--require=./oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 5', { 
+    execSync('NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 5', { 
       encoding: 'utf8',
       stdio: 'inherit' 
     });

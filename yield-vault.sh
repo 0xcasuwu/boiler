@@ -20,6 +20,8 @@ function show_help {
     echo -e "${BOLD}Commands:${NC}"
     echo "  build      Build the WebAssembly contract"
     echo "  test       Run the tests"
+    echo "  prune      Prune deprecated test files"
+    echo "  deploy     Deploy a fresh contract to OylNet"
     echo "  net        Interact with OylNet network"
     echo "  help       Display this help message"
     echo ""
@@ -27,7 +29,9 @@ function show_help {
     echo "  ./yield-vault.sh build            # Build with auto-detection"
     echo "  ./yield-vault.sh build --minimal  # Use minimal build mode"
     echo "  ./yield-vault.sh test             # Run working tests"
-    echo "  ./yield-vault.sh net --deploy     # Deploy to OylNet"
+    echo "  ./yield-vault.sh prune            # Prune deprecated test files"
+    echo "  ./yield-vault.sh deploy           # Deploy a fresh contract to OylNet"
+    echo "  ./yield-vault.sh net --deploy     # Deploy using legacy network script"
     echo ""
     echo -e "${BOLD}For more details:${NC}"
     echo "  See TOOLCHAIN_SETUP.md for comprehensive documentation"
@@ -52,6 +56,14 @@ case $COMMAND in
     test)
         echo -e "${BLUE}Running tests...${NC}"
         ./bin/test/run_working_tests.sh
+        ;;
+    prune)
+        echo -e "${BLUE}Pruning deprecated test files...${NC}"
+        ./bin/test/prune_deprecated_tests.sh
+        ;;
+    deploy)
+        echo -e "${BLUE}Running deployment script...${NC}"
+        ./deployment/deploy_yield_vault.sh
         ;;
     net)
         if [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ -z "$1" ]; then

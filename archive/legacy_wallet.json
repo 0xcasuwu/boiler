@@ -1,7 +1,0 @@
-{
-  "address": "mxbBHPuZmf8Ve5pBgdbwDjLP1cR3mqZZQM",
-  "networkType": "regtest",
-  "format": "P2PKH (Legacy)",
-  "timestamp": "2025-05-12T17:05:01.254Z",
-  "note": "This is a test address from SDK fixtures. Private key is not available."
-}

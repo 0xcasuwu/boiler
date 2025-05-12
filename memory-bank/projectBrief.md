@@ -193,6 +193,13 @@ This approach allows for easy testing while maintaining security in production.
 
 4. **Build and Deployment**
    - Use provided build scripts for WebAssembly generation
-   - For Apple Silicon, use specific build configuration
    - Verify WebAssembly output before deployment
    - Follow standardized deployment process
+
+5. Initializing Environment
+Set .env to '
+PROVIDER=oylnet
+NETWORK=regtest
+API_KEY=lasereyes
+'
+- cd into oyl-sdk and npm

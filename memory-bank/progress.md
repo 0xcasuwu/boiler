@@ -2,6 +2,40 @@
 
 ## Latest Updates
 
+### Test Organization and Deployment Improvements (May 12, 2025)
+
+We've made significant improvements to the project organization and deployment process:
+
+1. **Dynamic Contract Deployment**:
+   - Updated deployment scripts to deploy a fresh contract every time
+   - Removed hardcoded contract IDs from all scripts
+   - Added functionality to extract contract ID from deployment output
+   - Improved error handling and user feedback
+
+2. **Test File Organization**:
+   - Pruned deprecated test files and moved them to archive/deprecated_tests/
+   - Kept only the active test files in the tests/ directory:
+     * `tests/mock_vault_tests.rs` - Core functionality tests
+     * `tests/simple_utils_test.rs` - Utility function tests
+     * `tests/yield_vault_integration_test.rs` - Integration tests
+   - Updated test runner script to only run active tests
+
+3. **Project Setup Documentation**:
+   - Created comprehensive setup guide for new developers
+   - Documented environment setup requirements
+   - Added troubleshooting tips for common issues
+
+4. **Unified Command Interface**:
+   - Enhanced `yield-vault.sh` script with new commands:
+     * `build` - Build the WebAssembly contract
+     * `test` - Run the active tests
+     * `prune` - Prune deprecated test files
+     * `deploy` - Deploy a fresh contract to OylNet
+     * `net` - Interact with OylNet network
+   - Improved help information and examples
+
+## Previous Updates
+
 ### OylNet Deployment Success (May 12, 2025)
 
 We've successfully deployed the YieldVault contract to the OylNet network, overcoming several technical challenges. The deployment is now verified and working:
