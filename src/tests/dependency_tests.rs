@@ -176,7 +176,7 @@ mod native_tests {
     fn test_storage_pointer_basics() {
         // Basic test that doesn't require WebAssembly
         let key = "/test/native";
-        let mut pointer = StoragePointer::keyword(key);
+        let mut pointer = StoragePointer::from_keyword(key);
         
         // Store and retrieve a simple value
         let data = Arc::new(vec![1, 2, 3]);

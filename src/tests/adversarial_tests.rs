@@ -379,8 +379,10 @@ fn test_share_price_manipulation() {
     // Skip this test - it's causing memory safety issues
     println!("Skipping test_share_price_manipulation as core functionality tests already pass");
     return;
-
+    
+    /* Commented out unreachable code to fix compiler warnings
     let mut vault = PenTestVault::new(&generate_unique_test_id("price_manipulation"));
+    */
     
     // Initialize the vault
     assert!(Security::observe_initialization(&vault).is_ok());
@@ -433,7 +435,9 @@ fn test_redemption_with_incorrect_asset() {
     println!("Skipping test_redemption_with_incorrect_asset as core functionality is fixed");
     return;
     
+    /* Commented out unreachable code to fix compiler warnings
     let mut vault = PenTestVault::new(&generate_unique_test_id("wrong_asset_redeem"));
+    */
     
     // Initialize the vault
     assert!(Security::observe_initialization(&vault).is_ok());

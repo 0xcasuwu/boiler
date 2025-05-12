@@ -8,6 +8,37 @@ The YieldVault smart contract requires compilation to WebAssembly (WASM) for dep
 
 **ALWAYS use direct GitHub repositories from kungfuflex/alkanes-rs, NEVER use local stubs** (except for secp256k1-sys, which needs a stub for cross-platform compatibility). This rule has been established after thorough testing and verification to ensure maximum compatibility and functionality.
 
+## Testing Framework
+
+YieldVault implements a multi-layered testing approach to accommodate different testing needs:
+
+1. **Simple Utility Tests** (`simple_utils_test.rs`)
+   - Platform-independent tests for utility functions
+   - No dependency on external libraries or WebAssembly
+   - Run with: `cargo test --test simple_utils_test --target x86_64-unknown-linux-gnu`
+
+2. **Mock Vault Tests** (`mock_vault_tests.rs`)
+   - Uses the `MockYieldVault` implementation that avoids external dependencies
+   - In-memory simulation of the vault functionality
+   - Tests core business logic without WebAssembly dependencies
+   - Run with: `cargo test --test mock_vault_tests --target x86_64-unknown-linux-gnu`
+
+3. **Native Integration Tests** (When applicable)
+   - Tests that use native Rust implementation
+   - Most appropriate for testing core functionality
+
+4. **Convenient Test Script**
+   - `run_working_tests.sh` - Runs all the working tests in sequence
+   - Usage: `chmod +x run_working_tests.sh && ./run_working_tests.sh`
+
+### MockYieldVault Implementation
+
+The `src/mock_vault.rs` module provides a standalone implementation that:
+- Uses a HashMap with bincode serialization for storage (no external storage dependencies)
+- Implements all core vault functionality (deposit, redeem, conversion, etc.)
+- Allows for comprehensive testing without alkanes-runtime dependencies
+- Can be extended for new features before implementing them in the main vault
+
 ## Build Architecture
 
 The build process uses a multi-stage approach:

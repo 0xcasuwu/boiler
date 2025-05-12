@@ -418,9 +418,13 @@ pub fn deposit(context: &Context, tx_hash: &[u8], caller: &str, receiver: &str, 
 }
 ```
 
+### RUN TESTS
+
+eg cargo test --test mock_vault_test --target x84_64-unknown-linux-gnu
+
 ### Contextual Errors
 
-Errors include context for better diagnostics:
+Errors include context testfor better diagnostics:
 
 ```rust
 Err(anyhow!("Deposit exceeds maximum of {}", max_deposit))

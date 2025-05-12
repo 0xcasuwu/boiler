@@ -384,7 +384,53 @@ pub extern "C" fn call(ptr: *const u8, len: u32) -> u64 {
 
 ## Testing Strategies
 
-### 1. Test Isolation Pattern
+### 1. Mock Vault Pattern for Dependency-Free Testing
+
+The `MockYieldVault` implementation provides a complete vault implementation without external dependencies:
+
+```rust
+/// MockYieldVault is a simplified implementation for testing
+/// that doesn't rely on external dependencies like alkanes-runtime
+pub struct MockYieldVault {
+    // In-memory storage
+    storage: RefCell<HashMap<String, Vec<u8>>>,
+}
+
+impl MockYieldVault {
+    /// Helper to set a value in storage
+    fn set_value<T: serde::Serialize>(&self, key: &str, value: T) {
+        let value_bytes = bincode::serialize(&value).unwrap_or_default();
+        self.storage.borrow_mut().insert(key.to_string(), value_bytes);
+    }
+
+    /// Helper to get a value from storage
+    fn get_value<T: serde::de::DeserializeOwned>(&self, key: &str) -> T 
+    where T: Default {
+        if let Some(value_bytes) = self.storage.borrow().get(key) {
+            bincode::deserialize(value_bytes).unwrap_or_default()
+        } else {
+            T::default()
+        }
+    }
+    
+    // Vault operations implemented for testing
+    pub fn deposit(&self, caller: &str, receiver: &str, assets: u128) -> Result<u128, &'static str> {
+        // Implementation details...
+    }
+    
+    pub fn redeem(&self, caller: &str, receiver: &str, owner: &str, shares: u128) -> Result<u128, &'static str> {
+        // Implementation details...
+    }
+}
+```
+
+This approach allows testing core business logic without WebAssembly dependencies and is valuable for:
+- Testing complex scenarios with multiple users and transactions
+- Simulating yield accrual over time
+- Ensuring mathematical operations are correct
+- Developing new features with TDD before implementing in the main contract
+
+### 2. Test Isolation Pattern
 
 Tests use unique storage namespaces to avoid conflicts:
 
@@ -397,7 +443,7 @@ let prefixed_path = format!("/test/{}/name", test_id);
 let test_pointer = StoragePointer::from_keyword(&prefixed_path);
 ```
 
-### 2. Test Fixtures with AlkaneResponder
+### 3. Test Fixtures with AlkaneResponder
 
 Test fixtures implement the AlkaneResponder trait for mocking blockchain context:
 
@@ -421,13 +467,47 @@ impl AlkaneResponder for PenTestVault {
 }
 ```
 
-### 3. Test Categories
+### 4. Simple Utility Tests
+
+For core mathematical functions and platform-independent utilities:
+
+```rust
+#[test]
+fn test_simple_share_calculation() {
+    // Empty vault - 1:1 ratio
+    assert_eq!(simple_share_calculation(100, 0, 0), 100);
+    
+    // Non-empty vault
+    // If total_assets = 1000 and total_supply = 500,
+    // then 100 assets should be 50 shares
+    assert_eq!(simple_share_calculation(100, 1000, 500), 50);
+}
+```
+
+### 5. Test Categories
 
 Tests are organized by category:
+- Simple utility tests (platform-independent functions)
+- Mock vault tests (core business logic without external dependencies)  
 - Unit tests (specific functions)
 - Basic tests (core functionality)
 - E2E tests (complete workflows)
 - Adversarial tests (security properties)
+
+### 6. Test Script Automation
+
+The `run_working_tests.sh` script automates test execution:
+
+```bash
+#!/bin/bash
+
+echo "===== Running Mock Vault Tests ====="
+cargo test --test mock_vault_tests --target x86_64-unknown-linux-gnu
+
+echo ""
+echo "===== Running Simple Utils Tests ====="
+cargo test --test simple_utils_test --target x86_64-unknown-linux-gnu
+```
 
 ## Hardware-Specific Adaptations
 

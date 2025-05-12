@@ -8,6 +8,7 @@ pub mod security;
 pub mod utils;
 pub mod asset_management;
 pub mod simple_utils;
+pub mod mock_vault;
 
 #[cfg(test)]
 pub mod tests;
@@ -296,10 +297,10 @@ fn get_data(&self, key: String) -> Result<String> {
     #[cfg(test)]
     pub fn test_deposit(
         &mut self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        assets: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _assets: u128
     ) -> Result<()> {
         Ok(())
     }
@@ -307,10 +308,10 @@ fn get_data(&self, key: String) -> Result<String> {
     #[cfg(test)]
     pub fn test_mint(
         &mut self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        shares: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _shares: u128
     ) -> Result<()> {
         Ok(())
     }

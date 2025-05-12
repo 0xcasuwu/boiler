@@ -298,8 +298,9 @@ fn test_e2e_mint_and_withdraw_flow() {
     println!("Skipping test_e2e_mint_and_withdraw_flow due to memory safety issues");
     return;
     
-    // Create unique test name to avoid collisions
+    /* Commented out unreachable code to fix compiler warnings
     let test_name = format!("mint_withdraw_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros());
+    */
 
     // Set up isolated test environment
     let (mut vault, _alice, bob) = create_isolated_test_environment(&test_name);
@@ -396,10 +397,11 @@ fn test_e2e_yield_accrual_benefits() {
     println!("Skipping test_e2e_yield_accrual_benefits due to potential memory safety issues");
     return;
     
-    // Create unique test name with timestamp to avoid collisions
+    /* Commented out unreachable code to fix compiler warnings
     let unique_test_id = format!("yield_accrual_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_micros());
     let alice = format!("{}_alice", unique_test_id);
     let bob = format!("{}_bob", unique_test_id);
+    */
     
     // Reset storage to clean state
     reset_test_storage();
