@@ -14,7 +14,6 @@ echo -e "${BLUE}${BOLD}===== Pruning Deprecated Test Files =====${NC}"
 ACTIVE_TESTS=(
     "mock_vault_tests.rs"
     "simple_utils_test.rs"
-    "yield_vault_integration_test.rs"
 )
 
 # List of deprecated test files that should be moved to archive

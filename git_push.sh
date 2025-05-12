@@ -28,12 +28,18 @@ git add .
 
 # Commit changes
 echo -e "${YELLOW}Committing changes...${NC}"
-git commit -m "Update deployment process and test organization
+git commit -m "Document deployment process and fix OylNet integration
 
-- Updated deployment scripts to deploy fresh contracts
-- Pruned deprecated test files
-- Added setup guide and updated documentation
-- Enhanced yield-vault.sh script with new commands"
+- Created address format validation patch (load_patch.js)
+- Updated deployment scripts to use absolute paths
+- Modified deployment parameters to use numeric-only values
+- Successfully deployed and initialized contract on OylNet
+- Added comprehensive documentation:
+  * setup_guide.md: Project setup instructions
+  * deployment_process.md: Detailed deployment process
+  * test_guide.md: Testing instructions
+  * progress.md: Updated with latest progress
+- Fixed test execution with correct target specification"
 
 # Push changes
 echo -e "${YELLOW}Pushing changes to remote repository...${NC}"

@@ -107,7 +107,7 @@ function executeContractCall(opcode, params = []) {
     console.log(`${COLORS.CYAN}Parameters: ${params.join(', ')}${COLORS.NC}`);
     
     // Execute the command
-    const command = `NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "${calldata}" --provider oylnet`;
+    const command = `NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "${calldata}" --provider oylnet`;
     console.log(`${COLORS.CYAN}$ ${command}${COLORS.NC}`);
     
     const result = execSync(command, { encoding: 'utf8' });
@@ -186,7 +186,7 @@ function main() {
   // Generate blocks to ensure we're at the latest state
   try {
     console.log(`${COLORS.YELLOW}Generating blocks to ensure chain state is up to date...${COLORS.NC}`);
-    execSync('NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 5', { 
+    execSync('NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 5', { 
       encoding: 'utf8',
       stdio: 'inherit' 
     });

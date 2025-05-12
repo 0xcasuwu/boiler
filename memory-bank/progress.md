@@ -2,30 +2,65 @@
 
 ## Latest Updates
 
-### Test Organization and Deployment Improvements (May 12, 2025)
+### Deployment Process Documentation and SDK Integration (May 12, 2025)
 
-We've made significant improvements to the project organization and deployment process:
+We've successfully integrated the oyl-sdk repository and documented the complete deployment process:
 
-1. **Dynamic Contract Deployment**:
+1. **oyl-sdk Integration**:
+   - Cloned the oyl-sdk repository from GitHub
+   - Created a custom address format validation patch (`load_patch.js`)
+   - Updated deployment scripts to use the oyl-sdk for contract deployment and interaction
+   - Documented the integration process in `setup_guide.md` and `deployment_process.md`
+
+2. **Deployment Process Documentation**:
+   - Created comprehensive documentation of the deployment process
+   - Documented all peculiarities and workarounds discovered during deployment
+   - Added step-by-step instructions for deploying the contract to OylNet
+   - Included common errors and their solutions
+
+3. **Path Reference Fixes**:
+   - Updated all deployment scripts to use absolute paths for the load_patch.js file
+   - Fixed issues with relative paths not working correctly
+   - Ensured consistent path references across all scripts
+
+4. **Contract Deployment Verification**:
+   - Successfully deployed and initialized the contract on OylNet
+   - Verified the contract state using the contract_interaction.js utility
+   - Confirmed all metadata and accounting functions are working correctly
+   - Contract ID: b54d959a8fce5a3377d7dbe615eec3d64b97ca66a357c26e056aa75b0f25c0c8
+
+### Immutable Contract Parameters (May 12, 2025)
+
+We've updated the contract to only allow initialization parameters to be set upon initialization, removing all mutability-permitting functions:
+
+1. **Removed Mutability Functions**:
+   - Removed `update_yield_rate` function - Yield rate can now only be set during initialization
+   - Removed `set_data` function - Custom data can no longer be modified after initialization
+   - Removed corresponding opcode handlers from the dispatch method
+   - Updated tests to verify immutability after initialization
+
+2. **Enhanced MockYieldVault**:
+   - Added initialization guard to prevent multiple initializations
+   - Modified `set_yield_rate`, `set_block_height`, and `issue_tokens` to only work before initialization
+   - Added tests to verify immutability after initialization
+
+3. **Test Organization and Deployment Improvements**:
    - Updated deployment scripts to deploy a fresh contract every time
    - Removed hardcoded contract IDs from all scripts
    - Added functionality to extract contract ID from deployment output
    - Improved error handling and user feedback
-
-2. **Test File Organization**:
    - Pruned deprecated test files and moved them to archive/deprecated_tests/
    - Kept only the active test files in the tests/ directory:
      * `tests/mock_vault_tests.rs` - Core functionality tests
      * `tests/simple_utils_test.rs` - Utility function tests
-     * `tests/yield_vault_integration_test.rs` - Integration tests
    - Updated test runner script to only run active tests
 
-3. **Project Setup Documentation**:
+4. **Project Setup Documentation**:
    - Created comprehensive setup guide for new developers
    - Documented environment setup requirements
    - Added troubleshooting tips for common issues
 
-4. **Unified Command Interface**:
+5. **Unified Command Interface**:
    - Enhanced `yield-vault.sh` script with new commands:
      * `build` - Build the WebAssembly contract
      * `test` - Run the active tests

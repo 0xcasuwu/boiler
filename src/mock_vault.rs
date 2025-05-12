@@ -16,7 +16,7 @@ pub struct MockYieldVault {
 
 impl Default for MockYieldVault {
     fn default() -> Self {
-        let mut vault = Self {
+        let vault = Self {
             storage: RefCell::new(HashMap::new()),
             current_block_height: RefCell::new(1000), // Start at block 1000
         };
@@ -27,6 +27,7 @@ impl Default for MockYieldVault {
         vault.set_value("decimals", 8u8);
         vault.set_value("yield_rate", 500u128); // 5% annual yield (500 basis points)
         vault.set_value("last_yield_height", 1000u64); // Starting block height
+        vault.set_value("initialized", false); // Not initialized yet
         
         vault
     }
@@ -35,15 +36,23 @@ impl Default for MockYieldVault {
 impl MockYieldVault {
     /// Create a new vault with initial values
     pub fn new(total_assets: u128, total_issuance: u128) -> Self {
-        let mut vault = Self::default();
+        let vault = Self::default();
         vault.set_value("total_assets", total_assets);
         vault.set_total_issuance(total_issuance);
         vault
     }
     
+    /// Check if the vault is initialized
+    fn is_initialized(&self) -> bool {
+        self.get_value("initialized")
+    }
+    
     /// Set the current block height (for testing yield accrual)
+    /// This can only be called before initialization
     pub fn set_block_height(&self, height: u64) {
-        *self.current_block_height.borrow_mut() = height;
+        if !self.is_initialized() {
+            *self.current_block_height.borrow_mut() = height;
+        }
     }
     
     /// Get current block height
@@ -76,6 +85,11 @@ impl MockYieldVault {
         asset_symbol: String,
         decimals: u8
     ) -> Result<()> {
+        // Check if already initialized
+        if self.is_initialized() {
+            return Err(anyhow::anyhow!("Already initialized"));
+        }
+        
         self.set_value("name", name);
         self.set_value("symbol", symbol);
         self.set_value("asset_name", asset_name);
@@ -122,8 +136,11 @@ impl MockYieldVault {
     }
     
     /// Set yield rate in basis points
+    /// This can only be called before initialization
     pub fn set_yield_rate(&self, rate: u128) {
-        self.set_value("yield_rate", rate);
+        if !self.is_initialized() {
+            self.set_value("yield_rate", rate);
+        }
     }
     
     /// Get last yield update height
@@ -132,7 +149,7 @@ impl MockYieldVault {
     }
     
     /// Set last yield update height
-    pub fn set_last_yield_height(&self, height: u64) {
+    fn set_last_yield_height(&self, height: u64) {
         self.set_value("last_yield_height", height);
     }
     
@@ -144,13 +161,17 @@ impl MockYieldVault {
 
     /// In token-based model, this is for test convenience only
     /// It simulates issuing tokens to accounts for testing
+    /// This can only be called before initialization
     pub fn issue_tokens(&self, token_id: &str, amount: u128) {
-        let current = self.get_token_balance(token_id);
-        self.set_value(&format!("token_{}", token_id), current + amount);
+        if !self.is_initialized() {
+            let current = self.get_token_balance(token_id);
+            self.set_value(&format!("token_{}", token_id), current + amount);
+        }
     }
 
     /// Set balance for an account
-    pub fn set_balance(&self, account: &str, value: u128) {
+    #[allow(dead_code)]
+    fn set_balance(&self, account: &str, value: u128) {
         self.set_value(&format!("balance_{}", account), value);
     }
 
@@ -243,7 +264,7 @@ impl MockYieldVault {
     }
 
     /// Simplified deposit implementation
-    pub fn deposit(&self, caller_token_id: &str, receiver_token_id: &str, assets: u128) -> Result<u128, &'static str> {
+    pub fn deposit(&self, _caller_token_id: &str, receiver_token_id: &str, assets: u128) -> Result<u128, &'static str> {
         // Validate non-zero assets
         if assets == 0 {
             return Err("Cannot deposit zero assets");
@@ -267,13 +288,14 @@ impl MockYieldVault {
         self.set_total_issuance(total_issuance + tokens);
         
         // Issue tokens to receiver (simulating token transfer)
-        self.issue_tokens(receiver_token_id, tokens);
+        let current = self.get_token_balance(receiver_token_id);
+        self.set_value(&format!("token_{}", receiver_token_id), current + tokens);
         
         Ok(tokens)
     }
 
     /// Simplified redeem implementation
-    pub fn redeem(&self, caller_token_id: &str, receiver_token_id: &str, owner_token_id: &str, tokens: u128) -> Result<u128, &'static str> {
+    pub fn redeem(&self, _caller_token_id: &str, _receiver_token_id: &str, owner_token_id: &str, tokens: u128) -> Result<u128, &'static str> {
         // Update yield accrual first
         self.update_yield()?;
         
@@ -311,6 +333,23 @@ mod tests {
         let vault = MockYieldVault::default();
         assert_eq!(vault.get_total_assets(), 0);
         assert_eq!(vault.get_total_issuance(), 0);
+        
+        // Set yield rate before initialization
+        vault.set_yield_rate(1000);
+        assert_eq!(vault.get_yield_rate(), 1000);
+        
+        // Initialize the vault
+        vault.initialize(
+            "Test Vault".to_string(),
+            "TEST".to_string(),
+            "Test Asset".to_string(),
+            "ASSET".to_string(),
+            8
+        ).unwrap();
+        
+        // Try to change yield rate after initialization - should have no effect
+        vault.set_yield_rate(2000);
+        assert_eq!(vault.get_yield_rate(), 1000); // Still 1000, not changed
     }
 
     #[test]
@@ -357,9 +396,18 @@ mod tests {
         // Create vault with initial state
         let vault = MockYieldVault::new(200, 100); // 2:1 ratio
         
-        // Setup token balances for testing
+        // Setup token balances for testing - must be done before initialization
         vault.issue_tokens("user1", 50);
         vault.issue_tokens("user2", 50);
+        
+        // Initialize the vault
+        vault.initialize(
+            "Test Vault".to_string(),
+            "TEST".to_string(),
+            "Test Asset".to_string(),
+            "ASSET".to_string(),
+            8
+        ).unwrap();
         
         // Redeem 20 tokens from user1 
         let assets = vault.redeem("caller", "receiver", "user1", 20).unwrap();
@@ -377,10 +425,21 @@ mod tests {
         // Create vault with initial state
         let vault = MockYieldVault::new(10000, 10000); // 1:1 ratio
         vault.set_yield_rate(1000); // 10% annual yield (1000 basis points)
-        vault.set_last_yield_height(1000);
+        vault.set_block_height(1000);
+        vault.set_value("last_yield_height", 1000u64);
         
-        // Advance 8766 blocks (approximately ~2.43 hours, simulating about 0.03% of a year)
-        vault.set_block_height(1000 + 8766);
+        // Initialize the vault
+        vault.initialize(
+            "Test Vault".to_string(),
+            "TEST".to_string(),
+            "Test Asset".to_string(),
+            "ASSET".to_string(),
+            8
+        ).unwrap();
+        
+        // Manually update the block height for testing
+        // In a real implementation, this would come from the blockchain
+        *vault.current_block_height.borrow_mut() = 1000 + 8766;
         
         // Update yield
         vault.update_yield().unwrap();
@@ -391,8 +450,8 @@ mod tests {
         assert!(total_assets > 10000 && total_assets <= 10003, 
                 "Expected yield accrual of 2-3 units, got: {}", total_assets - 10000);
         
-        // Advance a lot more blocks (1 year worth: ~31,536,000 seconds)
-        vault.set_block_height(1000 + 8766 + 31_536_000);
+        // Manually update the block height again
+        *vault.current_block_height.borrow_mut() = 1000 + 8766 + 31_536_000;
         
         // Update yield
         vault.update_yield().unwrap();
@@ -405,5 +464,39 @@ mod tests {
         assert!(new_total_assets >= expected_min && new_total_assets <= expected_max,
                 "Expected ~10% yield, got: {}%", 
                 (new_total_assets - total_assets) * 100 / total_assets);
+    }
+    
+    #[test]
+    fn test_immutability_after_initialization() {
+        let vault = MockYieldVault::default();
+        
+        // Set values before initialization
+        vault.set_yield_rate(1000);
+        vault.set_block_height(2000);
+        vault.issue_tokens("user1", 100);
+        
+        // Verify values were set
+        assert_eq!(vault.get_yield_rate(), 1000);
+        assert_eq!(vault.get_block_height(), 2000);
+        assert_eq!(vault.get_token_balance("user1"), 100);
+        
+        // Initialize the vault
+        vault.initialize(
+            "Test Vault".to_string(),
+            "TEST".to_string(),
+            "Test Asset".to_string(),
+            "ASSET".to_string(),
+            8
+        ).unwrap();
+        
+        // Try to change values after initialization
+        vault.set_yield_rate(2000);
+        vault.set_block_height(3000);
+        vault.issue_tokens("user1", 100);
+        
+        // Verify values were not changed
+        assert_eq!(vault.get_yield_rate(), 1000); // Still 1000
+        assert_eq!(vault.get_block_height(), 2000); // Still 2000
+        assert_eq!(vault.get_token_balance("user1"), 100); // Still 100
     }
 }

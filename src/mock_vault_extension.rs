@@ -100,7 +100,7 @@ impl MockYieldVault {
     }
 
     /// Mint shares by depositing assets (ERC-4626 API method)
-    pub fn mint(&self, caller: &str, receiver: &str, shares: u128) -> Result<u128, &'static str> {
+    pub fn mint(&self, _caller: &str, receiver: &str, shares: u128) -> Result<u128, &'static str> {
         // Validate non-zero shares
         if shares == 0 {
             return Err("Cannot mint zero shares");
@@ -136,7 +136,7 @@ impl MockYieldVault {
     }
 
     /// Withdraw assets by burning shares (ERC-4626 API method)
-    pub fn withdraw(&self, caller: &str, receiver: &str, owner: &str, assets: u128) -> Result<u128, &'static str> {
+    pub fn withdraw(&self, _caller: &str, _receiver: &str, owner: &str, assets: u128) -> Result<u128, &'static str> {
         // Validate non-zero assets
         if assets == 0 {
             return Ok(0); // ERC-4626 specifies this as a no-op that succeeds

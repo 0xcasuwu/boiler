@@ -29,7 +29,7 @@ use wasm_bindgen::prelude::*;
 use crate::constants::*;
 
 // Import Alkanes runtime and support
-use alkanes_runtime::{message::MessageDispatch, runtime::AlkaneResponder};
+use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_runtime::storage::StoragePointer;
 // Import metashrew support
 use metashrew_support::index_pointer::KeyValuePointer;
@@ -86,11 +86,11 @@ impl YieldVault {
         Security::observe_initialization(self)
             .map_err(|e| anyhow!("Initialization error: {}", e))?;
         
-        // Store basic token metadata
-        self.name_pointer().set(std::sync::Arc::new(name.as_bytes().to_vec()));
-        self.symbol_pointer().set(std::sync::Arc::new(symbol.as_bytes().to_vec()));
-        self.asset_name_pointer().set(std::sync::Arc::new(asset_name.as_bytes().to_vec()));
-        self.asset_symbol_pointer().set(std::sync::Arc::new(asset_symbol.as_bytes().to_vec()));
+        // Store basic token metadata directly with storage pointers
+        StoragePointer::from_keyword("/name").set(std::sync::Arc::new(name.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/symbol").set(std::sync::Arc::new(symbol.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/asset-name").set(std::sync::Arc::new(asset_name.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/asset-symbol").set(std::sync::Arc::new(asset_symbol.as_bytes().to_vec()));
         
         // Convert u128 to u8 for storage, as the original contract used u8
         let decimal_offset_u8 = if decimal_offset > u8::MAX.into() {
@@ -99,32 +99,22 @@ impl YieldVault {
         } else {
             decimal_offset as u8
         };
-        self.decimals_pointer().set_value(decimal_offset_u8);
+        StoragePointer::from_keyword("/decimals").set_value(decimal_offset_u8);
         
         // Initialize accounting state
-        self.total_supply_pointer().set_value(0u128);
-        self.total_assets_pointer().set_value(0u128);
+        StoragePointer::from_keyword("/total-supply").set_value(0u128);
+        StoragePointer::from_keyword("/total-assets").set_value(0u128);
         
         // Initialize yield rate (basis points, e.g. 500 = 5%)
-        self.yield_rate_pointer().set_value(0u128);
+        StoragePointer::from_keyword("/yield-rate").set_value(0u128);
         
         // Initialize the last yield block height
-        self.last_yield_height_pointer().set_value(self.height());
+        StoragePointer::from_keyword("/last-yield-height").set_value(self.height());
         
         Ok(())
     }
     
-    // Update the yield rate
-    fn update_yield_rate(&self, yield_rate: u128) -> Result<()> {
-        // Update the yield first with the old rate
-        self.update_yield()
-            .map_err(|e| anyhow!("Yield update error: {}", e))?;
-        
-        // Set the new yield rate
-        self.yield_rate_pointer().set_value(yield_rate);
-        
-        Ok(())
-    }
+    // The update_yield_rate function has been removed to prevent mutability after initialization
     
     // Get vault name
     fn get_name(&self) -> Result<String> {
@@ -217,6 +207,7 @@ impl YieldVault {
     }
     
     // Preview deposit API endpoint
+    #[allow(dead_code)]
     fn preview_deposit_api(&self, assets: u128) -> Result<u128> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -228,6 +219,7 @@ impl YieldVault {
     }
     
     // Preview mint API endpoint
+    #[allow(dead_code)]
     fn preview_mint_api(&self, shares: u128) -> Result<u128> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -239,6 +231,7 @@ impl YieldVault {
     }
     
     // Preview withdraw API endpoint
+    #[allow(dead_code)]
     fn preview_withdraw_api(&self, assets: u128) -> Result<u128> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -250,6 +243,7 @@ impl YieldVault {
     }
     
     // Preview redeem API endpoint
+    #[allow(dead_code)]
     fn preview_redeem_api(&self, shares: u128) -> Result<u128> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -260,28 +254,20 @@ impl YieldVault {
         Ok(assets)
     }
     
-// Set custom data
-fn set_data(&self, key: String, value: String) -> Result<()> {
-    // Prefix with /data/ to separate from core storage
-    let storage_key = format!("/data/{}", key);
-    let mut storage_pointer = StoragePointer::from_keyword(&storage_key);
-    storage_pointer.set(std::sync::Arc::new(value.as_bytes().to_vec()));
-    
-    Ok(())
-}
+    // The set_data function has been removed to prevent mutability after initialization
 
-// Get custom data
-fn get_data(&self, key: String) -> Result<String> {
-    // Prefix with /data/ to separate from core storage
-    let storage_key = format!("/data/{}", key);
-    let storage_pointer = StoragePointer::from_keyword(&storage_key);
-    let data_bytes = storage_pointer.get();
-    
-    let data = String::from_utf8(data_bytes.as_ref().clone())
-        .unwrap_or_default();
-    
-    Ok(data)
-}
+    // Get custom data
+    fn get_data(&self, key: String) -> Result<String> {
+        // Prefix with /data/ to separate from core storage
+        let storage_key = format!("/data/{}", key);
+        let storage_pointer = StoragePointer::from_keyword(&storage_key);
+        let data_bytes = storage_pointer.get();
+        
+        let data = String::from_utf8(data_bytes.as_ref().clone())
+            .unwrap_or_default();
+        
+        Ok(data)
+    }
     
     // Get account balance API endpoint
     fn get_balance_of(&self, account: String) -> Result<u128> {
@@ -447,13 +433,7 @@ impl YieldVault {
             },
             
             // == Custom Data Management ==
-            opcodes::SET_DATA => {
-                let mut args_iter = args.split(|&b| b == 0);
-                let key = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                let value = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                self.set_data(key, value)?;
-                Ok("Data set".to_string())
-            },
+            // SET_DATA opcode handler has been removed to prevent mutability after initialization
             
             opcodes::GET_DATA => {
                 let key = String::from_utf8(args.to_vec()).unwrap_or_default();
@@ -474,18 +454,7 @@ impl YieldVault {
             },
             
             // == Security Operations ==
-            opcodes::UPDATE_YIELD_RATE => {
-                // Parse yield rate from args
-                let yield_rate = if args.len() >= 16 {
-                    let mut buf = [0u8; 16];
-                    buf.copy_from_slice(&args[..16]);
-                    u128::from_le_bytes(buf)
-                } else {
-                    0u128
-                };
-                self.update_yield_rate(yield_rate)?;
-                Ok("Yield rate updated".to_string())
-            },
+            // UPDATE_YIELD_RATE opcode handler has been removed to prevent mutability after initialization
             
             // Unknown opcode
             _ => Err(anyhow!("Unknown opcode: {}", opcode))

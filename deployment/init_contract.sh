@@ -42,30 +42,30 @@ echo -e "Contract ID: ${CYAN}$CONTRACT_ID${NC}\n"
 
 # Generate blocks to ensure chain activity
 echo -e "${YELLOW}Generating blocks to ensure chain activity...${NC}"
-NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
+NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
 
 # Try to execute initialization (opcode 0) with parameters
 echo -e "${YELLOW}Trying initialization with basic format...${NC}"
-INIT_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet)
+INIT_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet)
 echo "$INIT_OUTPUT"
 
 # Try to execute initialization with string parameters
 echo -e "${YELLOW}Trying initialization with full parameters...${NC}"
-INIT_FULL_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0,YieldVault,YVT,Bitcoin,BTC,8" --provider oylnet)
+INIT_FULL_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet)
 echo "$INIT_FULL_OUTPUT"
 
 # Generate confirmation blocks
 echo -e "${YELLOW}Generating confirmation blocks...${NC}"
-NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
+NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
 
 # Check contract state - get name (opcode 100)
 echo -e "${YELLOW}Checking contract name (opcode 100)...${NC}"
-NAME_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "100" --provider oylnet)
+NAME_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "100" --provider oylnet)
 echo "$NAME_OUTPUT"
 
 # Check contract symbol (opcode 101)
 echo -e "${YELLOW}Checking contract symbol (opcode 101)...${NC}"
-SYMBOL_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "101" --provider oylnet)
+SYMBOL_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "101" --provider oylnet)
 echo "$SYMBOL_OUTPUT"
 
 # Update contract status in details file

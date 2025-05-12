@@ -34,10 +34,10 @@ deploy_contract() {
   
   # Deploy the contract and capture the output
   echo -e "${YELLOW}Deploying contract to OylNet...${NC}"
-  DEPLOY_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane new-contract \
+  DEPLOY_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane new-contract \
     --contract "$WASM_PATH" \
     --provider "oylnet" \
-    --calldata "0,YieldVault,YVT,Bitcoin,BTC,8" \
+    --calldata "0" \
     --feeRate 10)
   
   # Extract contract ID from the output
@@ -67,7 +67,7 @@ deploy_contract() {
   
   # Generate blocks to confirm deployment
   echo -e "${YELLOW}Generating blocks to confirm deployment...${NC}"
-  NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
+  NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
   
   return 0
 }
@@ -90,21 +90,21 @@ initialize_contract() {
   
   # Generate blocks to ensure chain activity
   echo -e "${YELLOW}Generating blocks...${NC}"
-  NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
+  NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
   
   # Try to execute initialization (opcode 0)
   echo -e "${YELLOW}Executing initialization...${NC}"
-  INIT_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet)
+  INIT_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet)
   
   echo "$INIT_OUTPUT"
   
   # Generate confirmation blocks
   echo -e "${YELLOW}Generating confirmation blocks...${NC}"
-  NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
+  NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c 10
   
   # Check contract state - get name (opcode 100)
   echo -e "${YELLOW}Checking contract name (opcode 100)...${NC}"
-  NAME_OUTPUT=$(NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "100" --provider oylnet)
+  NAME_OUTPUT=$(NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "100" --provider oylnet)
   
   echo "$NAME_OUTPUT"
   
@@ -134,16 +134,16 @@ verify_contract() {
   echo -e "\n${YELLOW}Verifying contract state: $CONTRACT_ID${NC}"
   
   # Check if contract_interaction.js exists
-  if [ ! -f "../contract_interaction.js" ]; then
+  if [ ! -f "$(dirname "$0")/contract_interaction.js" ]; then
     echo -e "${RED}contract_interaction.js not found${NC}"
     return 1
   fi
   
   # Update contract ID in contract_interaction.js
-  sed -i "s/const CONTRACT_ID = '[a-f0-9]*'/const CONTRACT_ID = '$CONTRACT_ID'/" ../contract_interaction.js
+  sed -i "s/const CONTRACT_ID = '[a-f0-9]*'/const CONTRACT_ID = '$CONTRACT_ID'/" "$(dirname "$0")/contract_interaction.js"
   
   # Run verification
-  node ../contract_interaction.js
+  node "$(dirname "$0")/contract_interaction.js"
   
   return 0
 }
@@ -152,7 +152,7 @@ verify_contract() {
 generate_blocks() {
   echo -e "\n${YELLOW}Generating blocks...${NC}"
   read -p "Number of blocks to generate: " blocks
-  NODE_OPTIONS=--require=../oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c "$blocks"
+  NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl regtest genBlocks -p oylnet -c "$blocks"
   return 0
 }
 
