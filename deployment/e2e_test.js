@@ -71,10 +71,10 @@ const OPCODES = {
   GET_TOTAL_SUPPLY: 601,
 };
 
-// User accounts for testing
+// User accounts for testing (using numeric IDs instead of strings)
 const USERS = {
-  ALICE: 'alice',
-  BOB: 'bob'
+  ALICE: 1,
+  BOB: 2
 };
 
 // Contract ID
