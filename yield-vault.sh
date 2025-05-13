@@ -23,6 +23,7 @@ function show_help {
     echo "  prune      Prune deprecated test files"
     echo "  deploy     Deploy a fresh contract to OylNet"
     echo "  net        Interact with OylNet network"
+    echo "  e2e        Run end-to-end test on OylNet"
     echo "  help       Display this help message"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
@@ -32,6 +33,7 @@ function show_help {
     echo "  ./yield-vault.sh prune            # Prune deprecated test files"
     echo "  ./yield-vault.sh deploy           # Deploy a fresh contract to OylNet"
     echo "  ./yield-vault.sh net --deploy     # Deploy using legacy network script"
+    echo "  ./yield-vault.sh e2e              # Run end-to-end test on OylNet"
     echo ""
     echo -e "${BOLD}For more details:${NC}"
     echo "  See TOOLCHAIN_SETUP.md for comprehensive documentation"
@@ -75,6 +77,10 @@ case $COMMAND in
         fi
         echo -e "${BLUE}Running network operations with arguments: $@${NC}"
         ./bin/net/network.sh "$@"
+        ;;
+    e2e)
+        echo -e "${BLUE}Running end-to-end test on OylNet...${NC}"
+        ./deployment/run_e2e_test.sh
         ;;
     help|--help|-h|"")
         show_help
