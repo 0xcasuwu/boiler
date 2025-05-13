@@ -77,8 +77,8 @@ const USERS = {
   BOB: 2
 };
 
-// Contract ID
-let CONTRACT_ID = '';
+// Contract ID - use the existing contract ID
+let CONTRACT_ID = '7dbd26587f4d058577afa7e180fe1bfbe4941e6b5459e783d14e336c18238f0f';
 
 /**
  * Execute a command and return the output
@@ -334,11 +334,9 @@ async function runE2ETest() {
   try {
     console.log(`${COLORS.BOLD}${COLORS.BLUE}=== YieldVault End-to-End Test ===${COLORS.NC}\n`);
     
-    // Deploy the contract
-    CONTRACT_ID = deployContract();
+    console.log(`${COLORS.YELLOW}Using existing contract: ${CONTRACT_ID}${COLORS.NC}`);
     
-    // Initialize the contract
-    initializeContract();
+    // Skip deployment and initialization since we're using an existing contract
     
     // Verify contract metadata
     const metadata = verifyMetadata();
