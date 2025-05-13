@@ -2,6 +2,28 @@
 
 ## Latest Updates
 
+### Code Cleanup and File Organization (May 13, 2025)
+
+We've pruned unnecessary files from the codebase to improve maintainability:
+
+1. **Removed Duplicate Test Files**:
+   - Moved `src/lib_test.rs` and `src/lib_tests.rs` to archive/deprecated_files/
+   - These tests were duplicated in the lib.rs file itself in the lib_tests module
+   - Keeping tests in a single location improves maintainability
+
+2. **Removed Standalone Test Utility**:
+   - Moved `src/simple_test.rs` to archive/deprecated_files/
+   - The functionality is already available in `src/simple_utils.rs`
+
+3. **Created Pruning Script**:
+   - Added `bin/prune_unnecessary_files.sh` to automate the cleanup process
+   - Script moves files to archive directory rather than deleting them
+   - This preserves the history while cleaning up the main source directory
+
+4. **Maintained Core Files**:
+   - Kept essential files like `src/constants.rs`, `src/lib.rs`, `src/mock_vault.rs`, etc.
+   - These files contain the core functionality of the project
+
 ### Deployment Process Documentation and SDK Integration (May 12, 2025)
 
 We've successfully integrated the oyl-sdk repository and documented the complete deployment process:
