@@ -139,39 +139,25 @@ pub fn overflow_error<T: CheckedAdd + CheckedSub + CheckedMul + CheckedDiv>(op: 
 }
 ```
 
-#### 3.4 Permission Validation with AlkaneId
+#### 3.4 AlkaneId Verification Pattern
+
+The contract uses direct comparison of AlkaneId structs for verification:
 
 ```rust
-pub fn check_authorization(context: &Context, auth_token_id: &str) -> Result<()> {
-    // Ensure there are incoming alkanes
-    if context.incoming_alkanes.0.is_empty() {
-        return Err(anyhow!("No incoming alkanes"));
-    }
-
-    // Get first incoming alkane for authentication
-    let transfer = &context.incoming_alkanes.0[0];
-    
-    // Authentication model - dual mode:
-    // 1. Special test mode handling with block=1, tx=1
-    // 2. Production validation with AlkaneId string comparison
-    let is_token_valid = if auth_token_id == "auth_token_123" {
-        // Test mode - special handling
-        let block = transfer.id.block;
-        let tx = transfer.id.tx;
-        block == 1 && tx == 1
-    } else {
-        // Standard mode - compare string representations
-        let transfer_id_str = format!("{:?}", transfer.id);
-        transfer_id_str == auth_token_id
-    };
-
-    if !is_token_valid {
-        return Err(anyhow!("Unauthorized operation"));
-    }
-
-    Ok(())
+// Direct comparison of AlkaneId structs
+// This works because AlkaneId implements PartialEq
+if transfer.id == asset_id {
+    received = received.checked_add(transfer.value)
+        .ok_or("Asset amount overflow")?;
 }
 ```
+
+This pattern is used in:
+- `verify_incoming_assets` method
+- `verify_incoming_shares` method
+- Asset ID verification in `withdraw` and `redeem` methods
+
+The direct comparison approach is more reliable than string-based methods, as it compares the actual `block` and `tx` fields of the `AlkaneId` struct.
 
 ### 4. Yield Calculation Pattern
 
@@ -275,42 +261,79 @@ pub fn convert_to_assets(shares: u128) -> Result<u128> {
 }
 ```
 
-## Authentication Model 
+## Token-Based Authorization Model
 
-Through testing and integration with OylNet, we've identified and implemented a dual-mode authentication system:
+The contract uses a token-based authorization model where possession of tokens is sufficient proof of ownership:
 
-### 1. Test Mode Authentication
-
-In testing environments, the contract accepts numeric block/tx values:
+### 1. Verify Incoming Assets
 
 ```rust
-// In the contract code
-let is_token_valid = if auth_token_id == "auth_token_123" {
-    // Test mode validation - checks for block=1, tx=1
-    let block = transfer.id.block;
-    let tx = transfer.id.tx;
-    block == 1 && tx == 1
-} else {
-    // Production validation
-    let transfer_id_str = format!("{:?}", transfer.id);
-    transfer_id_str == auth_token_id
-};
+fn verify_incoming_assets(&self, incoming_alkanes: &AlkaneTransferParcel) -> Result<u128, &'static str> {
+    // Get the asset ID
+    let asset_id = self.get_asset_id();
+    
+    // Check if there are any incoming assets at all
+    if incoming_alkanes.0.is_empty() {
+        return Err("No assets provided in transaction");
+    }
+    
+    // Sum all incoming assets with matching ID
+    let mut received = 0u128;
+    
+    for transfer in &incoming_alkanes.0 {
+        // Direct comparison of AlkaneId structs
+        // This works because AlkaneId implements PartialEq
+        if transfer.id == asset_id {
+            received = received.checked_add(transfer.value)
+                .ok_or("Asset amount overflow")?;
+        }
+    }
+        
+    // If no assets match our asset ID, this is an error
+    if received == 0 {
+        return Err("Invalid asset ID: received assets do not match expected asset type");
+    }
+        
+    Ok(received)
+}
 ```
 
-When calling the contract in test mode:
-```bash
-# Parameters format: tx_hash, block, tx, assets
-local params="0x${tx_hash},1,1,${assets}"
-```
-
-### 2. Production Authentication
-
-For production environments, the contract validates against the actual AlkaneId string representation:
+### 2. Verify Incoming Shares
 
 ```rust
-// Production authentication
-let transfer_id_str = format!("{:?}", transfer.id);
-transfer_id_str == auth_token_id
+fn verify_incoming_shares(&self, incoming_alkanes: &AlkaneTransferParcel) -> Result<u128, &'static str> {
+    let context = match AlkaneResponder::context(self) {
+        Ok(ctx) => ctx,
+        Err(_) => return Err("Failed to get context"),
+    };
+    
+    // Get the contract ID (share token ID)
+    let contract_id = context.myself.clone();
+    
+    // Check if there are any incoming alkanes at all
+    if incoming_alkanes.0.is_empty() {
+        return Err("No shares provided in transaction");
+    }
+    
+    // Sum all incoming shares with matching ID
+    let mut received = 0u128;
+    
+    for transfer in &incoming_alkanes.0 {
+        // Direct comparison of AlkaneId structs
+        // This works because AlkaneId implements PartialEq
+        if transfer.id == contract_id {
+            received = received.checked_add(transfer.value)
+                .ok_or("Share amount overflow")?;
+        }
+    }
+    
+    // If no shares match our contract ID, this is an error
+    if received == 0 {
+        return Err("Invalid share token ID: received shares do not match expected type");
+    }
+        
+    Ok(received)
+}
 ```
 
 ## Implementation Details

@@ -11,6 +11,7 @@ The Bitcoin smart contract architecture using this framework exists to enable se
 3. **Standardized Interface**: Uses consistent opcode conventions for interoperability
 4. **Efficient Storage**: Optimized for the constraints of Bitcoin's blockchain
 5. **Flexible Configuration**: Supports customizable parameters for different token requirements
+6. **Robust Asset Verification**: Implements reliable alkane ID verification for secure asset transfers
 
 ## Problem Statement
 
@@ -21,6 +22,7 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 3. **Inconsistent Interfaces**: Non-standardized interfaces made integration difficult
 4. **Poor Development Experience**: Lack of clear patterns made development error-prone
 5. **Testing Complexity**: Difficult to test without proper separation of concerns
+6. **Asset Verification Issues**: Challenges in correctly identifying and verifying assets in transactions
 
 ## Target Users
 
@@ -65,6 +67,7 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 - Overflow protection for all numeric operations
 - Supply cap enforcement with validation checks
 - Comprehensive error handling
+- Robust alkane ID verification for asset transfers
 
 ### 4. Developer Experience
 - MessageDispatch for clean opcode-based message handling
@@ -72,6 +75,12 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 - Consistent storage patterns
 - Strong typing for parameters and returns
 - Clear error messages
+
+### 5. Asset Verification System
+- Direct comparison of AlkaneId structs for reliable verification
+- Type-safe asset identification
+- Efficient verification without string parsing
+- Compatible with OYL SDK and OylNet
 
 ## User Experience Goals
 
@@ -104,6 +113,7 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 - **Immutability**: Once deployed, the contract cannot be upgraded
 - **Initialization Security**: The initialization phase is security-critical
 - **Transaction Uniqueness**: Each mint transaction must be unique
+- **Asset Verification**: Must correctly identify and verify assets in transactions
 
 ## Success Metrics
 
@@ -112,6 +122,7 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 - No initialization vulnerabilities
 - No overflow/underflow exploits
 - Cap enforcement functions as specified
+- Correct asset verification in all transactions
 
 ### User Experience Metrics
 - Clear error messages for all constraint violations
@@ -143,6 +154,12 @@ Traditional Bitcoin tokens face significant limitations in functionality and sec
 - Performance optimizations
 - Complete reference implementation
 
+### Version 4.0: Improved Asset Verification
+- Robust alkane ID verification
+- Enhanced error handling for invalid transactions
+- Comprehensive testing for all verification scenarios
+- Documentation of verification patterns
+
 ## Integration Requirements
 
 The contract must:
@@ -152,6 +169,7 @@ The contract must:
 3. Support proper initialization sequence
 4. Generate standard events for blockchain indexers
 5. Maintain backward compatibility with existing systems
+6. Correctly verify assets and shares in transactions
 
 ## Deployment Considerations
 
@@ -160,6 +178,7 @@ The contract must:
 - Transaction hash storage will grow with the number of mint operations
 - View functions should be optimized for frequent calls
 - Supply cap should be carefully chosen based on intended token economics
+- Asset verification must be tested thoroughly before deployment
 
 ## Documentation Strategy
 
@@ -186,3 +205,7 @@ The contract must:
 **View Function** - Read-only operation that doesn't modify state
 
 **Opcode Interface** - Standardized numeric codes for contract operations
+
+**AlkaneId** - Struct with block and tx fields that uniquely identifies assets and contracts
+
+**Asset Verification** - Process of validating that incoming assets match the expected type

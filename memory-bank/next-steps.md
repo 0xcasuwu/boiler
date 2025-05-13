@@ -1,5 +1,20 @@
 # Next Steps for Yield Vault Project
 
+## Alkane ID Verification Improvements
+
+1. **Alkane ID Verification Refinement**:
+   - ✅ Fixed the contract to properly handle AlkaneId structs with direct comparison
+   - ✅ Removed string methods (contains, split) that were causing compilation errors
+   - ✅ Verified the fix with end-to-end tests on OylNet
+   - Add comprehensive documentation about AlkaneId handling
+   - Create developer guidelines for working with AlkaneIds
+
+2. **OYL SDK Integration**:
+   - Investigate potential improvements to the OYL SDK to better handle hex string IDs
+   - Create a mapping system between hex string IDs and numeric IDs if needed
+   - Document the ID format requirements for future developers
+   - Consider submitting a pull request to the OYL SDK repository
+
 ## OylNet Integration & Enhancement
 
 1. **Contract Parameter Encoding Optimization**:

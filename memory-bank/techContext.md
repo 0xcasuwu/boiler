@@ -180,6 +180,86 @@ This crate provides Rust bindings to the libsecp256k1 C library, essential for c
    - JSON encoding/decoding
    - Type-safe data conversion
 
+## AlkaneId Verification
+
+### AlkaneId Structure
+
+The `AlkaneId` struct is a fundamental part of the Alkane framework, representing a unique identifier for assets and contracts:
+
+```rust
+pub struct AlkaneId {
+    pub block: u128,
+    pub tx: u128
+}
+```
+
+This struct contains two fields:
+- `block`: A u128 value representing the block number
+- `tx`: A u128 value representing the transaction index
+
+### Verification Approaches
+
+We've implemented and tested two approaches for AlkaneId verification:
+
+#### 1. String-Based Approach (Deprecated)
+
+Initially, we attempted to use string methods to parse and verify AlkaneIds:
+
+```rust
+// DEPRECATED: This approach caused compilation errors
+if transfer.id.contains(':') {
+    let parts: Vec<&str> = transfer.id.split(':').collect();
+    if parts.len() >= 2 {
+        if let (Ok(block), Ok(tx)) = (parts[0].parse::<u128>(), parts[1].parse::<u128>()) {
+            asset_id.block == block && asset_id.tx == tx
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+} else {
+    transfer.id == asset_id
+}
+```
+
+This approach failed because:
+- `AlkaneId` is not a string but a struct with `block` and `tx` fields
+- String methods like `contains` and `split` are not available on the `AlkaneId` struct
+- Compilation errors occurred when trying to use these methods
+
+#### 2. Direct Comparison Approach (Current)
+
+Our current approach uses direct comparison of `AlkaneId` structs:
+
+```rust
+// Direct comparison of AlkaneId structs
+// This works because AlkaneId implements PartialEq
+if transfer.id == asset_id {
+    received = received.checked_add(transfer.value)
+        .ok_or("Asset amount overflow")?;
+}
+```
+
+This approach is:
+- More reliable: Directly compares the actual `block` and `tx` fields
+- More efficient: Avoids string parsing and conversion
+- More type-safe: Uses the compiler to ensure correct types
+- Compatible with the OYL SDK and OylNet
+
+### OYL SDK Integration
+
+The OYL SDK expects alkane IDs to be in a specific format:
+
+1. **Numeric Format**: The SDK expects IDs in the format "block:tx" or "block:tx:amount:output"
+2. **BigInt Conversion**: The SDK attempts to convert these values to BigInt
+3. **Compatibility Issue**: Hex string IDs cannot be converted to BigInt
+
+Our solution:
+- Use direct comparison of `AlkaneId` structs in the contract
+- Consider updating the OYL SDK to handle hex string IDs
+- Document the ID format requirements for future developers
+
 ## Authentication Model
 
 Our contract uses a dual-mode authentication system based on AlkaneIds:
@@ -418,13 +498,9 @@ pub fn deposit(context: &Context, tx_hash: &[u8], caller: &str, receiver: &str, 
 }
 ```
 
-### RUN TESTS
-
-eg cargo test --test mock_vault_test --target x84_64-unknown-linux-gnu
-
 ### Contextual Errors
 
-Errors include context testfor better diagnostics:
+Errors include context for better diagnostics:
 
 ```rust
 Err(anyhow!("Deposit exceeds maximum of {}", max_deposit))

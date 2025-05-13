@@ -25,6 +25,7 @@ The Yield Vault project implements a tokenized vault standard (ERC-4626 equivale
 - Overflow protection for numeric operations
 - Permission validation via AlkaneId
 - Comprehensive error handling
+- Robust asset verification with direct AlkaneId comparison
 
 ### 4. API Functions
 
@@ -69,9 +70,10 @@ The Yield Vault project implements a tokenized vault standard (ERC-4626 equivale
 - Balance tracking with account-based storage
 
 ### Security Model
-- Dual-mode authentication system
-  - Test mode: Validates numeric block=1, tx=1 parameters
-  - Production mode: Validates actual AlkaneId string representations
+- Token-based authentication system
+  - Possession of tokens is sufficient proof of ownership
+  - Direct comparison of AlkaneId structs for verification
+  - Type-safe asset identification
 - Transaction hash validation to prevent replay attacks
 - Initialization guard to prevent multiple contract initializations
 - Checked arithmetic operations to prevent overflows
@@ -111,10 +113,27 @@ The Yield Vault contract is fully functional with a stable build system that wor
 - ✅ Metadata view functions
 - ✅ Accounting state tracking
 - ✅ Administrative operations
-- ✅ Deposit operations (with numeric authentication)
-- ✅ Balance queries (with numeric authentication)
+- ✅ Deposit operations
+- ✅ Mint operations
+- ✅ Withdraw operations
+- ✅ Redeem operations
+- ✅ Asset verification with direct AlkaneId comparison
 
-The authentication model has been refined to properly validate operations using either test mode numeric parameters (block=1, tx=1) or production-mode AlkaneId string comparisons.
+The authentication model has been refined to properly validate operations using token-based authorization, where possession of tokens is sufficient proof of ownership. The asset verification system has been improved to use direct comparison of AlkaneId structs, which is more reliable and efficient than string-based methods.
+
+## Recent Improvements
+
+### Alkane ID Verification Fix
+- Fixed the contract to properly handle AlkaneId structs with direct comparison
+- Removed string methods (contains, split) that were causing compilation errors
+- Verified the fix with end-to-end tests on OylNet
+- All operations now work correctly with the OYL SDK's alkane ID format
+
+### Token-Based Architecture
+- Removed account balance tracking from the contract
+- Authorization is now handled through token possession
+- The contract now only tracks global state (total supply, total assets)
+- Simplified contract logic and reduced storage requirements
 
 ## Next Steps
 
@@ -162,13 +181,19 @@ yield_amount = total_assets * yield_rate * time_elapsed / (10000 * BLOCKS_PER_YE
 
 This provides a smooth yield accrual that adjusts based on actual time elapsed rather than fixed intervals.
 
-### Authentication Model
-The contract implements a dual-mode authentication system:
+### Asset Verification
+The contract uses direct comparison of AlkaneId structs for asset verification:
 
-1. **Test Mode**: Validates operations from AlkaneId where block=1 and tx=1
-2. **Production Mode**: Validates operations by comparing AlkaneId string representations
+```rust
+// Direct comparison of AlkaneId structs
+// This works because AlkaneId implements PartialEq
+if transfer.id == asset_id {
+    received = received.checked_add(transfer.value)
+        .ok_or("Asset amount overflow")?;
+}
+```
 
-This approach allows for easy testing while maintaining security in production.
+This approach is more reliable and efficient than string-based methods, as it directly compares the actual `block` and `tx` fields of the `AlkaneId` struct.
 
 ## Development Guidelines
 
@@ -183,6 +208,7 @@ This approach allows for easy testing while maintaining security in production.
    - Validate all inputs
    - Verify permissions before state changes
    - Update yield before any state changes
+   - Use direct comparison for AlkaneId verification
 
 3. **Testing Approach**
    - Write tests for all new functions
@@ -195,11 +221,3 @@ This approach allows for easy testing while maintaining security in production.
    - Use provided build scripts for WebAssembly generation
    - Verify WebAssembly output before deployment
    - Follow standardized deployment process
-
-5. Initializing Environment
-Set .env to '
-PROVIDER=oylnet
-NETWORK=regtest
-API_KEY=lasereyes
-'
-- cd into oyl-sdk and npm
