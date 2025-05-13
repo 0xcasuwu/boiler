@@ -265,11 +265,8 @@ impl YieldVault {
         Ok(data)
     }
     
-    // Get account balance API endpoint
-    fn get_balance_of(&self, account: String) -> Result<u128> {
-        let balance = self.get_balance(&account);
-        Ok(balance)
-    }
+    // This method is no longer needed as we don't track individual account balances
+    // The balance is determined by the tokens held by the account outside the contract
     
     // Get total supply API endpoint
     fn get_total_supply(&self) -> Result<u128> {
@@ -438,11 +435,8 @@ impl YieldVault {
             },
             
             // == Balance Management ==
-            opcodes::GET_BALANCE_OF => {
-                let account = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let balance = self.get_balance_of(account)?;
-                Ok(format!("{}", balance))
-            },
+            // GET_BALANCE_OF opcode handler has been removed as we don't track individual account balances
+            // The balance is determined by the tokens held by the account outside the contract
             
             opcodes::GET_TOTAL_SUPPLY => {
                 let total_supply = self.get_total_supply()?;

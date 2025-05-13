@@ -14,6 +14,7 @@ echo -e "${BLUE}${BOLD}===== Running Current Working Tests =====${NC}"
 ACTIVE_TESTS=(
     "mock_vault_tests"
     "simple_utils_test"
+    "invariant_tests"
 )
 
 # Run each active test

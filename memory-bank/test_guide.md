@@ -74,6 +74,32 @@ Key test cases include:
 4. **test_yield_accrual**: Tests the yield accrual mechanism
 5. **test_preview_functions**: Tests the preview functions that simulate operations
 
+### Invariant Tests
+
+The `invariant_tests.rs` file contains tests that verify the invariants of the YieldVault contract. These tests ensure that the contract's mathematical and economic properties hold under various conditions, including attack scenarios.
+
+Key test cases include:
+
+1. **test_total_assets_supply_invariant**: Tests that the total assets and total supply invariants are maintained even when a malicious user tries to manipulate the protocol
+2. **test_yield_accrual_invariant**: Tests that the yield accrual mechanism cannot be exploited
+3. **test_authorization_invariant**: Tests that the token-based authorization prevents unauthorized withdrawals
+4. **test_conversion_invariants**: Tests that the conversion functions maintain their mathematical properties
+5. **test_preview_function_invariants**: Tests that the preview functions accurately predict the actual operations
+
+### Token-Based Architecture Testing
+
+The YieldVault contract now uses a token-based architecture, which means:
+
+1. The contract doesn't track individual account balances internally
+2. Authorization is handled through token possession
+3. The contract only tracks global state (total supply, total assets)
+
+This architecture is tested in several ways:
+
+1. **Token Verification**: Tests verify that the contract correctly checks for the presence of tokens in the transaction
+2. **Global State Management**: Tests verify that the contract correctly updates the global state
+3. **Authorization**: Tests verify that only users with the appropriate tokens can perform certain operations
+
 ### Simple Utils Tests
 
 The `simple_utils_test.rs` file contains tests for utility functions that are used throughout the contract. These tests are completely independent of the runtime environment.

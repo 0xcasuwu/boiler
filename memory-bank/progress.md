@@ -2,6 +2,43 @@
 
 ## Latest Updates
 
+### Token-Based Architecture Implementation (May 13, 2025)
+
+We've successfully implemented a token-based architecture for the YieldVault contract, which represents a significant improvement over the previous implementation:
+
+1. **Removed Account Balance Tracking**:
+   - Eliminated `get_balance` and `set_balance` methods from the Storage trait
+   - Removed all balance-related storage operations using `/balances/{account}` keys
+   - The contract no longer tracks individual account balances internally
+
+2. **Token-Based Authorization**:
+   - Removed `check_authorization` method from the Security trait
+   - Authorization is now handled through token possession
+   - The presence of tokens in the transaction is sufficient proof of ownership
+
+3. **Global State Management**:
+   - Added direct methods to update total supply: `add_total_supply` and `subtract_total_supply`
+   - Added method to verify incoming shares: `verify_incoming_shares`
+   - The contract now only tracks global state (total supply, total assets)
+
+4. **Benefits of Token-Based Architecture**:
+   - **Simplified Contract Logic**: Reduces complexity and storage requirements
+   - **Native Token Integration**: Leverages the blockchain's native token functionality
+   - **Implicit Authorization**: Possession of tokens is authorization
+   - **Reduced Storage Costs**: By not tracking individual balances, the contract uses less storage
+
+5. **Test Updates**:
+   - Updated all tests to use the token-based approach
+   - Fixed issues with the `invariant_tests.rs` file
+   - All tests are now passing
+
+6. **Documentation**:
+   - Updated `asset_management_analysis.md` with details about the token-based architecture
+   - Updated `progress.md` with the latest changes
+   - Added comprehensive explanation of the benefits of the token-based approach
+
+## Previous Updates
+
 ### Code Cleanup and File Organization (May 13, 2025)
 
 We've pruned unnecessary files from the codebase to improve maintainability:

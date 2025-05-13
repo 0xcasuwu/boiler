@@ -48,13 +48,6 @@ pub trait Security: Storage {
         Ok(())
     }
     
-    /// Check if caller has sufficient authorization
-    fn check_authorization(&self, caller: &str, owner: &str) -> Result<(), &'static str> {
-        // In this simple implementation, only the owner can operate on their assets
-        // In a more complex implementation, this would check approved operators
-        if caller != owner {
-            return Err("Not authorized");
-        }
-        Ok(())
-    }
+    // Authorization is now handled through token possession
+    // The contract doesn't need to check who owns what shares
 }

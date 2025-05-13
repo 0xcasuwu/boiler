@@ -92,11 +92,11 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             return Err(anyhow!("Zero shares"));
         }
         
-        // Update state
+        // Update global state only
         self.add_total_assets(assets)
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
-        self.mint_shares(&receiver, shares)
-            .map_err(|e| anyhow!("Share mint error: {}", e))?;
+        self.add_total_supply(shares)
+            .map_err(|e| anyhow!("Total supply update error: {}", e))?;
         
         // Create share token transfer to receiver
         let share_transfer = AlkaneTransfer {
@@ -157,11 +157,11 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
                               assets, received_assets));
         }
         
-        // Update state
+        // Update global state only
         self.add_total_assets(assets)
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
-        self.mint_shares(&receiver, shares)
-            .map_err(|e| anyhow!("Share mint error: {}", e))?;
+        self.add_total_supply(shares)
+            .map_err(|e| anyhow!("Total supply update error: {}", e))?;
         
         // Create share token transfer to receiver
         let share_transfer = AlkaneTransfer {
@@ -194,10 +194,6 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         // Update the yield before any operations
         self.update_yield()
             .map_err(|e| anyhow!("Yield update error: {}", e))?;
-        
-        // Check authorization
-        self.check_authorization(&caller, &owner)
-            .map_err(|e| anyhow!("Authorization error: {}", e))?;
             
         // Get the asset ID for transferring out the assets
         let asset_id = self.get_asset_id();
@@ -232,11 +228,21 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             return Err(anyhow!("Zero shares"));
         }
         
-        // Update state
+        // Verify incoming shares
+        let received_shares = self.verify_incoming_shares(&context.incoming_alkanes)
+            .map_err(|e| anyhow!("Share verification error: {}", e))?;
+        
+        // Check that we received at least the expected shares
+        if received_shares < shares {
+            return Err(anyhow!("Insufficient shares received: expected {}, got {}", 
+                             shares, received_shares));
+        }
+        
+        // Update global state only
         self.subtract_total_assets(assets)
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
-        self.burn_shares(&owner, shares)
-            .map_err(|e| anyhow!("Share burn error: {}", e))?;
+        self.subtract_total_supply(shares)
+            .map_err(|e| anyhow!("Total supply update error: {}", e))?;
         
         // Create asset transfer to receiver
         let asset_transfer = AlkaneTransfer {
@@ -269,10 +275,6 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         // Update the yield before any operations
         self.update_yield()
             .map_err(|e| anyhow!("Yield update error: {}", e))?;
-        
-        // Check authorization
-        self.check_authorization(&caller, &owner)
-            .map_err(|e| anyhow!("Authorization error: {}", e))?;
             
         // Get the asset ID for transferring out the assets
         let asset_id = self.get_asset_id();
@@ -303,11 +305,21 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         let assets = self.convert_shares_to_assets(shares, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview redeem error: {}", e))?;
         
-        // Update state
+        // Verify incoming shares
+        let received_shares = self.verify_incoming_shares(&context.incoming_alkanes)
+            .map_err(|e| anyhow!("Share verification error: {}", e))?;
+        
+        // Check that we received at least the expected shares
+        if received_shares < shares {
+            return Err(anyhow!("Insufficient shares received: expected {}, got {}", 
+                             shares, received_shares));
+        }
+        
+        // Update global state only
         self.subtract_total_assets(assets)
             .map_err(|e| anyhow!("Asset update error: {}", e))?;
-        self.burn_shares(&owner, shares)
-            .map_err(|e| anyhow!("Share burn error: {}", e))?;
+        self.subtract_total_supply(shares)
+            .map_err(|e| anyhow!("Total supply update error: {}", e))?;
         
         // Create asset transfer to receiver
         let asset_transfer = AlkaneTransfer {
@@ -397,48 +409,44 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         Ok(())
     }
 
-    /// Mint shares to an account
-    fn mint_shares(&self, account: &str, amount: u128) -> Result<(), &'static str> {
-        // Get current balance
-        let balance = self.get_balance(account);
-        
-        // Calculate new balance
-        let new_balance = overflow_error(balance.checked_add(amount))
-            .map_err(|_| "Balance overflow when minting shares")?;
-            
-        // Update account balance
-        self.set_balance(account, new_balance);
-        
-        // Update total supply
+    /// Add to total supply
+    fn add_total_supply(&self, amount: u128) -> Result<(), &'static str> {
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         let new_supply = overflow_error(total_supply.checked_add(amount))
-            .map_err(|_| "Total supply overflow when minting shares")?;
+            .map_err(|_| "Total supply overflow")?;
         self.total_supply_pointer().set_value(new_supply);
-        
         Ok(())
     }
     
-    /// Burn shares from an account
-    fn burn_shares(&self, account: &str, amount: u128) -> Result<(), &'static str> {
-        // Get current balance
-        let balance = self.get_balance(account);
-        
-        // Ensure sufficient balance
-        if balance < amount {
-            return Err("Insufficient balance for burning shares");
-        }
-        
-        // Calculate new balance
-        let new_balance = balance - amount;
-        self.set_balance(account, new_balance);
-        
-        // Update total supply
+    /// Subtract from total supply
+    fn subtract_total_supply(&self, amount: u128) -> Result<(), &'static str> {
         let total_supply = self.total_supply_pointer().get_value::<u128>();
-        let new_supply = total_supply.checked_sub(amount)
-            .ok_or("Total supply underflow when burning shares")?;
+        if total_supply < amount {
+            return Err("Insufficient total supply");
+        }
+        let new_supply = total_supply - amount;
         self.total_supply_pointer().set_value(new_supply);
-        
         Ok(())
+    }
+    
+    /// Verify incoming shares in the transaction
+    fn verify_incoming_shares(&self, incoming_alkanes: &AlkaneTransferParcel) -> Result<u128, &'static str> {
+        let context = match AlkaneResponder::context(self) {
+            Ok(ctx) => ctx,
+            Err(_) => return Err("Failed to get context"),
+        };
+        
+        let contract_id = context.myself.clone();
+        
+        // Sum all incoming shares with matching ID (this contract's ID)
+        let received = incoming_alkanes.0.iter()
+            .filter(|transfer| {
+                transfer.id == contract_id
+            })
+            .map(|transfer| transfer.value)
+            .sum::<u128>();
+            
+        Ok(received)
     }
 
     // == Limit Calculation Functions ==
@@ -457,18 +465,18 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
     }
     
     /// Calculate maximum withdraw amount for an owner
-    fn max_withdraw(&self, owner: &str) -> Result<u128, &'static str> {
-        // Can withdraw at most the assets corresponding to owned shares
-        let shares = self.get_balance(owner);
-        let total_assets = self.total_assets_pointer().get_value::<u128>();
-        let total_supply = self.total_supply_pointer().get_value::<u128>();
-        
-        self.convert_shares_to_assets(shares, total_assets, total_supply)
+    fn max_withdraw(&self, _owner: &str) -> Result<u128, &'static str> {
+        // In the token-based model, the contract doesn't track individual balances
+        // The maximum is determined by the tokens presented in the transaction
+        // For simplicity, we return the maximum possible value
+        Ok(u128::MAX)
     }
     
     /// Calculate maximum redeem amount for an owner
-    fn max_redeem(&self, owner: &str) -> Result<u128, &'static str> {
-        // Can redeem at most the owned shares
-        Ok(self.get_balance(owner))
+    fn max_redeem(&self, _owner: &str) -> Result<u128, &'static str> {
+        // In the token-based model, the contract doesn't track individual balances
+        // The maximum is determined by the tokens presented in the transaction
+        // For simplicity, we return the maximum possible value
+        Ok(u128::MAX)
     }
 }

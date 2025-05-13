@@ -106,15 +106,6 @@ pub trait Storage {
         self.asset_id_pointer().set(Arc::new(buffer));
     }
 
-    /// Get balance of an account
-    fn get_balance(&self, account: &str) -> u128 {
-        let key = format!("/balances/{}", account);
-        StoragePointer::from_keyword(&key).get_value::<u128>()
-    }
-    
-    /// Set balance of an account
-    fn set_balance(&self, account: &str, amount: u128) {
-        let key = format!("/balances/{}", account);
-        StoragePointer::from_keyword(&key).set_value(amount);
-    }
+    // Account balances are no longer tracked by the contract
+    // Ownership of shares is managed through native token transfers
 }
