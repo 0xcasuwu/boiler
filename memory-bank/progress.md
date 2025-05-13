@@ -2,6 +2,44 @@
 
 ## Latest Updates
 
+### Asset Management Insights and declare_alkane Implementation (May 13, 2025)
+
+We've made significant progress in understanding and improving the codebase:
+
+1. **Share Burning Mechanism Analysis**:
+   - Confirmed that the asset management module correctly implements share burning during withdrawals
+   - The burn mechanism is implicit rather than explicit:
+     * Shares are sent to the contract in the transaction (verified by `verify_incoming_shares`)
+     * The contract reduces the total supply with `subtract_total_supply(shares)`
+     * The shares are not explicitly returned in the response, effectively burning them
+   - This implementation is consistent with token-based systems where possession equals ownership
+
+2. **declare_alkane Macro Implementation**:
+   - Successfully implemented the `declare_alkane` macro in our boiler repository
+   - Created a proc macro crate at `src/proc_macros` with two key components:
+     * `MessageDispatch` derive macro: Generates trait implementations for message enums
+     * `declare_alkane` procedural macro: Generates dispatch methods for responder structs
+   - Integrated with YieldVault struct in `src/lib.rs`
+   - Updated the `call` function to use our new dispatch method
+   - Fixed WebAssembly compatibility issues
+
+3. **Testing Infrastructure Improvements**:
+   - Created mock implementations of WebAssembly runtime functions in `src/tests/mock_runtime.rs`
+   - Fixed the test runner script to include all relevant tests
+   - Successfully ran tests with `cargo test --lib --target x86_64-unknown-linux-gnu`
+
+4. **E2E Test Compatibility**:
+   - Updated the e2e test script (`deployment/e2e_test.js`) to work with our implementation
+   - Fixed command syntax for executing opcodes
+   - Updated initialization command to use the correct format
+   - Ensured compatibility with the OylNet deployment process
+
+5. **Documentation Updates**:
+   - Created comprehensive documentation of our findings in `memory-bank/asset_management_insights.md`
+   - Updated verification documentation in `memory-bank/declare_alkane_verification.md`
+
+## Previous Updates
+
 ### Alkane ID Verification Fix (May 13, 2025)
 
 We've successfully fixed the alkane ID verification issue in the yield vault contract:

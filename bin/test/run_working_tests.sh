@@ -15,12 +15,14 @@ ACTIVE_TESTS=(
     "mock_vault_tests"
     "simple_utils_test"
     "invariant_tests"
+    "alkane_id_verification_tests"
 )
 
 # Run each active test
 for test in "${ACTIVE_TESTS[@]}"; do
     echo -e "\n${YELLOW}===== Running $test =====${NC}"
-    cargo test --test $test --target x86_64-unknown-linux-gnu
+    # Remove the specific target to use the default target for the current system
+    cargo test --test $test
     
     # Check if the test passed
     if [ $? -eq 0 ]; then

@@ -48,6 +48,4 @@ pub trait Security: Storage {
         Ok(())
     }
     
-    // Authorization is now handled through token possession
-    // The contract doesn't need to check who owns what shares
 }

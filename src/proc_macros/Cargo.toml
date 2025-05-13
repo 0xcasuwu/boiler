@@ -1,0 +1,14 @@
+[package]
+name = "alkanes_proc_macros"
+version = "0.1.0"
+edition = "2021"
+description = "Procedural macros for Alkanes runtime"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "1.0", features = ["full", "extra-traits"] }
+regex = "1.5"

@@ -26,6 +26,9 @@ alkanes-runtime = { git = "https://github.com/kungfuflex/alkanes-rs" }
 alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs" }
 metashrew-support = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
 
+# Local proc-macro crate
+alkanes_proc_macros = { path = "src/proc_macros" }
+
 # WebAssembly specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"  # Better error messages in WebAssembly

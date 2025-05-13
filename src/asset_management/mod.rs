@@ -21,24 +21,25 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         // Get the asset ID
         let asset_id = self.get_asset_id();
         
-        // Log the asset ID for debugging
-        #[cfg(debug_assertions)]
-        {
-            // In a real implementation, we would log the asset ID
+        // Check if there are any incoming assets at all
+        if incoming_alkanes.0.is_empty() {
+            return Err("No assets provided in transaction");
         }
         
         // Sum all incoming assets with matching ID
-        let received = incoming_alkanes.0.iter()
-            .filter(|transfer| {
-                // Strict comparison with the expected asset ID
-                &transfer.id == &asset_id
-            })
-            .map(|transfer| transfer.value)
-            .sum::<u128>();
+        let mut received = 0u128;
+        
+        for transfer in &incoming_alkanes.0 {
+            // Direct comparison of AlkaneId structs
+            // This works because AlkaneId implements PartialEq
+            if transfer.id == asset_id {
+                received = received.checked_add(transfer.value)
+                    .ok_or("Asset amount overflow")?;
+            }
+        }
             
-        // If we received assets but none match our asset ID, this is an error
-        // This prevents users from depositing the wrong type of assets
-        if received == 0 && !incoming_alkanes.0.is_empty() {
+        // If no assets match our asset ID, this is an error
+        if received == 0 {
             return Err("Invalid asset ID: received assets do not match expected asset type");
         }
             
@@ -179,7 +180,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
     fn withdraw(
         &self,
         tx_hash: String,
-        caller: String,
+        _caller: String,
         _receiver: String,
         owner: String,
         assets: u128
@@ -260,7 +261,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
     fn redeem(
         &self,
         tx_hash: String,
-        caller: String,
+        _caller: String,
         _receiver: String,
         owner: String,
         shares: u128
@@ -436,15 +437,37 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             Err(_) => return Err("Failed to get context"),
         };
         
+        // Get the contract ID (share token ID)
         let contract_id = context.myself.clone();
         
-        // Sum all incoming shares with matching ID (this contract's ID)
-        let received = incoming_alkanes.0.iter()
-            .filter(|transfer| {
-                transfer.id == contract_id
-            })
-            .map(|transfer| transfer.value)
-            .sum::<u128>();
+        // Check if there are any incoming alkanes at all
+        if incoming_alkanes.0.is_empty() {
+            return Err("No shares provided in transaction");
+        }
+        
+        // Log the incoming shares for debugging
+        #[cfg(debug_assertions)]
+        {
+            // In a real implementation, we would log the incoming shares
+            // For example: log!("Incoming shares: {:?}", incoming_alkanes);
+        }
+        
+        // Sum all incoming shares with matching ID
+        let mut received = 0u128;
+        
+        for transfer in &incoming_alkanes.0 {
+            // Direct comparison of AlkaneId structs
+            // This works because AlkaneId implements PartialEq
+            if transfer.id == contract_id {
+                received = received.checked_add(transfer.value)
+                    .ok_or("Share amount overflow")?;
+            }
+        }
+        
+        // If no shares match our contract ID, this is an error
+        if received == 0 {
+            return Err("Invalid share token ID: received shares do not match expected type");
+        }
             
         Ok(received)
     }

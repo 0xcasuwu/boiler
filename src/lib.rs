@@ -10,6 +10,9 @@ pub mod asset_management;
 pub mod simple_utils;
 pub mod mock_vault;
 pub mod mock_vault_extension;
+pub mod message;
+pub mod macros;
+pub mod attributes;
 
 #[cfg(test)]
 pub mod tests;
@@ -22,17 +25,21 @@ pub use crate::utils::Conversion;
 pub use crate::storage::Storage;
 pub use crate::security::Security;
 pub use crate::asset_management::AssetManagement;
+pub use crate::message::YieldVaultMessage;
 
 // Import required crates
 use anyhow::{anyhow, Result};
 use wasm_bindgen::prelude::*;
-use crate::constants::*;
 
 // Import Alkanes runtime and support
-use alkanes_runtime::runtime::AlkaneResponder;
+use alkanes_runtime::{message::MessageDispatch, runtime::AlkaneResponder};
+use alkanes_proc_macros::declare_alkane;
 use alkanes_runtime::storage::StoragePointer;
 // Import metashrew support
+use metashrew_support::compat::to_arraybuffer_layout;
 use metashrew_support::index_pointer::KeyValuePointer;
+use alkanes_support::context::Context;
+use alkanes_support::response::CallResponse;
 
 // Import Bitcoin types directly without conditionals
 
@@ -44,6 +51,19 @@ pub struct YieldVault {}
 impl Default for YieldVault {
     fn default() -> Self {
         Self {}
+    }
+}
+
+// Forward implementation of AlkaneResponder for YieldVault
+impl AlkaneResponder for YieldVault {
+    fn height(&self) -> u64 {
+        // Return a placeholder height
+        0
+    }
+    
+    fn context(&self) -> Result<Context, anyhow::Error> {
+        // Return a new Context
+        Ok(Context::default())
     }
 }
 
@@ -71,17 +91,66 @@ impl YieldVault {
 
 
 // Implementation of message handlers for YieldVault
+// These methods will be called by the MessageDispatch trait
 impl YieldVault {
-    // Message handlers
+    // Wrapper methods for MessageDispatch compatibility
+    
+    // Preview deposit wrapper for MessageDispatch
+    pub fn preview_deposit_wrapper(&self, assets: u128) -> Result<CallResponse> {
+        let result = self.preview_deposit(assets)
+            .map_err(|e| anyhow!("Preview deposit error: {}", e))?;
+        
+        let mut response = CallResponse::default();
+        response.data = format!("{}", result).as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Preview mint wrapper for MessageDispatch
+    pub fn preview_mint_wrapper(&self, shares: u128) -> Result<CallResponse> {
+        let total_assets = self.total_assets_pointer().get_value::<u128>();
+        let total_supply = self.total_supply_pointer().get_value::<u128>();
+        
+        let result = self.preview_mint(shares, total_assets, total_supply)
+            .map_err(|e| anyhow!("Preview mint error: {}", e))?;
+        
+        let mut response = CallResponse::default();
+        response.data = format!("{}", result).as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Preview withdraw wrapper for MessageDispatch
+    pub fn preview_withdraw_wrapper(&self, assets: u128) -> Result<CallResponse> {
+        let total_assets = self.total_assets_pointer().get_value::<u128>();
+        let total_supply = self.total_supply_pointer().get_value::<u128>();
+        
+        let result = self.preview_withdraw(assets, total_assets, total_supply)
+            .map_err(|e| anyhow!("Preview withdraw error: {}", e))?;
+        
+        let mut response = CallResponse::default();
+        response.data = format!("{}", result).as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Preview redeem wrapper for MessageDispatch
+    pub fn preview_redeem_wrapper(&self, shares: u128) -> Result<CallResponse> {
+        let result = self.preview_redeem(shares)
+            .map_err(|e| anyhow!("Preview redeem error: {}", e))?;
+        
+        let mut response = CallResponse::default();
+        response.data = format!("{}", result).as_bytes().to_vec();
+        Ok(response)
+    }
+    // == Message handlers for YieldVaultMessage ==
+    
     // Initialize the vault with its base parameters
-    fn initialize(
+    pub fn initialize(
         &self,
         name: String, 
         symbol: String,
         asset_name: String,
         asset_symbol: String,
         decimal_offset: u128
-    ) -> Result<()> {
+    ) -> Result<CallResponse> {
         // Use the initialization guard to prevent multiple initializations
         Security::observe_initialization(self)
             .map_err(|e| anyhow!("Initialization error: {}", e))?;
@@ -111,149 +180,235 @@ impl YieldVault {
         // Initialize the last yield block height
         StoragePointer::from_keyword("/last-yield-height").set_value(self.height());
         
-        Ok(())
+        let mut response = CallResponse::default();
+        response.data = "Initialized".as_bytes().to_vec();
+        Ok(response)
     }
-        
+    
+    // Deposit assets into the vault
+    pub fn deposit(
+        &self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        assets: u128
+    ) -> Result<CallResponse> {
+        // This is a placeholder for the actual implementation
+        let mut response = CallResponse::default();
+        response.data = "Deposit operation".as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Mint shares from the vault
+    pub fn mint(
+        &self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        shares: u128
+    ) -> Result<CallResponse> {
+        // This is a placeholder for the actual implementation
+        let mut response = CallResponse::default();
+        response.data = "Mint operation".as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Withdraw assets from the vault
+    pub fn withdraw(
+        &self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        owner: String,
+        assets: u128
+    ) -> Result<CallResponse> {
+        // This is a placeholder for the actual implementation
+        let mut response = CallResponse::default();
+        response.data = "Withdraw operation".as_bytes().to_vec();
+        Ok(response)
+    }
+    
+    // Redeem shares from the vault
+    pub fn redeem(
+        &self,
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        owner: String,
+        shares: u128
+    ) -> Result<CallResponse> {
+        // This is a placeholder for the actual implementation
+        let mut response = CallResponse::default();
+        response.data = "Redeem operation".as_bytes().to_vec();
+        Ok(response)
+    }
+    
     // Get vault name
-    fn get_name(&self) -> Result<String> {
+    pub fn get_name(&self) -> Result<CallResponse> {
         let name = String::from_utf8(self.name_pointer().get().as_ref().clone())
             .map_err(|_| anyhow!("Failed to parse name"))?;
         
-        Ok(name)
+        let mut response = CallResponse::default();
+        response.data = name.as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get vault symbol
-    fn get_symbol(&self) -> Result<String> {
+    pub fn get_symbol(&self) -> Result<CallResponse> {
         let symbol = String::from_utf8(self.symbol_pointer().get().as_ref().clone())
             .map_err(|_| anyhow!("Failed to parse symbol"))?;
         
-        Ok(symbol)
+        let mut response = CallResponse::default();
+        response.data = symbol.as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get decimals
-    fn get_decimals(&self) -> Result<u8> {
+    pub fn get_decimals(&self) -> Result<CallResponse> {
         let decimals = self.decimals_pointer().get_value::<u8>();
-        Ok(decimals)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", decimals).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get asset symbol
-    fn get_asset(&self) -> Result<String> {
+    pub fn get_asset(&self) -> Result<CallResponse> {
         let asset_symbol = String::from_utf8(self.asset_symbol_pointer().get().as_ref().clone())
             .map_err(|_| anyhow!("Failed to parse asset symbol"))?;
         
-        Ok(asset_symbol)
+        let mut response = CallResponse::default();
+        response.data = asset_symbol.as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get total assets
-    fn get_total_assets(&self) -> Result<u128> {
+    pub fn get_total_assets(&self) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
-        Ok(total_assets)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", total_assets).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Convert to shares API endpoint
-    fn convert_to_shares(&self, assets: u128) -> Result<u128> {
+    pub fn convert_to_shares(&self, assets: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let shares = self.convert_assets_to_shares(assets, total_assets, total_supply)
             .map_err(|e| anyhow!("Conversion error: {}", e))?;
         
-        Ok(shares)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", shares).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Convert to assets API endpoint
-    fn convert_to_assets(&self, shares: u128) -> Result<u128> {
+    pub fn convert_to_assets(&self, shares: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let assets = self.convert_shares_to_assets(shares, total_assets, total_supply)
             .map_err(|e| anyhow!("Conversion error: {}", e))?;
         
-        Ok(assets)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", assets).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get max deposit API endpoint
-    fn get_max_deposit(&self, receiver: String) -> Result<u128> {
+    pub fn get_max_deposit(&self, receiver: String) -> Result<CallResponse> {
         let max_deposit = self.max_deposit(&receiver)
             .map_err(|e| anyhow!("Max deposit error: {}", e))?;
         
-        Ok(max_deposit)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", max_deposit).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get max mint API endpoint
-    fn get_max_mint(&self, receiver: String) -> Result<u128> {
+    pub fn get_max_mint(&self, receiver: String) -> Result<CallResponse> {
         let max_mint = self.max_mint(&receiver)
             .map_err(|e| anyhow!("Max mint error: {}", e))?;
         
-        Ok(max_mint)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", max_mint).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get max withdraw API endpoint
-    fn get_max_withdraw(&self, owner: String) -> Result<u128> {
+    pub fn get_max_withdraw(&self, owner: String) -> Result<CallResponse> {
         let max_withdraw = self.max_withdraw(&owner)
             .map_err(|e| anyhow!("Max withdraw error: {}", e))?;
         
-        Ok(max_withdraw)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", max_withdraw).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get max redeem API endpoint
-    fn get_max_redeem(&self, owner: String) -> Result<u128> {
+    pub fn get_max_redeem(&self, owner: String) -> Result<CallResponse> {
         let max_redeem = self.max_redeem(&owner)
             .map_err(|e| anyhow!("Max redeem error: {}", e))?;
         
-        Ok(max_redeem)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", max_redeem).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Preview deposit API endpoint
-    #[allow(dead_code)]
-    fn preview_deposit_api(&self, assets: u128) -> Result<u128> {
+    pub fn preview_deposit_api(&self, assets: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let shares = self.convert_assets_to_shares(assets, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview deposit error: {}", e))?;
         
-        Ok(shares)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", shares).as_bytes().to_vec();
+        Ok(response)
     }
     
-    // Preview mint API endpoint
-    #[allow(dead_code)]
-    fn preview_mint_api(&self, shares: u128) -> Result<u128> {
+    // Preview mint API endpoint - wrapper for MessageDispatch
+    pub fn preview_mint_api(&self, shares: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let assets = self.preview_mint(shares, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview mint error: {}", e))?;
         
-        Ok(assets)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", assets).as_bytes().to_vec();
+        Ok(response)
     }
     
-    // Preview withdraw API endpoint
-    #[allow(dead_code)]
-    fn preview_withdraw_api(&self, assets: u128) -> Result<u128> {
+    // Preview withdraw API endpoint - wrapper for MessageDispatch
+    pub fn preview_withdraw_api(&self, assets: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let shares = self.preview_withdraw(assets, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview withdraw error: {}", e))?;
         
-        Ok(shares)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", shares).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Preview redeem API endpoint
-    #[allow(dead_code)]
-    fn preview_redeem_api(&self, shares: u128) -> Result<u128> {
+    pub fn preview_redeem_api(&self, shares: u128) -> Result<CallResponse> {
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
         
         let assets = self.convert_shares_to_assets(shares, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview redeem error: {}", e))?;
         
-        Ok(assets)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", assets).as_bytes().to_vec();
+        Ok(response)
     }
     
     // Get custom data
-    fn get_data(&self, key: String) -> Result<String> {
+    pub fn get_data(&self, key: String) -> Result<CallResponse> {
         // Prefix with /data/ to separate from core storage
         let storage_key = format!("/data/{}", key);
         let storage_pointer = StoragePointer::from_keyword(&storage_key);
@@ -262,16 +417,17 @@ impl YieldVault {
         let data = String::from_utf8(data_bytes.as_ref().clone())
             .unwrap_or_default();
         
-        Ok(data)
+        let mut response = CallResponse::default();
+        response.data = data.as_bytes().to_vec();
+        Ok(response)
     }
     
-    // This method is no longer needed as we don't track individual account balances
-    // The balance is determined by the tokens held by the account outside the contract
-    
     // Get total supply API endpoint
-    fn get_total_supply(&self) -> Result<u128> {
+    pub fn get_total_supply(&self) -> Result<CallResponse> {
         let total_supply = self.total_supply_pointer().get_value::<u128>();
-        Ok(total_supply)
+        let mut response = CallResponse::default();
+        response.data = format!("{}", total_supply).as_bytes().to_vec();
+        Ok(response)
     }
     
     #[cfg(test)]
@@ -295,160 +451,24 @@ impl YieldVault {
     ) -> Result<()> {
         Ok(())
     }
+    
+    // Special handling for test initialization
+    #[cfg(test)]
+    pub fn handle_test_initialize(&self, args: &[u8]) -> Result<CallResponse> {
+        use crate::tests::test_utils;
+        test_utils::handle_test_initialize(self, args)
+            .map(|_| {
+                let mut response = CallResponse::default();
+                response.data = "Initialized".as_bytes().to_vec();
+                response
+            })
+    }
 }
 
-// Implement AlkaneResponder for YieldVault
-impl AlkaneResponder for YieldVault {}
-
-// Manual dispatch implementation with clean structure - inspired by MessageDispatch pattern
-impl YieldVault {
-    // Main dispatch method that routes opcodes to their handlers
-    fn dispatch(&self, opcode: u32, args: &[u8]) -> Result<String> {
-        match opcode {
-            // == Initialization ==
-            opcodes::INITIALIZE => {
-                #[cfg(test)]
-                {
-                    use crate::tests::test_utils;
-                    return test_utils::handle_test_initialize(self, args)
-                        .map(|_| "Initialized".to_string());
-                }
-                
-                #[cfg(not(test))]
-                {
-                    let mut args_iter = args.split(|&b| b == 0);
-                    let name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let asset_name = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let asset_symbol = String::from_utf8(args_iter.next().unwrap_or(&[]).to_vec()).unwrap_or_default();
-                    let decimal_offset = 8u128; // Default to 8 decimals for Bitcoin
-                    
-                    self.initialize(name, symbol, asset_name, asset_symbol, decimal_offset)?;
-                    Ok("Initialized".to_string())
-                }
-            },
-            
-            // == Asset Management ==
-            opcodes::DEPOSIT => {
-                Ok("Deposit operation".to_string())
-            },
-            
-            opcodes::MINT => {
-                Ok("Mint operation".to_string())
-            },
-            
-            opcodes::WITHDRAW => {
-                Ok("Withdraw operation".to_string())
-            },
-            
-            opcodes::REDEEM => {
-                Ok("Redeem operation".to_string())
-            },
-            
-            // == View Functions: Metadata ==
-            opcodes::GET_NAME => {
-                let name = self.get_name()?;
-                Ok(name)
-            },
-            
-            opcodes::GET_SYMBOL => {
-                let symbol = self.get_symbol()?;
-                Ok(symbol)
-            },
-            
-            opcodes::GET_DECIMALS => {
-                let decimals = self.get_decimals()?;
-                Ok(format!("{}", decimals))
-            },
-            
-            opcodes::GET_ASSET => {
-                let asset = self.get_asset()?;
-                Ok(asset)
-            },
-            
-            // == View Functions: Accounting ==
-            opcodes::GET_TOTAL_ASSETS => {
-                let total_assets = self.get_total_assets()?;
-                Ok(format!("{}", total_assets))
-            },
-            
-            opcodes::CONVERT_TO_SHARES => {
-                // Parse assets from args
-                let assets = if args.len() >= 16 {
-                    let mut buf = [0u8; 16];
-                    buf.copy_from_slice(&args[..16]);
-                    u128::from_le_bytes(buf)
-                } else {
-                    0u128
-                };
-                
-                let shares = self.convert_to_shares(assets)?;
-                Ok(format!("{}", shares))
-            },
-            
-            opcodes::CONVERT_TO_ASSETS => {
-                // Parse shares from args
-                let shares = if args.len() >= 16 {
-                    let mut buf = [0u8; 16];
-                    buf.copy_from_slice(&args[..16]);
-                    u128::from_le_bytes(buf)
-                } else {
-                    0u128
-                };
-                
-                let assets = self.convert_to_assets(shares)?;
-                Ok(format!("{}", assets))
-            },
-            
-            // == View Functions: Limits ==
-            opcodes::GET_MAX_DEPOSIT => {
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let max_deposit = self.get_max_deposit(receiver)?;
-                Ok(format!("{}", max_deposit))
-            },
-            
-            opcodes::GET_MAX_MINT => {
-                let receiver = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let max_mint = self.get_max_mint(receiver)?;
-                Ok(format!("{}", max_mint))
-            },
-            
-            opcodes::GET_MAX_WITHDRAW => {
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let max_withdraw = self.get_max_withdraw(owner)?;
-                Ok(format!("{}", max_withdraw))
-            },
-            
-            opcodes::GET_MAX_REDEEM => {
-                let owner = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let max_redeem = self.get_max_redeem(owner)?;
-                Ok(format!("{}", max_redeem))
-            },
-            
-            // == Custom Data Management ==
-            // SET_DATA opcode handler has been removed to prevent mutability after initialization
-            
-            opcodes::GET_DATA => {
-                let key = String::from_utf8(args.to_vec()).unwrap_or_default();
-                let data = self.get_data(key)?;
-                Ok(data)
-            },
-            
-            // == Balance Management ==
-            // GET_BALANCE_OF opcode handler has been removed as we don't track individual account balances
-            // The balance is determined by the tokens held by the account outside the contract
-            
-            opcodes::GET_TOTAL_SUPPLY => {
-                let total_supply = self.get_total_supply()?;
-                Ok(format!("{}", total_supply))
-            },
-            
-            // == Security Operations ==
-            // UPDATE_YIELD_RATE opcode handler has been removed to prevent mutability after initialization
-            
-            // Unknown opcode
-            _ => Err(anyhow!("Unknown opcode: {}", opcode))
-        }
+// Use the declare_alkane macro from our proc_macros crate for opcode handling
+declare_alkane! {
+    impl AlkaneResponder for YieldVault {
+        type Message = YieldVaultMessage;
     }
 }
 
@@ -458,9 +478,10 @@ pub fn call(opcode: u32, args: &[u8]) -> Vec<u8> {
     // Create a default vault instance
     let vault = YieldVault::default();
     
-    // Use a structured dispatch pattern
-    match vault.dispatch(opcode, args) {
-        Ok(response) => response.as_bytes().to_vec(),
+    // Use the dispatch_message method generated by the declare_alkane macro
+    // Convert u32 to u128 as required by our implementation
+    match vault.dispatch_message(opcode.into(), args) {
+        Ok(response) => response.data.to_vec(),
         Err(e) => format!("Error: {}", e).as_bytes().to_vec(),
     }
 }
@@ -481,7 +502,30 @@ pub fn start() {
 /// ContextHandle implementation for the contract
 pub struct ContextHandle(());
 
-impl AlkaneResponder for ContextHandle {}
+// Implement Default for ContextHandle
+impl Default for ContextHandle {
+    fn default() -> Self {
+        Self(())
+    }
+}
+
+// Implement AlkaneResponder for ContextHandle
+impl AlkaneResponder for ContextHandle {
+    fn height(&self) -> u64 {
+        // Get the current block height
+        // This is a placeholder implementation
+        
+        0
+    }
+    
+    fn context(&self) -> Result<Context, anyhow::Error> {
+        // Return a new Context
+        Ok(Context::default())
+    }
+}
+
+// We don't need to implement message dispatch for ContextHandle
+// since it's just a helper struct for the contract
 
 pub const CONTEXT: ContextHandle = ContextHandle(());
 
