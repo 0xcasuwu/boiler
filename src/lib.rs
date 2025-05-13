@@ -113,9 +113,7 @@ impl YieldVault {
         
         Ok(())
     }
-    
-    // The update_yield_rate function has been removed to prevent mutability after initialization
-    
+        
     // Get vault name
     fn get_name(&self) -> Result<String> {
         let name = String::from_utf8(self.name_pointer().get().as_ref().clone())
@@ -254,8 +252,6 @@ impl YieldVault {
         Ok(assets)
     }
     
-    // The set_data function has been removed to prevent mutability after initialization
-
     // Get custom data
     fn get_data(&self, key: String) -> Result<String> {
         // Prefix with /data/ to separate from core storage
