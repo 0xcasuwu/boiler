@@ -48,6 +48,8 @@ These are the currently maintained and passing tests:
 
 - `tests/mock_vault_tests.rs`: Core functionality tests for the MockYieldVault implementation
 - `tests/simple_utils_test.rs`: Tests for utility functions
+- `tests/invariant_tests.rs`: Tests for system invariants
+- `tests/alkane_id_verification_tests.rs`: Tests for alkane ID verification in transactions
 
 #### Archived Tests
 

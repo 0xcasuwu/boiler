@@ -77,7 +77,7 @@ const USERS = {
   BOB: 2
 };
 
-// Contract ID - use the existing contract ID
+// Contract ID - use the newly deployed contract ID
 let CONTRACT_ID = '7dbd26587f4d058577afa7e180fe1bfbe4941e6b5459e783d14e336c18238f0f';
 
 /**

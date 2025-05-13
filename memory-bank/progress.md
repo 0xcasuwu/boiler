@@ -2,6 +2,32 @@
 
 ## Latest Updates
 
+### Alkane ID Verification Testing (May 13, 2025)
+
+We've created comprehensive tests to verify that the token-based architecture correctly handles alkane IDs in transactions:
+
+1. **Alkane ID Verification Tests**:
+   - Created `tests/alkane_id_verification_tests.rs` with 9 test cases
+   - Implemented a `RealisticMockVault` that simulates transaction context
+   - Verified that the contract correctly checks for the presence of tokens in transactions
+   - All tests pass successfully when run with `--target x86_64-unknown-linux-gnu`
+
+2. **Test Cases Implemented**:
+   - **Deposit with correct alkane ID**: Verifies successful deposit when correct asset ID is provided
+   - **Deposit with incorrect alkane ID**: Verifies failure when incorrect asset ID is provided
+   - **Deposit with multiple alkane IDs**: Verifies success when multiple IDs including the correct one are provided
+   - **Deposit with insufficient assets**: Verifies failure when not enough assets are provided
+   - **Redeem with correct alkane ID**: Verifies successful redemption when correct share token ID is provided
+   - **Redeem with incorrect alkane ID**: Verifies failure when incorrect share token ID is provided
+   - **Redeem with insufficient shares**: Verifies failure when not enough shares are provided
+   - **Redeem with multiple alkane IDs**: Verifies success when multiple IDs including the correct one are provided
+   - **No transaction context**: Verifies failure when no transaction context is provided
+
+3. **Next Steps**:
+   - Create an oylnet deployed test that verifies the same 9 test behaviors on testnet directly
+   - Implement a test script that automates the deployment and testing process
+   - Document the results in a comprehensive test report
+
 ### Token-Based Architecture Implementation (May 13, 2025)
 
 We've successfully implemented a token-based architecture for the YieldVault contract, which represents a significant improvement over the previous implementation:

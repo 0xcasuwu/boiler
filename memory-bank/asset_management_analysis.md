@@ -103,6 +103,56 @@ This approach ensures that:
 2. The contract doesn't need to track who owns what shares
 3. Authorization is implicit through token possession
 
+### Alkane ID Verification
+
+We've implemented comprehensive tests to verify that the token-based architecture correctly handles alkane IDs in transactions:
+
+```rust
+// Verify incoming assets match the expected asset ID
+let received_assets = context.incoming_alkanes.iter()
+    .filter(|(id, _)| id == asset_id)
+    .map(|(_, value)| *value)
+    .sum::<u128>();
+    
+// Check that we received at least the expected assets
+if received_assets < assets {
+    return Err("Insufficient assets received");
+}
+```
+
+This verification is crucial for the token-based architecture's security model:
+
+1. **Asset Verification**: Ensures users can only deposit the correct type of assets
+2. **Share Verification**: Ensures users can only redeem or withdraw if they possess the corresponding share tokens
+3. **Authorization**: Possession of tokens serves as implicit authorization, eliminating the need for explicit ownership checks
+
+Our tests confirm that these security properties are maintained, providing confidence in the token-based architecture's security model.
+
+### Test Cases
+
+We've created 9 test cases that verify the alkane ID verification process:
+
+1. **Deposit with correct alkane ID**: Verifies successful deposit when correct asset ID is provided
+2. **Deposit with incorrect alkane ID**: Verifies failure when incorrect asset ID is provided
+3. **Deposit with multiple alkane IDs**: Verifies success when multiple IDs including the correct one are provided
+4. **Deposit with insufficient assets**: Verifies failure when not enough assets are provided
+5. **Redeem with correct alkane ID**: Verifies successful redemption when correct share token ID is provided
+6. **Redeem with incorrect alkane ID**: Verifies failure when incorrect share token ID is provided
+7. **Redeem with insufficient shares**: Verifies failure when not enough shares are provided
+8. **Redeem with multiple alkane IDs**: Verifies success when multiple IDs including the correct one are provided
+9. **No transaction context**: Verifies failure when no transaction context is provided
+
+### Next Steps
+
+Our next goal is to create an oylnet deployed test that verifies the same 9 test behaviors on testnet directly. This will involve:
+
+1. **Deploying the contract** to oylnet
+2. **Creating test transactions** that simulate the 9 test cases
+3. **Verifying the results** of each transaction
+4. **Documenting the results** in a comprehensive test report
+
+This will provide additional confidence in the token-based architecture's security model and ensure that it works correctly in a real blockchain environment.
+
 ### Conclusion
 
-The token-based architecture is a more efficient and secure implementation of the YieldVault protocol. It aligns with best practices for blockchain token contracts and should provide better performance and security.
+The token-based architecture is a more efficient and secure implementation of the YieldVault protocol. It aligns with best practices for blockchain token contracts and should provide better performance and security. Our comprehensive tests verify that the alkane ID verification process works correctly, providing confidence in the security of the implementation.
