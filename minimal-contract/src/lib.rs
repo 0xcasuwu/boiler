@@ -28,6 +28,10 @@ enum YieldVaultMessage {
     #[opcode(101)]
     #[returns(String)]
     GetSymbol,
+    
+    #[opcode(102)]
+    #[returns(u128)]
+    GetYieldRate,
 }
 
 impl YieldVault {
@@ -60,8 +64,10 @@ impl YieldVault {
             self.store("/total-supply".as_bytes().to_vec(), zero_u128_bytes.clone());
             self.store("/total-assets".as_bytes().to_vec(), zero_u128_bytes.clone());
             
-            // Initialize yield rate (basis points, e.g. 500 = 5%)
-            self.store("/yield-rate".as_bytes().to_vec(), zero_u128_bytes.clone());
+            // Initialize yield rate with a hard-coded value (500 basis points = 5%)
+            let yield_rate = 500u128;
+            let yield_rate_bytes = yield_rate.to_le_bytes().to_vec();
+            self.store("/yield-rate".as_bytes().to_vec(), yield_rate_bytes);
             
             // Initialize the last yield block height with a default value of 0
             let block_height = 0u64;
@@ -104,6 +110,25 @@ impl YieldVault {
             response.data = symbol_bytes;
         } else {
             response.data = self.symbol().into_bytes().to_vec();
+        }
+        
+        Ok(response)
+    }
+    
+    fn get_yield_rate(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
+
+        // Get the stored yield rate
+        let yield_rate_key = "/yield-rate".as_bytes().to_vec();
+        let yield_rate_bytes = self.load(yield_rate_key);
+        
+        if yield_rate_bytes.len() == 16 {  // u128 is 16 bytes
+            // Return the yield rate bytes directly
+            response.data = yield_rate_bytes;
+        } else {
+            // If not found, return a default value of 0
+            response.data = 0u128.to_le_bytes().to_vec();
         }
         
         Ok(response)
