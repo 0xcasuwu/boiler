@@ -533,7 +533,7 @@ pub const CONTEXT: ContextHandle = ContextHandle(());
 #[cfg(test)]
 mod lib_tests {
     use crate::YieldVault;
-    use crate::utils::Conversion;
+    use crate::utils::{Conversion, PRECISION_OFFSET};
 
     #[test]
     fn test_default_constructor() {
@@ -554,23 +554,29 @@ mod lib_tests {
         let total_assets = 0;
         let total_supply = 0;
         
-        // For an empty vault, shares should equal assets (1:1 ratio)
+        // For an empty vault, shares should equal assets with precision offset (1:1 ratio)
+        // With precision offset of 3, 100 assets = 100,000 shares
+        let precision_factor = 10u128.pow(PRECISION_OFFSET as u32);
         let shares = vault.convert_assets_to_shares(assets, total_assets, total_supply).unwrap();
-        assert_eq!(shares, assets);
+        assert_eq!(shares, assets * precision_factor);
         
-        // Test with non-zero values
-        // If total_assets = 1000 and total_supply = 500, then:
-        // 1 asset = 0.5 shares, and 1 share = 2 assets
+        // Test with non-zero values and virtual offset
+        // If total_assets = 1000 and total_supply = 500, then with virtual offset:
+        // shares = assets * precision_factor * (virtual_shares + total_supply) / (virtual_assets + total_assets)
+        // shares = 100 * 1000 * (1000000 + 500) / (1000000 + 1000)
+        // shares = 100000 * 1000500 / 1001000 ≈ 99950
         
-        // 100 assets should convert to 50 shares
         let result = vault.convert_assets_to_shares(100, 1000, 500);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 50);
+        assert_eq!(result.unwrap(), 99950);
         
-        // 50 shares should convert to 100 assets
-        let result = vault.convert_shares_to_assets(50, 1000, 500);
+        // With virtual offset and precision offset:
+        // assets = shares * (virtual_assets + total_assets) / (virtual_shares + total_supply) / precision_factor
+        // assets = 50000 * (1000000 + 1000) / (1000000 + 500) / 1000
+        // assets = 50000 * 1001000 / 1000500 / 1000 ≈ 50
+        let result = vault.convert_shares_to_assets(50000, 1000, 500);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 100);
+        assert_eq!(result.unwrap(), 50);
     }
 
     #[test]
@@ -578,9 +584,11 @@ mod lib_tests {
         // This test verifies the basic preview_deposit functionality
         let vault = YieldVault::default();
         
-        // For an empty vault, preview_deposit should return the same value
+        // For an empty vault, preview_deposit should return the value with precision offset
+        // With precision offset of 3, 100 assets = 100,000 shares
+        let precision_factor = 10u128.pow(PRECISION_OFFSET as u32);
         let result = vault.preview_deposit(100);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 100);
+        assert_eq!(result.unwrap(), 100 * precision_factor);
     }
 }

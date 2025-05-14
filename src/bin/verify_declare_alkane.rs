@@ -26,7 +26,7 @@ impl AlkaneResponder for TestStruct {
 
 // Define a message enum for TestStruct
 #[derive(alkanes_proc_macros::MessageDispatch)]
-pub enum TestMessage {
+pub enum TestStructMessage {
     #[opcode(0)]
     Hello {
         name: String,
@@ -57,7 +57,7 @@ impl TestStruct {
 // Use the declare_alkane macro to generate the dispatch_message method
 alkanes_proc_macros::declare_alkane! {
     impl AlkaneResponder for TestStruct {
-        type Message = TestMessage;
+        type Message = TestStructMessage;
     }
 }
 

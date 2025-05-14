@@ -28,16 +28,19 @@ git add .
 
 # Commit changes
 echo -e "${YELLOW}Committing changes...${NC}"
-git commit -m "Implement alkane ID verification tests and update documentation
+git commit -m "Implement inflation attack protection and fix tests
 
-- Created alkane_id_verification_tests.rs with 9 test cases
-- Implemented RealisticMockVault to simulate transaction context
-- Verified token-based architecture security model
-- Updated documentation:
-  * progress.md: Added alkane ID verification testing details
-  * test_guide.md: Updated with new test file
-  * asset_management_analysis.md: Added alkane ID verification section
-  * oylnet_test_plan.md: Created detailed plan for OylNet testing
+- Implemented ERC-4626 inflation attack protection mechanisms:
+  * Added virtual offset to limit exchange rate manipulation
+  * Added precision offset to prevent rounding to zero for small deposits
+  * Created inflation_attack_protection_tests.rs with 4 test cases
+- Updated MockYieldVault implementation:
+  * Modified convert_assets_to_tokens and convert_tokens_to_assets methods
+  * Enhanced yield accrual calculation for better precision
+  * Fixed test cases to account for virtual offset and precision offset
+- Added documentation:
+  * Created inflation_attack_protection.md with detailed implementation notes
+  * Documented security considerations for ERC-4626 implementation
 - All tests pass successfully with x86_64-unknown-linux-gnu target"
 
 # Push changes

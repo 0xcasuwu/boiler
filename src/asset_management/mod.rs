@@ -61,9 +61,10 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         let received_assets = self.verify_incoming_assets(&context.incoming_alkanes)
             .map_err(|e| anyhow!("Asset verification error: {}", e))?;
         
-        // Check that we received at least the expected assets
-        if received_assets < assets {
-            return Err(anyhow!("Insufficient assets received: expected {}, got {}", 
+        // Check that we received exactly the expected assets to prevent direct donations
+        // This is a key protection against inflation attacks
+        if received_assets != assets {
+            return Err(anyhow!("Asset amount mismatch: expected {}, got {}. Exact match required to prevent inflation attacks.", 
                              assets, received_assets));
         }
         
@@ -82,6 +83,11 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             return Err(anyhow!("Deposit amount exceeds limit"));
         }
         
+        // Minimum deposit check to prevent dust attacks
+        if assets == 0 {
+            return Err(anyhow!("Cannot deposit zero assets"));
+        }
+        
         // Get current state
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -90,7 +96,7 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         let shares = self.convert_assets_to_shares(assets, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview deposit error: {}", e))?;
         if shares == 0 {
-            return Err(anyhow!("Zero shares"));
+            return Err(anyhow!("Zero shares - deposit amount too small"));
         }
         
         // Update global state only
@@ -137,6 +143,11 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
             return Err(anyhow!("Mint amount exceeds limit"));
         }
         
+        // Minimum mint check to prevent dust attacks
+        if shares == 0 {
+            return Err(anyhow!("Cannot mint zero shares"));
+        }
+        
         // Get current state
         let total_assets = self.total_assets_pointer().get_value::<u128>();
         let total_supply = self.total_supply_pointer().get_value::<u128>();
@@ -145,16 +156,17 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         let assets = self.preview_mint(shares, total_assets, total_supply)
             .map_err(|e| anyhow!("Preview mint error: {}", e))?;
         if assets == 0 {
-            return Err(anyhow!("Zero assets"));
+            return Err(anyhow!("Zero assets - mint amount too small"));
         }
         
         // Verify we received the correct amount of underlying assets
         let received_assets = self.verify_incoming_assets(&context.incoming_alkanes)
             .map_err(|e| anyhow!("Asset verification error: {}", e))?;
         
-        // Check that we received at least the expected assets
-        if received_assets < assets {
-            return Err(anyhow!("Insufficient assets received: expected {}, got {}", 
+        // Check that we received exactly the expected assets to prevent direct donations
+        // This is a key protection against inflation attacks
+        if received_assets != assets {
+            return Err(anyhow!("Asset amount mismatch: expected {}, got {}. Exact match required to prevent inflation attacks.", 
                               assets, received_assets));
         }
         
