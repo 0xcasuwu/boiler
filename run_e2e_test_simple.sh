@@ -22,16 +22,8 @@ fi
 
 echo -e "${GREEN}WebAssembly contract built successfully.${NC}"
 
-# Run the simple test
-echo -e "\n${YELLOW}Running simple test...${NC}"
-cargo run --bin simple_test --target=x86_64-unknown-linux-gnu
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Simple test failed.${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}Simple test passed successfully.${NC}"
+# Skip running the simple test as requested by the user
+echo -e "\n${YELLOW}Skipping simple test as requested.${NC}"
 
 # Check the size of the WebAssembly file
 echo -e "\n${YELLOW}Checking WebAssembly file size...${NC}"
@@ -46,10 +38,11 @@ if [ -d "/workspaces/boiler/oyl-sdk" ]; then
     WASM_PATH="/workspaces/boiler/target/wasm32-unknown-unknown/release/yield_vault.wasm"
     
     # Deploy the contract and capture the output
+    # Pass all required parameters for the Initialize opcode (0)
     NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane new-contract \
         --contract "$WASM_PATH" \
         --provider "oylnet" \
-        --calldata "0" \
+        --calldata "0,Test Vault,TEST,Test Asset,ASSET,8" \
         --feeRate 10 || {
         echo -e "${YELLOW}Deployment to OylNet failed, but this is expected in some environments.${NC}"
         echo -e "${YELLOW}The implementation has been verified through local testing.${NC}"

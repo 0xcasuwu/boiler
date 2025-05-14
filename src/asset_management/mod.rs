@@ -456,14 +456,6 @@ pub trait AssetManagement: Storage + Security + Conversion + AlkaneResponder {
         if incoming_alkanes.0.is_empty() {
             return Err("No shares provided in transaction");
         }
-        
-        // Log the incoming shares for debugging
-        #[cfg(debug_assertions)]
-        {
-            // In a real implementation, we would log the incoming shares
-            // For example: log!("Incoming shares: {:?}", incoming_alkanes);
-        }
-        
         // Sum all incoming shares with matching ID
         let mut received = 0u128;
         

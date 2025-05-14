@@ -14,12 +14,7 @@ pub trait Security: Storage {
         self.initialized_pointer().set_value(1u8);
         Ok(())
     }
-    
-    /// For testing: Reset the initialized flag
-    #[cfg(test)]
-    fn reset_initialization(&self) {
-        self.initialized_pointer().set_value(0u8);
-    }
+
     
     /// Validate and track a transaction hash to prevent replay attacks
     /// This implementation is aligned with free-mint's approach

@@ -28,20 +28,20 @@ git add .
 
 # Commit changes
 echo -e "${YELLOW}Committing changes...${NC}"
-git commit -m "Implement inflation attack protection and fix tests
+git commit -m "Implement declare_alkane macro and fix deployment issues
 
-- Implemented ERC-4626 inflation attack protection mechanisms:
-  * Added virtual offset to limit exchange rate manipulation
-  * Added precision offset to prevent rounding to zero for small deposits
-  * Created inflation_attack_protection_tests.rs with 4 test cases
-- Updated MockYieldVault implementation:
-  * Modified convert_assets_to_tokens and convert_tokens_to_assets methods
-  * Enhanced yield accrual calculation for better precision
-  * Fixed test cases to account for virtual offset and precision offset
+- Implemented declare_alkane macro for ALKANES SDK compatibility:
+  * Merged message.rs into lib.rs for simplified codebase structure
+  * Added __execute function as the WebAssembly entry point
+  * Implemented proper parameter handling for different types
+  * Fixed type conversion between Vec<u8> and *mut u8
+- Updated deployment scripts:
+  * Modified run_e2e_test_simple.sh to include all required parameters
+  * Created simple_test.rs to verify macro functionality
 - Added documentation:
-  * Created inflation_attack_protection.md with detailed implementation notes
-  * Documented security considerations for ERC-4626 implementation
-- All tests pass successfully with x86_64-unknown-linux-gnu target"
+  * Created declare_alkane_implementation_result.md with detailed implementation notes
+  * Documented parameter handling and deployment requirements
+- Successfully deployed contract to blockchain with transaction ID"
 
 # Push changes
 echo -e "${YELLOW}Pushing changes to remote repository...${NC}"

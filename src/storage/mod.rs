@@ -106,6 +106,4 @@ pub trait Storage {
         self.asset_id_pointer().set(Arc::new(buffer));
     }
 
-    // Account balances are no longer tracked by the contract
-    // Ownership of shares is managed through native token transfers
 }

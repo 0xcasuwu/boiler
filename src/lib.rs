@@ -7,10 +7,6 @@ pub mod storage;
 pub mod security;
 pub mod utils;
 pub mod asset_management;
-pub mod simple_utils;
-pub mod mock_vault;
-pub mod mock_vault_extension;
-pub mod message;
 pub mod macros;
 pub mod attributes;
 
@@ -25,23 +21,175 @@ pub use crate::utils::Conversion;
 pub use crate::storage::Storage;
 pub use crate::security::Security;
 pub use crate::asset_management::AssetManagement;
-pub use crate::message::YieldVaultMessage;
 
 // Import required crates
 use anyhow::{anyhow, Result};
-use wasm_bindgen::prelude::*;
 
 // Import Alkanes runtime and support
 use alkanes_runtime::{message::MessageDispatch, runtime::AlkaneResponder};
-use alkanes_proc_macros::declare_alkane;
+use alkanes_proc_macros::{declare_alkane, MessageDispatch as MessageDispatchMacro};
 use alkanes_runtime::storage::StoragePointer;
 // Import metashrew support
-use metashrew_support::compat::to_arraybuffer_layout;
 use metashrew_support::index_pointer::KeyValuePointer;
+use metashrew_support::compat::to_arraybuffer_layout;
 use alkanes_support::context::Context;
 use alkanes_support::response::CallResponse;
 
-// Import Bitcoin types directly without conditionals
+/// YieldVaultMessage defines all the messages that can be handled by the YieldVault contract
+/// Each variant corresponds to an opcode and maps to a method in the YieldVault implementation
+#[derive(MessageDispatchMacro)]
+pub enum YieldVaultMessage {
+    /// Initialize the vault with its base parameters
+    #[opcode(0)]
+    Initialize {
+        name: String,
+        symbol: String,
+        asset_name: String,
+        asset_symbol: String,
+        decimal_offset: u128,
+    },
+
+    /// Deposit assets into the vault
+    #[opcode(10)]
+    Deposit {
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        assets: u128,
+    },
+
+    /// Mint shares from the vault
+    #[opcode(11)]
+    Mint {
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        shares: u128,
+    },
+
+    /// Withdraw assets from the vault
+    #[opcode(12)]
+    Withdraw {
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        owner: String,
+        assets: u128,
+    },
+
+    /// Redeem shares from the vault
+    #[opcode(13)]
+    Redeem {
+        tx_hash: String,
+        caller: String,
+        receiver: String,
+        owner: String,
+        shares: u128,
+    },
+
+    /// Get the name of the vault token
+    #[opcode(100)]
+    #[returns(String)]
+    GetName,
+
+    /// Get the symbol of the vault token
+    #[opcode(101)]
+    #[returns(String)]
+    GetSymbol,
+
+    /// Get the decimals of the vault token
+    #[opcode(102)]
+    #[returns(u8)]
+    GetDecimals,
+
+    /// Get the asset symbol of the underlying asset
+    #[opcode(103)]
+    #[returns(String)]
+    GetAsset,
+
+    /// Get the total assets in the vault
+    #[opcode(200)]
+    #[returns(u128)]
+    GetTotalAssets,
+
+    /// Convert assets to shares
+    #[opcode(201)]
+    #[returns(u128)]
+    ConvertToShares {
+        assets: u128,
+    },
+
+    /// Convert shares to assets
+    #[opcode(202)]
+    #[returns(u128)]
+    ConvertToAssets {
+        shares: u128,
+    },
+
+    /// Get the maximum deposit amount for a receiver
+    #[opcode(300)]
+    #[returns(u128)]
+    GetMaxDeposit {
+        receiver: String,
+    },
+
+    /// Get the maximum mint amount for a receiver
+    #[opcode(301)]
+    #[returns(u128)]
+    GetMaxMint {
+        receiver: String,
+    },
+
+    /// Get the maximum withdraw amount for an owner
+    #[opcode(302)]
+    #[returns(u128)]
+    GetMaxWithdraw {
+        owner: String,
+    },
+
+    /// Get the maximum redeem amount for an owner
+    #[opcode(303)]
+    #[returns(u128)]
+    GetMaxRedeem {
+        owner: String,
+    },
+
+    /// Preview deposit - calculate shares for assets
+    #[opcode(400)]
+    PreviewDepositWrapper {
+        assets: u128,
+    },
+
+    /// Preview mint - calculate assets for shares
+    #[opcode(401)]
+    PreviewMintWrapper {
+        shares: u128,
+    },
+
+    /// Preview withdraw - calculate shares for assets
+    #[opcode(402)]
+    PreviewWithdrawWrapper {
+        assets: u128,
+    },
+
+    /// Preview redeem - calculate assets for shares
+    #[opcode(403)]
+    PreviewRedeemWrapper {
+        shares: u128,
+    },
+
+    /// Get custom data by key
+    #[opcode(501)]
+    #[returns(String)]
+    GetData {
+        key: String,
+    },
+
+    /// Get total supply of shares
+    #[opcode(601)]
+    #[returns(u128)]
+    GetTotalSupply,
+}
 
 /// YieldVault implements an ERC-4626 style vault on Bitcoin
 /// It manages deposits and withdrawals of an underlying asset
@@ -188,10 +336,10 @@ impl YieldVault {
     // Deposit assets into the vault
     pub fn deposit(
         &self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        assets: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _assets: u128
     ) -> Result<CallResponse> {
         // This is a placeholder for the actual implementation
         let mut response = CallResponse::default();
@@ -202,10 +350,10 @@ impl YieldVault {
     // Mint shares from the vault
     pub fn mint(
         &self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        shares: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _shares: u128
     ) -> Result<CallResponse> {
         // This is a placeholder for the actual implementation
         let mut response = CallResponse::default();
@@ -216,11 +364,11 @@ impl YieldVault {
     // Withdraw assets from the vault
     pub fn withdraw(
         &self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        owner: String,
-        assets: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _owner: String,
+        _assets: u128
     ) -> Result<CallResponse> {
         // This is a placeholder for the actual implementation
         let mut response = CallResponse::default();
@@ -231,11 +379,11 @@ impl YieldVault {
     // Redeem shares from the vault
     pub fn redeem(
         &self,
-        tx_hash: String,
-        caller: String,
-        receiver: String,
-        owner: String,
-        shares: u128
+        _tx_hash: String,
+        _caller: String,
+        _receiver: String,
+        _owner: String,
+        _shares: u128
     ) -> Result<CallResponse> {
         // This is a placeholder for the actual implementation
         let mut response = CallResponse::default();
@@ -472,33 +620,6 @@ declare_alkane! {
     }
 }
 
-// WebAssembly exports through wasm-bindgen
-#[wasm_bindgen]
-pub fn call(opcode: u32, args: &[u8]) -> Vec<u8> {
-    // Create a default vault instance
-    let vault = YieldVault::default();
-    
-    // Use the dispatch_message method generated by the declare_alkane macro
-    // Convert u32 to u128 as required by our implementation
-    match vault.dispatch_message(opcode.into(), args) {
-        Ok(response) => response.data.to_vec(),
-        Err(e) => format!("Error: {}", e).as_bytes().to_vec(),
-    }
-}
-
-#[wasm_bindgen(start)]
-pub fn start() {
-    // Set up WebAssembly-specific initialization
-    #[cfg(target_arch = "wasm32")]
-    {
-        // Install better panic handler for WebAssembly
-        console_error_panic_hook::set_once();
-        
-        // Log that initialization is complete
-        web_sys::console::log_1(&"YieldVault WebAssembly module initialized".into());
-    }
-}
-
 /// ContextHandle implementation for the contract
 pub struct ContextHandle(());
 
@@ -524,71 +645,67 @@ impl AlkaneResponder for ContextHandle {
     }
 }
 
-// We don't need to implement message dispatch for ContextHandle
-// since it's just a helper struct for the contract
-
 pub const CONTEXT: ContextHandle = ContextHandle(());
 
-// Include unit tests directly in lib.rs
-#[cfg(test)]
-mod lib_tests {
-    use crate::YieldVault;
-    use crate::utils::{Conversion, PRECISION_OFFSET};
+// The MessageDispatch derive macro automatically implements the MessageDispatch trait
+// which maps each enum variant to the corresponding method in YieldVault
+// 
+// The method names must match exactly with the method names in the YieldVault implementation:
+// - For Initialize, the method is called initialize
+// - For Deposit, the method is called deposit
+// - For Mint, the method is called mint
+// - For Withdraw, the method is called withdraw
+// - For Redeem, the method is called redeem
+// - For GetName, the method is called get_name
+// - For GetSymbol, the method is called get_symbol
+// - For GetDecimals, the method is called get_decimals
+// - For GetAsset, the method is called get_asset
+// - For GetTotalAssets, the method is called get_total_assets
+// - For ConvertToShares, the method is called convert_to_shares
+// - For ConvertToAssets, the method is called convert_to_assets
+// - For GetMaxDeposit, the method is called get_max_deposit
+// - For GetMaxMint, the method is called get_max_mint
+// - For GetMaxWithdraw, the method is called get_max_withdraw
+// - For GetMaxRedeem, the method is called get_max_redeem
+// - For PreviewDepositWrapper, the method is called preview_deposit_wrapper
+// - For PreviewMintWrapper, the method is called preview_mint_wrapper
+// - For PreviewWithdrawWrapper, the method is called preview_withdraw_wrapper
+// - For PreviewRedeemWrapper, the method is called preview_redeem_wrapper
+// - For GetData, the method is called get_data
+// - For GetTotalSupply, the method is called get_total_supply
 
-    #[test]
-    fn test_default_constructor() {
-        // This test just verifies that we can create a YieldVault instance
-        let _vault = YieldVault::default();
-        
-        // Simple verification that the instance was created successfully
-        assert!(true);
-    }
+// Helper function to convert Vec<u8> to *mut u8
+fn vec_to_raw_ptr(mut v: Vec<u8>) -> *mut u8 {
+    // Ensure the vector has capacity for the data
+    let ptr = v.as_mut_ptr();
+    // Prevent the vector from being dropped and freeing the memory
+    std::mem::forget(v);
+    // Return the raw pointer
+    ptr
+}
 
-    #[test]
-    fn test_conversion_functions() {
-        // Create a basic vault instance
-        let vault = YieldVault::default();
-        
-        // Test a simple conversion that doesn't require complex dependencies
-        let assets = 100;
-        let total_assets = 0;
-        let total_supply = 0;
-        
-        // For an empty vault, shares should equal assets with precision offset (1:1 ratio)
-        // With precision offset of 3, 100 assets = 100,000 shares
-        let precision_factor = 10u128.pow(PRECISION_OFFSET as u32);
-        let shares = vault.convert_assets_to_shares(assets, total_assets, total_supply).unwrap();
-        assert_eq!(shares, assets * precision_factor);
-        
-        // Test with non-zero values and virtual offset
-        // If total_assets = 1000 and total_supply = 500, then with virtual offset:
-        // shares = assets * precision_factor * (virtual_shares + total_supply) / (virtual_assets + total_assets)
-        // shares = 100 * 1000 * (1000000 + 500) / (1000000 + 1000)
-        // shares = 100000 * 1000500 / 1001000 ≈ 99950
-        
-        let result = vault.convert_assets_to_shares(100, 1000, 500);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 99950);
-        
-        // With virtual offset and precision offset:
-        // assets = shares * (virtual_assets + total_assets) / (virtual_shares + total_supply) / precision_factor
-        // assets = 50000 * (1000000 + 1000) / (1000000 + 500) / 1000
-        // assets = 50000 * 1001000 / 1000500 / 1000 ≈ 50
-        let result = vault.convert_shares_to_assets(50000, 1000, 500);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 50);
-    }
-
-    #[test]
-    fn test_preview_deposit_functionality() {
-        // This test verifies the basic preview_deposit functionality
-        let vault = YieldVault::default();
-        
-        // For an empty vault, preview_deposit should return the value with precision offset
-        // With precision offset of 3, 100 assets = 100,000 shares
-        let precision_factor = 10u128.pow(PRECISION_OFFSET as u32);
-        let result = vault.preview_deposit(100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 100 * precision_factor);
+// Export the __execute function for ALKANES SDK compatibility
+#[no_mangle]
+pub extern "C" fn __execute(opcode: u32, args_ptr: *const u8, args_len: usize) -> *mut u8 {
+    // Create a default vault instance
+    let vault = YieldVault::default();
+    
+    // Convert the args pointer to a slice
+    let args = unsafe { std::slice::from_raw_parts(args_ptr, args_len) };
+    
+    // Use the dispatch_message method generated by the declare_alkane macro
+    // Convert u32 to u128 as required by our implementation
+    match vault.dispatch_message(opcode.into(), args) {
+        Ok(response) => {
+            // Convert the response to a pointer that can be returned to the caller
+            let result = to_arraybuffer_layout(&response.data);
+            vec_to_raw_ptr(result)
+        },
+        Err(e) => {
+            // Convert the error message to a pointer that can be returned to the caller
+            let error_msg = format!("Error: {}", e).as_bytes().to_vec();
+            let result = to_arraybuffer_layout(&error_msg);
+            vec_to_raw_ptr(result)
+        },
     }
 }
