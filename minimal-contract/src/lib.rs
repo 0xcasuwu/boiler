@@ -51,9 +51,12 @@ impl YieldVault {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
 
+        // Get the yield rate
         let yield_rate = self.yield_rate()?;
-        let yield_rate_bytes = yield_rate.to_le_bytes().to_vec();
-        response.data = yield_rate_bytes;
+        
+        // Convert to string and then to bytes to ensure it's properly formatted
+        let yield_rate_str = yield_rate.to_string();
+        response.data = yield_rate_str.as_bytes().to_vec();
         
         Ok(response)
     }
@@ -78,9 +81,6 @@ impl YieldVault {
     }
     
     fn set_yield_rate(&self, rate: u128) -> Result<u128> {
-        // Check if the current rate exists
-        let current_rate = self.yield_rate()?;
-        
         // Create bytes for the new rate
         let rate_bytes = rate.to_le_bytes().to_vec();
         
