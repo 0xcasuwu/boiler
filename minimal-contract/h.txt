@@ -1,0 +1,38 @@
+ pub fn initialize(
+        &self,
+        name: String, 
+        symbol: String,
+        asset_name: String,
+        asset_symbol: String,
+        decimal_offset: u128
+    ) -> Result<CallResponse> {
+        // Store basic token metadata directly with storage pointers
+        StoragePointer::from_keyword("/name").set(std::sync::Arc::new(name.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/symbol").set(std::sync::Arc::new(symbol.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/asset-name").set(std::sync::Arc::new(asset_name.as_bytes().to_vec()));
+        StoragePointer::from_keyword("/asset-symbol").set(std::sync::Arc::new(asset_symbol.as_bytes().to_vec()));
+        
+        // Convert u128 to u8 for storage, as the original contract used u8
+        let decimal_offset_u8 = if decimal_offset > u8::MAX.into() {
+            // Default to 8 if out of range
+            8u8
+        } else {
+            decimal_offset as u8
+        };
+        StoragePointer::from_keyword("/decimals").set_value(decimal_offset_u8);
+        
+        // Initialize accounting state
+        StoragePointer::from_keyword("/total-supply").set_value(0u128);
+        StoragePointer::from_keyword("/total-assets").set_value(0u128);
+        
+        // Initialize yield rate (basis points, e.g. 500 = 5%)
+        StoragePointer::from_keyword("/yield-rate").set_value(0u128);
+        
+        // Initialize the last yield block height
+        StoragePointer::from_keyword("/last-yield-height").set_value(self.height());
+        
+        let mut response = CallResponse::default();
+        response.data = "Initialized".as_bytes().to_vec();
+        Ok(response)
+    }
+    
