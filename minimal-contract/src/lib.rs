@@ -1,9 +1,7 @@
 use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_runtime::{declare_alkane, message::MessageDispatch, token::Token};
-use alkanes_support::{context::Context, response::CallResponse};
+use alkanes_support::response::CallResponse;
 use anyhow::{anyhow, Result};
-use metashrew_support::compat::to_arraybuffer_layout;
-use std::sync::Arc;
 
 #[derive(Default)]
 pub struct YieldVault(());
@@ -47,33 +45,28 @@ impl YieldVault {
             let symbol = String::from("OYL");
             let asset_name = String::from("Bitcoin");
             let asset_symbol = String::from("BTC");
-            let decimal_offset = 8u128;
+            let decimal_offset = 8u8;
             
             // Store basic token metadata
             self.store("/name".as_bytes().to_vec(), name.as_bytes().to_vec());
             self.store("/symbol".as_bytes().to_vec(), symbol.as_bytes().to_vec());
             self.store("/asset-name".as_bytes().to_vec(), asset_name.as_bytes().to_vec());
             self.store("/asset-symbol".as_bytes().to_vec(), asset_symbol.as_bytes().to_vec());
+            self.store("/decimals".as_bytes().to_vec(), vec![decimal_offset]);
             
-            // Convert u128 to u8 for decimal_offset, as needed
-            let decimal_offset_u8 = if decimal_offset > u8::MAX.into() {
-                // Default to 8 if out of range
-                8u8
-            } else {
-                decimal_offset as u8
-            };
-            self.store("/decimals".as_bytes().to_vec(), vec![decimal_offset_u8]);
-            
-            // Initialize accounting state
-            self.store("/total-supply".as_bytes().to_vec(), to_arraybuffer_layout(&0u128));
-            self.store("/total-assets".as_bytes().to_vec(), to_arraybuffer_layout(&0u128));
+            // Initialize accounting state - convert u128 to bytes manually
+            let zero_u128_bytes = 0u128.to_le_bytes().to_vec();
+            self.store("/total-supply".as_bytes().to_vec(), zero_u128_bytes.clone());
+            self.store("/total-assets".as_bytes().to_vec(), zero_u128_bytes.clone());
             
             // Initialize yield rate (basis points, e.g. 500 = 5%)
-            self.store("/yield-rate".as_bytes().to_vec(), to_arraybuffer_layout(&0u128));
+            self.store("/yield-rate".as_bytes().to_vec(), zero_u128_bytes.clone());
             
             // Initialize the last yield block height
-            let height = context.height;
-            self.store("/last-yield-height".as_bytes().to_vec(), to_arraybuffer_layout(&height));
+            // Use block number from context inputs
+            let block_number = context.inputs.get(0).map(|i| i.block_number).unwrap_or(0);
+            let block_number_bytes = block_number.to_le_bytes().to_vec();
+            self.store("/last-yield-height".as_bytes().to_vec(), block_number_bytes);
             
             response.data = "Initialized".as_bytes().to_vec();
             Ok(response)
