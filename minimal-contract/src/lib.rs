@@ -2,6 +2,7 @@ use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_runtime::{declare_alkane, message::MessageDispatch, token::Token};
 use alkanes_support::response::CallResponse;
 use anyhow::{anyhow, Result};
+use metashrew_support::compat::to_arraybuffer_layout;
 
 #[derive(Default)]
 pub struct YieldVault(());
@@ -62,11 +63,10 @@ impl YieldVault {
             // Initialize yield rate (basis points, e.g. 500 = 5%)
             self.store("/yield-rate".as_bytes().to_vec(), zero_u128_bytes.clone());
             
-            // Initialize the last yield block height
-            // Use block number from context inputs
-            let block_number = context.inputs.get(0).map(|i| i.block_number).unwrap_or(0);
-            let block_number_bytes = block_number.to_le_bytes().to_vec();
-            self.store("/last-yield-height".as_bytes().to_vec(), block_number_bytes);
+            // Initialize the last yield block height with a default value of 0
+            let block_height = 0u64;
+            let block_height_bytes = block_height.to_le_bytes().to_vec();
+            self.store("/last-yield-height".as_bytes().to_vec(), block_height_bytes);
             
             response.data = "Initialized".as_bytes().to_vec();
             Ok(response)
