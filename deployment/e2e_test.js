@@ -43,12 +43,14 @@ if (!fs.existsSync(wasmPath)) {
 // Deploy the contract
 console.log(`${COLORS.YELLOW}Deploying contract...${COLORS.NC}`);
 try {
-  // Use the correct deployment command format from deploy_yield_vault.sh
+  // Generate a unique alkane ID based on timestamp to avoid conflicts
+  const uniqueAlkaneId = Math.floor(4206600 + (Date.now() % 10000));
+  
+  // Use the correct deployment command format with unique alkane ID
   const deployCommand = `NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane new-contract \\
-    --contract "${wasmPath}" \\
-    --provider "oylnet" \\
-    --calldata "0" \\
-    --feeRate 10`;
+    -c "${wasmPath}" \\
+    -data 3,${uniqueAlkaneId},100 \\
+    -p oylnet`;
   
   const deployResult = execSync(deployCommand, { encoding: 'utf8' });
   console.log(deployResult);
@@ -81,8 +83,8 @@ try {
   const contractDetails = JSON.parse(fs.readFileSync('/workspaces/boiler/contract_details.json', 'utf8'));
   const contractId = contractDetails.contractId;
   
-  // Initialize the contract with opcode 0
-  const initCommand = `NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0" --provider oylnet`;
+  // Initialize the contract with opcode 0 and parameters for name, symbol, asset name, asset symbol, and decimals
+  const initCommand = `NODE_OPTIONS=--require=/workspaces/boiler/oyl-sdk/lib/shared/load_patch.js oyl alkane execute -data "0,Test Vault,TEST,Test Asset,ASSET,8" --provider oylnet`;
   const initResult = execSync(initCommand, { encoding: 'utf8' });
   console.log(initResult);
   console.log(`${COLORS.GREEN}Contract initialized successfully.${COLORS.NC}\n`);
