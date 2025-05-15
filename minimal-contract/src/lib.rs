@@ -136,14 +136,14 @@ impl YieldVault {
         
         if bytes.len() > 0 {
             // Try to parse the bytes as an AlkaneId
-            if bytes.len() >= 16 {
+            if bytes.len() >= 32 {  // AlkaneId has two u128 fields (16 bytes each)
                 // Extract block and tx from the bytes
-                // AlkaneId is stored as two u64 values in little-endian format
-                let block_bytes: [u8; 8] = bytes[0..8].try_into().unwrap_or([0; 8]);
-                let tx_bytes: [u8; 8] = bytes[8..16].try_into().unwrap_or([0; 8]);
+                // AlkaneId is stored as two u128 values in little-endian format
+                let block_bytes: [u8; 16] = bytes[0..16].try_into().unwrap_or([0; 16]);
+                let tx_bytes: [u8; 16] = bytes[16..32].try_into().unwrap_or([0; 16]);
                 
-                let block = u64::from_le_bytes(block_bytes);
-                let tx = u64::from_le_bytes(tx_bytes);
+                let block = u128::from_le_bytes(block_bytes);
+                let tx = u128::from_le_bytes(tx_bytes);
                 
                 response.data = format!("Currency alkane: {}:{}", block, tx).into_bytes();
             } else {
