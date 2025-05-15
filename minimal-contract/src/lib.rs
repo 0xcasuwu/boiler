@@ -2,7 +2,8 @@ use alkanes_runtime::runtime::AlkaneResponder;
 use alkanes_runtime::{declare_alkane, message::MessageDispatch, token::Token};
 use alkanes_support::response::CallResponse;
 use anyhow::{anyhow, Result};
-use std::sync::Arc;
+use metashrew_support::compat::to_arraybuffer_layout;
+
 
 #[derive(Default)]
 pub struct YieldVault(());
@@ -22,11 +23,55 @@ enum YieldVaultMessage {
     Initialize,
 
     #[opcode(100)]
-    #[returns(u128)]
-    GetYieldRate,
+    #[returns(String)]
+    GetName,
+
+    #[opcode(101)]
+    #[returns(String)]
+    GetSymbol,
+    
+    #[opcode(102)]
+    GetHeight,
+    
+    #[opcode(103)]
+    GetEndBlock,
 }
 
 impl YieldVault {
+
+    
+    // Method for MessageDispatch to get height
+    fn get_height(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
+        
+        let height = self.height();
+        response.data = height.to_le_bytes().to_vec();
+        
+        Ok(response)
+    }
+    
+    // Method for MessageDispatch to get end block
+    fn get_end_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
+        
+        // Load the end block from storage
+        let end_block_key = "/end_block".as_bytes().to_vec();
+        let end_block_bytes = self.load(end_block_key);
+        
+        if end_block_bytes.len() > 0 {
+            response.data = end_block_bytes;
+        } else {
+            // If not found, use current height + 10000 as default
+            let height = self.height();
+            let end_block = height + 10000;
+            response.data = end_block.to_le_bytes().to_vec();
+        }
+        
+        Ok(response)
+    }
+
     fn initialize(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
@@ -34,12 +79,22 @@ impl YieldVault {
         // Check if already initialized
         let initialized_key = "/initialized".as_bytes().to_vec();
         if self.load(initialized_key.clone()).len() == 0 {
+
             // Mark as initialized
             self.store(initialized_key, vec![0x01]);
+            // Store the height as binary data
+            let height_key = "/start_block".as_bytes().to_vec();
+            let height = self.height();
+            let height_bytes = height.to_le_bytes().to_vec();
+            self.store(height_key, height_bytes);
             
-            // Set a hard-coded yield rate (500 basis points = 5%)
-            let rate = self.set_yield_rate(500)?;
-            
+            // Store the end block (height + 10000) as binary data
+            let end_block_key = "/end_block".as_bytes().to_vec();
+            let end_block = height + 10000; // Example: 10000 blocks after initialization
+            let end_block_bytes = end_block.to_le_bytes().to_vec();
+            self.store(end_block_key, end_block_bytes);
+
+
             response.data = "Initialized".as_bytes().to_vec();
             Ok(response)
         } else {
@@ -47,48 +102,39 @@ impl YieldVault {
         }
     }
 
-    fn get_yield_rate(&self) -> Result<CallResponse> {
+    fn get_name(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
 
-        // Get the yield rate
-        let yield_rate = self.yield_rate()?;
+        // Try to get the stored name, or use default
+        let name_key = "/name".as_bytes().to_vec();
+        let name_bytes = self.load(name_key);
         
-        // Convert to string and then to bytes to ensure it's properly formatted
-        let yield_rate_str = yield_rate.to_string();
-        response.data = yield_rate_str.as_bytes().to_vec();
+        if name_bytes.len() > 0 {
+            response.data = name_bytes;
+        } else {
+            response.data = self.name().into_bytes().to_vec();
+        }
         
         Ok(response)
+
     }
-    
-    // Helper functions for yield rate
-    fn yield_rate(&self) -> Result<u128> {
-        let yield_rate_key = "/yield-rate".as_bytes().to_vec();
-        let yield_rate_bytes = self.load(yield_rate_key);
+
+    fn get_symbol(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
+
+        // Try to get the stored symbol, or use default
+        let symbol_key = "/symbol".as_bytes().to_vec();
+        let symbol_bytes = self.load(symbol_key);
         
-        if yield_rate_bytes.len() == 16 {  // u128 is 16 bytes
-            let mut bytes = [0u8; 16];
-            bytes.copy_from_slice(&yield_rate_bytes);
-            Ok(u128::from_le_bytes(bytes))
+        if symbol_bytes.len() > 0 {
+            response.data = symbol_bytes;
         } else {
-            // Default to 0 if not found
-            Ok(0)
+            response.data = self.symbol().into_bytes().to_vec();
         }
-    }
-    
-    fn yield_rate_pointer(&self) -> alkanes_support::storage::StoragePointer {
-        alkanes_support::storage::StoragePointer::from_keyword("/yield-rate")
-    }
-    
-    fn set_yield_rate(&self, rate: u128) -> Result<u128> {
-        // Create bytes for the new rate
-        let rate_bytes = rate.to_le_bytes().to_vec();
         
-        // Use the pointer approach similar to the template
-        let mut rate_pointer = self.yield_rate_pointer();
-        rate_pointer.set(Arc::new(rate_bytes));
-        
-        Ok(rate)
+        Ok(response)
     }
 }
 
