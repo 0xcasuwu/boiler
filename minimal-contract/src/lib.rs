@@ -30,7 +30,8 @@ enum YieldVaultMessage {
     
     #[opcode(2)]
     SetCurrencyAlkane {
-        alkane_id: String,
+        target: u128,
+        block: u128,
     },
 
     #[opcode(100)]
@@ -108,22 +109,20 @@ impl YieldVault {
         Ok(response)
     }
     
-    fn set_currency_alkane(&self, _alkane_id: String) -> Result<CallResponse> {
-        // First authenticate the caller
+    fn set_currency_alkane(&self, block: u128, tx: u128) -> Result<CallResponse> {
         // self.authenticate()?;
         
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes.clone());
         
-        // Hard code the currency alkane ID
-        // Using 8:987654 as the example alkane ID
-        let alkane_id_struct = AlkaneId { block: 8, tx: 987654 };
+        // Create the AlkaneId struct directly with the provided values
+        let alkane_id_struct = AlkaneId { block, tx };
         
         // Store the currency alkane ID using low-level store method
         let currency_key = "/currency_alkane".as_bytes().to_vec();
         self.store(currency_key, <AlkaneId as Into<Vec<u8>>>::into(alkane_id_struct));
         
-        response.data = "Currency alkane set successfully (hard-coded to 8:987654)".as_bytes().to_vec();
+        response.data = format!("Currency alkane set successfully to {}:{}", block, tx).into_bytes();
         Ok(response)
     }
     
