@@ -4,8 +4,7 @@ use alkanes_support::response::CallResponse;
 use alkanes_support::id::AlkaneId;
 use anyhow::{anyhow, Result};
 use metashrew_support::compat::to_arraybuffer_layout;
-
-
+use alkanes_support::parcel::AlkaneTransfer;
 #[derive(Default)]
 pub struct YieldVault(());
 
@@ -21,17 +20,15 @@ impl Token for YieldVault {
 #[derive(MessageDispatch)]
 enum YieldVaultMessage {
     #[opcode(0)]
-    Initialize {
-        amount: u128,
-    },
+    Initialize,
 
     #[opcode(1)]
     Authenticate,
     
     #[opcode(2)]
     SetCurrencyAlkane {
-        target: u128,
         block: u128,
+        tx: u128,
     },
 
     #[opcode(100)]
@@ -55,7 +52,7 @@ enum YieldVaultMessage {
 
 impl YieldVault {
 
-    fn initialize(&self, _amount: u128) -> Result<CallResponse> {
+    fn initialize(&self) -> Result<CallResponse> {
         // Use the standard observe_initialization method which will throw an error if already initialized
         self.observe_initialization()?;
         
@@ -81,6 +78,13 @@ impl YieldVault {
         // Store the currency alkane ID using StoragePointer for consistency
         let currency_key = "/currency_alkane".as_bytes().to_vec();
         self.store(currency_key, <AlkaneId as Into<Vec<u8>>>::into(alkane_id_struct));
+        
+        // Mint auth token during initialization
+        response.alkanes = context.incoming_alkanes.clone();
+        response.alkanes.0.push(AlkaneTransfer {
+            id: context.myself.clone(),
+            value: 1,
+        });
         
         response.data = "Initialized".as_bytes().to_vec();
         Ok(response)
