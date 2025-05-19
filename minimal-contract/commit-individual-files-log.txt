@@ -1,0 +1,217 @@
+Setting git user configuration...
+Committing changes to oyl-sdk repository...
+Committing changes to minimal-contract repository...
+Adding and committing ALKANE_ID_EXTENSION.md...
+On branch dev
+Your branch is ahead of 'origin/dev' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../.gitignore
+	modified:   Cargo.toml
+	modified:   sequence.txt
+	modified:   src/lib.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../check_result.txt
+	.env
+	check.js
+	command-output.txt
+	commit-changes-log.txt
+	commit-individual-files-log.txt
+	commit-individual-files.sh
+	debug.js
+	direct-execute.js
+	execute-oylnet-call.js
+	extraction-test-results.txt
+	legacy-command-output.txt
+	out.txt
+	push-changes-log.txt
+	push-changes.sh
+	run-command.js
+	run-legacy-command.js
+	simple-verify.js
+	test-alkane-id-extension.js
+	test-extraction.js
+	verification-result.txt
+	verify-and-log.js
+	verify-extension.js
+	../out.txt
+	../output.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Adding and committing ALKANE_ID_EXTENSION_SPEC.md...
+On branch dev
+Your branch is ahead of 'origin/dev' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../.gitignore
+	modified:   Cargo.toml
+	modified:   sequence.txt
+	modified:   src/lib.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../check_result.txt
+	.env
+	check.js
+	command-output.txt
+	commit-changes-log.txt
+	commit-individual-files-log.txt
+	commit-individual-files.sh
+	debug.js
+	direct-execute.js
+	execute-oylnet-call.js
+	extraction-test-results.txt
+	legacy-command-output.txt
+	out.txt
+	push-changes-log.txt
+	push-changes.sh
+	run-command.js
+	run-legacy-command.js
+	simple-verify.js
+	test-alkane-id-extension.js
+	test-extraction.js
+	verification-result.txt
+	verify-and-log.js
+	verify-extension.js
+	../out.txt
+	../output.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Adding and committing IMPLEMENTATION_SUMMARY.md...
+On branch dev
+Your branch is ahead of 'origin/dev' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../.gitignore
+	modified:   Cargo.toml
+	modified:   sequence.txt
+	modified:   src/lib.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../check_result.txt
+	.env
+	check.js
+	command-output.txt
+	commit-changes-log.txt
+	commit-individual-files-log.txt
+	commit-individual-files.sh
+	debug.js
+	direct-execute.js
+	execute-oylnet-call.js
+	extraction-test-results.txt
+	legacy-command-output.txt
+	out.txt
+	push-changes-log.txt
+	push-changes.sh
+	run-command.js
+	run-legacy-command.js
+	simple-verify.js
+	test-alkane-id-extension.js
+	test-extraction.js
+	verification-result.txt
+	verify-and-log.js
+	verify-extension.js
+	../out.txt
+	../output.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Adding and committing README_ALKANE_ID_EXTENSION.md...
+On branch dev
+Your branch is ahead of 'origin/dev' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../.gitignore
+	modified:   Cargo.toml
+	modified:   sequence.txt
+	modified:   src/lib.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../check_result.txt
+	.env
+	check.js
+	command-output.txt
+	commit-changes-log.txt
+	commit-individual-files-log.txt
+	commit-individual-files.sh
+	debug.js
+	direct-execute.js
+	execute-oylnet-call.js
+	extraction-test-results.txt
+	legacy-command-output.txt
+	out.txt
+	push-changes-log.txt
+	push-changes.sh
+	run-command.js
+	run-legacy-command.js
+	simple-verify.js
+	test-alkane-id-extension.js
+	test-extraction.js
+	verification-result.txt
+	verify-and-log.js
+	verify-extension.js
+	../out.txt
+	../output.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Adding and committing examples directory...
+On branch dev
+Your branch is ahead of 'origin/dev' by 1 commit.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ../.gitignore
+	modified:   Cargo.toml
+	modified:   sequence.txt
+	modified:   src/lib.rs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	../check_result.txt
+	.env
+	check.js
+	command-output.txt
+	commit-changes-log.txt
+	commit-individual-files-log.txt
+	commit-individual-files.sh
+	debug.js
+	direct-execute.js
+	execute-oylnet-call.js
+	extraction-test-results.txt
+	legacy-command-output.txt
+	out.txt
+	push-changes-log.txt
+	push-changes.sh
+	run-command.js
+	run-legacy-command.js
+	simple-verify.js
+	test-alkane-id-extension.js
+	test-extraction.js
+	verification-result.txt
+	verify-and-log.js
+	verify-extension.js
+	../out.txt
+	../output.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+All changes committed successfully!
+Check commit-individual-files-log.txt for details.
+To push the changes to the remote repository, run:
+  cd oyl-sdk && git push origin main && cd .. && git push origin dev

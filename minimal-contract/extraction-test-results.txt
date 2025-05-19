@@ -1,0 +1,28 @@
+Test 1: Using the new alkane-id option
+  Options: {"alkaneId":"123456:789","calldata":["1","100","200"]}
+  Expected: source=option, block=123456, tx=789
+  Actual: source=option, block=123456, tx=789
+  Result: PASS
+    Source: PASS
+    Block: PASS
+    Tx: PASS
+
+Test 2: Using the legacy approach (alkane ID in calldata)
+  Options: {"calldata":["123456","789","1","100","200"]}
+  Expected: source=calldata, block=123456, tx=789
+  Actual: source=calldata, block=123456, tx=789
+  Result: PASS
+    Source: PASS
+    Block: PASS
+    Tx: PASS
+
+Test 3: Using both options (new option should take precedence)
+  Options: {"alkaneId":"111111:222","calldata":["333333","444","1","100","200"]}
+  Expected: source=option, block=111111, tx=222
+  Actual: source=option, block=111111, tx=222
+  Result: PASS
+    Source: PASS
+    Block: PASS
+    Tx: PASS
+
+Overall Result: ALL TESTS PASSED

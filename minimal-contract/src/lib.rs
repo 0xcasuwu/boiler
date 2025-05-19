@@ -71,19 +71,18 @@ impl YieldVault {
         let end_block_bytes = end_block.to_le_bytes().to_vec();
         self.store(end_block_key, end_block_bytes);
         
-        // Hard code the currency alkane ID during initialization
-        // Using 7:123456 as the example alkane ID
-        let alkane_id_struct = AlkaneId { block: 7, tx: 123456 };
+        // // Hard code the currency alkane ID during initialization
+        // // Using 7:123456 as the example alkane ID
         
-        // Store the currency alkane ID using StoragePointer for consistency
-        let currency_key = "/currency_alkane".as_bytes().to_vec();
-        self.store(currency_key, <AlkaneId as Into<Vec<u8>>>::into(alkane_id_struct));
+        // // Store the currency alkane ID using StoragePointer for consistency
+        // let currency_key = "/currency_alkane".as_bytes().to_vec();
+        // self.store(currency_key, <AlkaneId as Into<Vec<u8>>>::into(alkane_id_struct));
         
         // Mint auth token during initialization
         response.alkanes = context.incoming_alkanes.clone();
         response.alkanes.0.push(AlkaneTransfer {
             id: context.myself.clone(),
-            value: 1,
+            value: 10000,
         });
         
         response.data = "Initialized".as_bytes().to_vec();
