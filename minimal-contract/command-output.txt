@@ -1,0 +1,76 @@
+
+Error executing command: ./oyl-sdk/bin/oyl.js alkane execute -id 2:0 -data 2,699,1 -p oylnet
+Error message: Command failed: ./oyl-sdk/bin/oyl.js alkane execute -id 2:0 -data 2,699,1 -p oylnet
+Error in alkaneExecute: OylTransactionError: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:15)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20)
+Caused by: Error: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:48)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20) {
+  successTxIds: []
+}
+node:internal/process/promises:288
+            triggerUncaughtException(err, true /* fromPromise */);
+            ^
+
+OylTransactionError: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:15)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20)
+Caused by: Error: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:48)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20) {
+  successTxIds: []
+}
+
+Node.js v18.19.1
+
+
+Standard output:
+Starting alkane execute command...
+Wallet created successfully
+Account UTXOs fetched successfully
+Processing alkane ID from option: 2:0
+Found 0 UTXOs with rune 2:0
+No UTXOs found with the rune, trying with selectAlkanesUtxos...
+
+
+Standard error:
+Error in alkaneExecute: OylTransactionError: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:15)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20)
+Caused by: Error: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:48)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20) {
+  successTxIds: []
+}
+node:internal/process/promises:288
+            triggerUncaughtException(err, true /* fromPromise */);
+            ^
+
+OylTransactionError: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:15)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20)
+Caused by: Error: Insufficient balance of alkanes.
+    at Object.selectAlkanesUtxos (/home/e/boiler/minimal-contract/oyl-sdk/lib/utxo/utxo.js:361:48)
+    at /home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:145:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async AlkanesCommand.<anonymous> (/home/e/boiler/minimal-contract/oyl-sdk/lib/cli/alkane.js:34:20) {
+  successTxIds: []
+}
+
+Node.js v18.19.1
+
