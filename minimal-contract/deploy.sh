@@ -103,65 +103,23 @@ echo "Step 5: Generating additional blocks to ensure transaction is confirmed"
 BLOCKS_OUTPUT3=$(cd $OYL_DIR && $OYL_CMD regtest genBlocks -p oylnet)
 echo "$BLOCKS_OUTPUT3"
 
-# Step 6: Run trace only on the last transaction with vout=3
-echo "Step 6: Running trace on the last transaction $TXID2 with vout=3"
-TRACE_PARAMS="{\"txid\":\"$TXID2\",\"vout\":3}"
-echo "Trace parameters: $TRACE_PARAMS"
+# Step 6: Run trace on the last transaction using the trace.sh script
+echo "Step 6: Running trace on the last transaction $TXID2"
 
-# Use single quotes around the JSON parameters to prevent shell interpretation
-TRACE_CMD="$OYL_CMD alkane trace -params '$TRACE_PARAMS' -p oylnet"
-echo "Executing trace command: $TRACE_CMD"
-TRACE_OUTPUT=$(cd $OYL_DIR && eval "$TRACE_CMD")
+# Add a small delay to give the system time to process the transaction
+echo "Waiting 5 seconds before running trace command to ensure transaction is processed..."
+sleep 5
 
-# Check if the trace output is empty or doesn't contain useful data
-if [ -z "$TRACE_OUTPUT" ] || ! echo "$TRACE_OUTPUT" | grep -q "myself"; then
-  echo "No trace result with vout=3, trying with vout=4..."
-  TRACE_PARAMS="{\"txid\":\"$TXID2\",\"vout\":4}"
-  echo "Trace parameters: $TRACE_PARAMS"
-  TRACE_CMD="$OYL_CMD alkane trace -params '$TRACE_PARAMS' -p oylnet"
-  echo "Executing trace command: $TRACE_CMD"
-  TRACE_OUTPUT=$(cd $OYL_DIR && eval "$TRACE_CMD")
-fi
-
-echo "Trace result for last transaction:"
+# Use the trace.sh script to run the trace command
+echo "Using trace.sh to run trace command"
+TRACE_OUTPUT=$(./trace.sh "$TXID2" 3)
 echo "$TRACE_OUTPUT"
 
-# Extract and convert the namespace number from the trace output
-if [ -n "$TRACE_OUTPUT" ]; then
-  echo "Parsing trace output to extract namespace information..."
-  
-  # Use a more specific pattern to extract the "myself" block and tx values
-  # The pattern looks for the "context" object that contains the "myself" object
-  CONTEXT_PATTERN='"context":{"myself":{"block":"[^"]*","tx":"[^"]*"}'
-  CONTEXT=$(echo "$TRACE_OUTPUT" | grep -o "$CONTEXT_PATTERN")
-  
-  if [ -n "$CONTEXT" ]; then
-    BLOCK_HEX=$(echo "$CONTEXT" | grep -o '"block":"[^"]*"' | cut -d'"' -f4)
-    TX_HEX=$(echo "$CONTEXT" | grep -o '"tx":"[^"]*"' | cut -d'"' -f4)
-    
-    if [ -n "$BLOCK_HEX" ] && [ -n "$TX_HEX" ]; then
-      # Remove the "0x" prefix if present
-      BLOCK_HEX_CLEAN=${BLOCK_HEX#0x}
-      TX_HEX_CLEAN=${TX_HEX#0x}
-      
-      # Convert hexadecimal to decimal
-      BLOCK_DEC=$(printf "%d" 0x$BLOCK_HEX_CLEAN 2>/dev/null)
-      TX_DEC=$(printf "%d" 0x$TX_HEX_CLEAN 2>/dev/null)
-      
-      echo "Namespace Information:"
-      echo "Block: $BLOCK_HEX (decimal: $BLOCK_DEC)"
-      echo "TX: $TX_HEX (decimal: $TX_DEC)"
-      echo "Namespace Number: $TX_DEC"
-    else
-      echo "Could not extract block or tx values from context"
-    fi
-  else
-    echo "Could not find context with myself information in trace output"
-    echo "Raw trace output:"
-    echo "$TRACE_OUTPUT"
-  fi
-else
-  echo "No trace output available"
+# If the trace output doesn't contain useful data, try with vout=4
+if ! echo "$TRACE_OUTPUT" | grep -q "Namespace Number"; then
+  echo "No namespace information found with vout=3, trying vout=4..."
+  TRACE_OUTPUT=$(./trace.sh "$TXID2" 4)
+  echo "$TRACE_OUTPUT"
 fi
 
 # Step 7: Generate blocks after finishing
