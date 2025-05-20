@@ -1,0 +1,20 @@
+[package]
+name = "minimal-yield-vault"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.94"
+alkanes-runtime = { git = "https://github.com/kungfuflex/alkanes-rs", rev = "5b828be9" }
+alkanes-support = { git = "https://github.com/kungfuflex/alkanes-rs", rev = "5b828be9" }
+metashrew-support = { git = "https://github.com/sandshrewmetaprotocols/metashrew", rev = "0736032b" }
+
+[profile.release]
+opt-level = 's'
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
