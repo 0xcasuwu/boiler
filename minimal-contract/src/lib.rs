@@ -82,7 +82,7 @@ impl YieldVault {
         response.alkanes = context.incoming_alkanes.clone();
         response.alkanes.0.push(AlkaneTransfer {
             id: context.myself.clone(),
-            value: 10000,
+            value: 1,
         });
         
         response.data = "Initialized".as_bytes().to_vec();
