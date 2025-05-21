@@ -1,8 +1,8 @@
-use metashrew_support::index_pointer::KeyValuePointer;
 use metashrew_support::compat::to_arraybuffer_layout;
+use alkanes_support::context::Context;
 
 use alkanes_runtime::{
-  declare_alkane, message::MessageDispatch, storage::StoragePointer, token::Token,
+  declare_alkane, message::MessageDispatch, token::Token,
   runtime::AlkaneResponder
 };
 
@@ -12,7 +12,6 @@ use alkanes_support::{
 };
 
 use anyhow::{anyhow, Result};
-use std::sync::Arc;
 
 /// Position token template ID
 const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x379;
@@ -123,7 +122,7 @@ impl VaultFactory {
     self.set_position_count(0);
     self.set_total_assets(0);
     self.set_total_shares(0);
-    self.set_last_update_block(self.height());
+    self.set_last_update_block(u128::from(self.height()));
     self.set_collected_fees(0);
     
     // Factory token acts as auth token
@@ -175,7 +174,7 @@ impl VaultFactory {
       .ok_or_else(|| anyhow!("Position count overflow"))?;
     
     // Get current block height for position creation
-    let current_block = self.height();
+    let current_block = u128::from(self.height());
     
     // Get the deposit token from the incoming transfer
     if context.incoming_alkanes.0.len() != 1 {
@@ -243,7 +242,7 @@ impl VaultFactory {
     self.authenticate_position(&context)?;
     
     // Verify position_id exists
-    let position_alkane = self.get_position_by_id(position_id)?;
+    let position_alkane = self.find_position_by_id(position_id)?;
     if position_alkane.block == 0 && position_alkane.tx == 0 {
       return Err(anyhow!("Position not found"));
     }
@@ -258,7 +257,7 @@ impl VaultFactory {
     }
     
     // First process any pending rewards
-    let current_block = self.height();
+    let current_block = u128::from(self.height());
     
     // Calculate rewards based on the staked amount and time period
     let rewards = if current_assets > 0 && last_claim_block < current_block {
@@ -392,7 +391,7 @@ impl VaultFactory {
     self.authenticate_position(&context)?;
     
     // Verify position_id exists
-    let position_alkane = self.get_position_by_id(position_id)?;
+    let position_alkane = self.find_position_by_id(position_id)?;
     if position_alkane.block == 0 && position_alkane.tx == 0 {
       return Err(anyhow!("Position not found"));
     }
@@ -402,7 +401,7 @@ impl VaultFactory {
       self.get_position_details(&position_alkane)?;
     
     // 2. Calculate rewards from last_claim_block to current block
-    let current_block = self.height();
+    let current_block = u128::from(self.height());
     
     // Calculate rewards based on the staked amount and time period - simplified calculation
     let rewards = if current_assets > 0 && last_claim_block < current_block {
@@ -460,8 +459,7 @@ impl VaultFactory {
     // Iterate through all registered positions to find a match
     for i in 0..position_count {
       let id_bytes = i.to_le_bytes().to_vec();
-      let position_pointer = self.positions_by_id_pointer().select(&id_bytes);
-      let bytes = position_pointer.get();
+      let bytes = self.load_position_by_id(&id_bytes);
       
       if bytes.len() >= 32 {
         let stored_id = AlkaneId {
@@ -478,7 +476,7 @@ impl VaultFactory {
     false
   }
   
-  fn authenticate_position(&self, context: &alkanes_runtime::message::Context) -> Result<()> {
+  fn authenticate_position(&self, context: &Context) -> Result<()> {
     // Check that the caller is in our position registry
     if !self.is_position_in_registry(&context.caller) {
       return Err(anyhow!("Caller is not a registered position token"));
@@ -519,10 +517,9 @@ impl VaultFactory {
     Ok(response)
   }
   
-  fn get_position_by_id(&self, position_id: u128) -> Result<AlkaneId> {
+  fn find_position_by_id(&self, position_id: u128) -> Result<AlkaneId> {
     let position_id_bytes = position_id.to_le_bytes().to_vec();
-    let position_pointer = self.positions_by_id_pointer().select(&position_id_bytes);
-    let bytes = position_pointer.get();
+    let bytes = self.load_position_by_id(&position_id_bytes);
     
     if bytes.len() < 32 {
       return Ok(AlkaneId { block: 0, tx: 0 });
@@ -534,11 +531,11 @@ impl VaultFactory {
     })
   }
   
-  fn get_position_by_id_handler(&self, position_id: u128) -> Result<CallResponse> {
+  fn get_position_by_id(&self, position_id: u128) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
     
-    let alkane_id = self.get_position_by_id(position_id)?;
+    let alkane_id = self.find_position_by_id(position_id)?;
     
     let mut bytes = Vec::with_capacity(32);
     bytes.extend_from_slice(&alkane_id.block.to_le_bytes());
@@ -556,8 +553,7 @@ impl VaultFactory {
     bytes.extend_from_slice(&position_id.block.to_le_bytes());
     bytes.extend_from_slice(&position_id.tx.to_le_bytes());
     
-    let mut position_pointer = self.positions_by_id_pointer().select(&position_id_bytes);
-    position_pointer.set(Arc::new(bytes));
+    self.store_position_by_id(&position_id_bytes, bytes);
     
     Ok(())
   }
@@ -570,7 +566,7 @@ impl VaultFactory {
     let effective_from = std::cmp::max(from_block, self.start_block());
     
     // Don't calculate beyond current block
-    let current_block = self.height();
+    let current_block = u128::from(self.height());
     let effective_to = std::cmp::min(to_block, current_block);
     
     let rewards = if effective_from >= effective_to {
@@ -643,90 +639,68 @@ impl VaultFactory {
     Ok(assets)
   }
   
-  // Storage pointers
-  
-  fn reward_per_block_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/reward_per_block")
-  }
+  // Storage operations using direct store/load methods
   
   fn reward_per_block(&self) -> u128 {
-    self.reward_per_block_pointer().get_value::<u128>()
+    self.load_u128("/reward_per_block")
   }
   
   fn set_reward_per_block(&self, reward_per_block: u128) {
-    self.reward_per_block_pointer().set_value::<u128>(reward_per_block);
-  }
-  
-  fn start_block_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/start_block")
+    self.store("/reward_per_block".as_bytes().to_vec(), reward_per_block.to_le_bytes().to_vec());
   }
   
   fn start_block(&self) -> u128 {
-    self.start_block_pointer().get_value::<u128>()
+    self.load_u128("/start_block")
   }
   
   fn set_start_block(&self, start_block: u128) {
-    self.start_block_pointer().set_value::<u128>(start_block);
+    self.store("/start_block".as_bytes().to_vec(), start_block.to_le_bytes().to_vec());
   }
     
-  fn total_assets_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/total_assets")
-  }
-  
   fn total_assets(&self) -> u128 {
-    self.total_assets_pointer().get_value::<u128>()
+    self.load_u128("/total_assets")
   }
   
   fn set_total_assets(&self, total_assets: u128) {
-    self.total_assets_pointer().set_value::<u128>(total_assets);
-  }
-  
-  fn total_shares_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/total_shares")
+    self.store("/total_assets".as_bytes().to_vec(), total_assets.to_le_bytes().to_vec());
   }
   
   fn total_shares(&self) -> u128 {
-    self.total_shares_pointer().get_value::<u128>()
+    self.load_u128("/total_shares")
   }
   
   fn set_total_shares(&self, total_shares: u128) {
-    self.total_shares_pointer().set_value::<u128>(total_shares);
-  }
-  
-  fn last_update_block_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/last_update_block")
+    self.store("/total_shares".as_bytes().to_vec(), total_shares.to_le_bytes().to_vec());
   }
   
   fn last_update_block(&self) -> u128 {
-    self.last_update_block_pointer().get_value::<u128>()
+    self.load_u128("/last_update_block")
   }
   
   fn set_last_update_block(&self, last_update_block: u128) {
-    self.last_update_block_pointer().set_value::<u128>(last_update_block);
-  }
-  
-  fn position_count_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/position_count")
+    self.store("/last_update_block".as_bytes().to_vec(), last_update_block.to_le_bytes().to_vec());
   }
   
   fn position_count(&self) -> u128 {
-    self.position_count_pointer().get_value::<u128>()
+    self.load_u128("/position_count")
   }
   
   fn set_position_count(&self, position_count: u128) {
-    self.position_count_pointer().set_value::<u128>(position_count);
+    self.store("/position_count".as_bytes().to_vec(), position_count.to_le_bytes().to_vec());
   }
   
-  fn positions_by_id_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/positions_by_id")
+  fn load_position_by_id(&self, id_bytes: &Vec<u8>) -> Vec<u8> {
+    let key = format!("/positions_by_id/{}", hex::encode(id_bytes)).into_bytes();
+    self.load(key)
   }
   
-  fn reward_token_id_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/reward_token_id")
+  fn store_position_by_id(&self, id_bytes: &Vec<u8>, value: Vec<u8>) {
+    let key = format!("/positions_by_id/{}", hex::encode(id_bytes)).into_bytes();
+    self.store(key, value);
   }
   
   fn reward_token_id(&self) -> Result<AlkaneId> {
-    let bytes = self.reward_token_id_pointer().get();
+    let bytes = self.load("/reward_token_id".as_bytes().to_vec());
     
     if bytes.len() < 32 {
       return Err(anyhow!("Reward token ID not set"));
@@ -743,30 +717,63 @@ impl VaultFactory {
     bytes.extend_from_slice(&id.block.to_le_bytes());
     bytes.extend_from_slice(&id.tx.to_le_bytes());
     
-    self.reward_token_id_pointer().set(Arc::new(bytes));
+    self.store("/reward_token_id".as_bytes().to_vec(), bytes);
     Ok(())
   }
   
-  // Fee and owner-related storage pointers and accessors
-  
-  fn fee_percentage_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/fee_percentage")
+  fn withdraw_fees(&self) -> Result<CallResponse> {
+    let context = self.context()?;
+    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    
+    // Only the owner can withdraw fees
+    let owner_id = self.owner();
+    if context.caller.block != owner_id.block || context.caller.tx != owner_id.tx {
+      return Err(anyhow!("Only the owner can withdraw fees"));
+    }
+    
+    // Get the collected fees
+    let fees = self.collected_fees();
+    if fees == 0 {
+      return Err(anyhow!("No fees to withdraw"));
+    }
+    
+    // Get the deposit token ID (same as the reward token)
+    let deposit_token_id = self.reward_token_id()?;
+    
+    // Transfer the fees to the owner
+    response.alkanes.0.push(AlkaneTransfer {
+      id: deposit_token_id,
+      value: fees,
+    });
+    
+    // Reset the collected fees
+    self.set_collected_fees(0);
+    
+    Ok(response)
+  }
+
+  // Helper function to load u128 values from storage
+  fn load_u128(&self, key_str: &str) -> u128 {
+    let key = key_str.as_bytes().to_vec();
+    let bytes = self.load(key);
+    if bytes.len() >= 16 {
+      let bytes_array: [u8; 16] = bytes[0..16].try_into().unwrap_or([0; 16]);
+      u128::from_le_bytes(bytes_array)
+    } else {
+      0
+    }
   }
   
   fn fee_percentage(&self) -> u128 {
-    self.fee_percentage_pointer().get_value::<u128>()
+    self.load_u128("/fee_percentage")
   }
   
   fn set_fee_percentage(&self, fee_percentage: u128) {
-    self.fee_percentage_pointer().set_value::<u128>(fee_percentage);
-  }
-  
-  fn owner_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/owner")
+    self.store("/fee_percentage".as_bytes().to_vec(), fee_percentage.to_le_bytes().to_vec());
   }
   
   fn owner(&self) -> AlkaneId {
-    let bytes = self.owner_pointer().get();
+    let bytes = self.load("/owner".as_bytes().to_vec());
     if bytes.len() < 32 {
       panic!("Owner not set");
     }
@@ -777,53 +784,20 @@ impl VaultFactory {
     }
   }
   
-  fn set_owner(&self, id: &AlkaneId) -> Result<()> {
+  fn set_owner(&self, id: &AlkaneId) {
     let mut bytes = Vec::with_capacity(32);
     bytes.extend_from_slice(&id.block.to_le_bytes());
     bytes.extend_from_slice(&id.tx.to_le_bytes());
     
-    self.owner_pointer().set(Arc::new(bytes));
-    Ok(())
-  }
-  
-  fn collected_fees_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/collected_fees")
+    self.store("/owner".as_bytes().to_vec(), bytes);
   }
   
   fn collected_fees(&self) -> u128 {
-    self.collected_fees_pointer().get_value::<u128>()
+    self.load_u128("/collected_fees")
   }
   
   fn set_collected_fees(&self, collected_fees: u128) {
-    self.collected_fees_pointer().set_value::<u128>(collected_fees);
-  }
-  
-  fn withdraw_fees(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    // Only the owner can withdraw fees
-    if context.caller != self.owner() {
-      return Err(anyhow!("Only owner can withdraw fees"));
-    }
-    
-    // Get the amount of collected fees
-    let fees = self.collected_fees();
-    if fees == 0 {
-      return Err(anyhow!("No fees to withdraw"));
-    }
-    
-    // Transfer fees to the owner
-    let reward_token_id = self.reward_token_id()?;
-    response.alkanes.0.push(AlkaneTransfer {
-      id: reward_token_id,
-      value: fees,
-    });
-    
-    // Reset collected fees
-    self.set_collected_fees(0);
-    
-    Ok(response)
+    self.store("/collected_fees".as_bytes().to_vec(), collected_fees.to_le_bytes().to_vec());
   }
 }
 
@@ -831,3 +805,4 @@ declare_alkane! {
   impl AlkaneResponder for VaultFactory {
     type Message = VaultFactoryMessage;
   }
+}
