@@ -1,8 +1,7 @@
-use metashrew_support::index_pointer::KeyValuePointer;
 use metashrew_support::compat::to_arraybuffer_layout;
 
 use alkanes_runtime::{
-  declare_alkane, message::MessageDispatch, storage::StoragePointer, token::Token,
+  declare_alkane, message::MessageDispatch, token::Token,
   runtime::AlkaneResponder
 };
 
@@ -12,7 +11,6 @@ use alkanes_support::{
 };
 
 use anyhow::{anyhow, Result};
-use std::sync::Arc;
 
 #[derive(Default)]
 pub struct PositionToken(());
@@ -98,7 +96,7 @@ impl Token for PositionToken {
 impl PositionToken {
   fn initialize(&self, position_id: u128, initial_assets: u128, shares: u128, deposit_block: u128, deposit_token_id: AlkaneId) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    let response = CallResponse::forward(&context.incoming_alkanes);
     
     self.observe_initialization()?;
     
@@ -115,6 +113,7 @@ impl PositionToken {
     self.set_deposit_token_id(&deposit_token_id)?;
     
     // Set position token
+    let mut response = response;
     response.alkanes.0.push(AlkaneTransfer {
       id: context.myself.clone(),
       value: 1u128,
@@ -174,8 +173,8 @@ impl PositionToken {
     let current_block = self.height();
     let deposit_block = self.deposit_block();
     
-    let blocks_staked = if current_block > deposit_block {
-      current_block - deposit_block
+    let blocks_staked = if u128::from(current_block) > deposit_block {
+      u128::from(current_block) - deposit_block
     } else {
       0
     };
@@ -198,7 +197,7 @@ impl PositionToken {
         0x20,  // 0x20 = CalculateRewards opcode
         self.current_assets(),
         self.last_claim_block(),
-        self.height(),  // Current block
+        u128::from(self.height()),  // Current block
       ],
     };
     
@@ -230,14 +229,10 @@ impl PositionToken {
     Ok(response)
   }
   
-  // Storage pointers and accessors
-  
-  fn vault_id_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/vault_id")
-  }
+  // Storage operations using direct store/load methods
   
   fn vault_ref(&self) -> AlkaneId {
-    let bytes = self.vault_id_pointer().get();
+    let bytes = self.load("/vault_id".as_bytes().to_vec());
     if bytes.len() < 32 {
       panic!("Vault reference not found");
     }
@@ -253,87 +248,59 @@ impl PositionToken {
     bytes.extend_from_slice(&id.block.to_le_bytes());
     bytes.extend_from_slice(&id.tx.to_le_bytes());
     
-    self.vault_id_pointer().set(Arc::new(bytes));
-  }
-  
-  fn position_id_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/position_id")
+    self.store("/vault_id".as_bytes().to_vec(), bytes);
   }
   
   fn position_id(&self) -> u128 {
-    self.position_id_pointer().get_value::<u128>()
+    self.load_u128("/position_id")
   }
   
   fn set_position_id(&self, position_id: u128) {
-    self.position_id_pointer().set_value::<u128>(position_id);
-  }
-  
-  fn initial_assets_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/initial_assets")
+    self.store("/position_id".as_bytes().to_vec(), position_id.to_le_bytes().to_vec());
   }
   
   fn initial_assets(&self) -> u128 {
-    self.initial_assets_pointer().get_value::<u128>()
+    self.load_u128("/initial_assets")
   }
   
   fn set_initial_assets(&self, initial_assets: u128) {
-    self.initial_assets_pointer().set_value::<u128>(initial_assets);
-  }
-  
-  fn current_assets_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/current_assets")
+    self.store("/initial_assets".as_bytes().to_vec(), initial_assets.to_le_bytes().to_vec());
   }
   
   fn current_assets(&self) -> u128 {
-    self.current_assets_pointer().get_value::<u128>()
+    self.load_u128("/current_assets")
   }
   
   fn set_current_assets(&self, current_assets: u128) {
-    self.current_assets_pointer().set_value::<u128>(current_assets);
-  }
-  
-  fn shares_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/shares")
+    self.store("/current_assets".as_bytes().to_vec(), current_assets.to_le_bytes().to_vec());
   }
   
   fn shares(&self) -> u128 {
-    self.shares_pointer().get_value::<u128>()
+    self.load_u128("/shares")
   }
   
   fn set_shares(&self, shares: u128) {
-    self.shares_pointer().set_value::<u128>(shares);
-  }
-  
-  fn deposit_block_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/deposit_block")
+    self.store("/shares".as_bytes().to_vec(), shares.to_le_bytes().to_vec());
   }
   
   fn deposit_block(&self) -> u128 {
-    self.deposit_block_pointer().get_value::<u128>()
+    self.load_u128("/deposit_block")
   }
   
   fn set_deposit_block(&self, deposit_block: u128) {
-    self.deposit_block_pointer().set_value::<u128>(deposit_block);
-  }
-  
-  fn last_claim_block_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/last_claim_block")
+    self.store("/deposit_block".as_bytes().to_vec(), deposit_block.to_le_bytes().to_vec());
   }
   
   fn last_claim_block(&self) -> u128 {
-    self.last_claim_block_pointer().get_value::<u128>()
+    self.load_u128("/last_claim_block")
   }
   
   fn set_last_claim_block(&self, last_claim_block: u128) {
-    self.last_claim_block_pointer().set_value::<u128>(last_claim_block);
-  }
-  
-  fn deposit_token_id_pointer(&self) -> StoragePointer {
-    StoragePointer::from_keyword("/deposit_token_id")
+    self.store("/last_claim_block".as_bytes().to_vec(), last_claim_block.to_le_bytes().to_vec());
   }
   
   fn deposit_token_id(&self) -> Result<AlkaneId> {
-    let bytes = self.deposit_token_id_pointer().get();
+    let bytes = self.load("/deposit_token_id".as_bytes().to_vec());
     
     if bytes.len() < 32 {
       return Err(anyhow!("Deposit token ID not set"));
@@ -350,13 +317,25 @@ impl PositionToken {
     bytes.extend_from_slice(&id.block.to_le_bytes());
     bytes.extend_from_slice(&id.tx.to_le_bytes());
     
-    self.deposit_token_id_pointer().set(Arc::new(bytes));
+    self.store("/deposit_token_id".as_bytes().to_vec(), bytes);
     Ok(())
+  }
+  
+  // Helper function to load u128 values from storage
+  fn load_u128(&self, key_str: &str) -> u128 {
+    let key = key_str.as_bytes().to_vec();
+    let bytes = self.load(key);
+    if bytes.len() >= 16 {
+      let bytes_array: [u8; 16] = bytes[0..16].try_into().unwrap_or([0; 16]);
+      u128::from_le_bytes(bytes_array)
+    } else {
+      0
+    }
   }
   
   fn update_current_assets(&self, new_amount: u128) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    let response = CallResponse::forward(&context.incoming_alkanes);
     
     // Only the vault factory can update the current assets
     let vault_id = self.vault_ref();
@@ -382,7 +361,7 @@ impl PositionToken {
   
   fn update_last_claim_block(&self, new_block: u128) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    let response = CallResponse::forward(&context.incoming_alkanes);
     
     // Only the vault factory can update the last claim block
     // Authentication by vault token, not by caller address
