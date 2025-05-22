@@ -34,12 +34,16 @@ name = "alk4626"
 version = "0.1.0"
 dependencies = [
  "alkanes",
+ "alkanes-support",
  "anyhow",
+ "bitcoin 0.32.6",
  "flate2",
  "hex",
  "hex_lit",
  "metashrew-core",
+ "metashrew-support",
  "protorune",
+ "protorune-support",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
