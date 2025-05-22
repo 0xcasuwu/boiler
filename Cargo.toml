@@ -1,0 +1,35 @@
+[package]
+name = "alk4626"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[workspace]
+members = [".", "alkanes/*"]
+
+[workspace.dependencies]
+alkanes-support = { git = "https:/github.com/kungfuflex/alkanes-rs" }
+alkanes-runtime = { git = "https://github.com/kungfuflex/alkanes-rs" }
+metashrew-support = { git = "https://github.com/sandshrewmetaprotocols/metashrew" }
+protorune-support = { git = "https://github.com/kungfuflex/alkanes-rs" }
+ordinals = { git = "https://github.com/kungfuflex/alkanes-rs" }
+anyhow = "1.0.94"
+bitcoin = { version = "0.32.4", features = ["rand"] }
+hex = "0.4.3"
+
+[dependencies]
+hex_lit = "0.1.1"
+
+[dev-dependencies]
+metashrew-core = { git = "https://github.com/sandshrewmetaprotocols/metashrew", features = ["test-utils"] }
+protorune = { git = "https://github.com/kungfuflex/alkanes-rs", features = ["test-utils"] }
+alkanes = { git = "https://github.com/kungfuflex/alkanes-rs", features = ["test-utils"] }
+wasm-bindgen = "0.2.100"
+wasm-bindgen-test = "0.3.49"
+
+[build-dependencies]
+anyhow = "1.0.90"
+flate2 = "1.0.34"
+hex = "0.4.3"
