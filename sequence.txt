@@ -1,0 +1,13 @@
+Generate wasm
+cargo build --target wasm32-unknown-unknown --release
+
+//node bin/oyl.js alkane new-contract -c /home/e/boiler/minimal-contract/target/wasm32-unknown-unknown/release/minimal_yield_vault.wasm -data 3,77899,100 -p oylnet
+// change second arg if nothing happens, won't return if namespace is already taken
+Deploy New Contract Factory 3:n
+oyl alkane new-contract -c /workspaces/boiler/minimal-contract/target/wasm32-unknown-unknown/release/minimal_yield_vault.wasm -data 3,4206901,100 -p oylnet 
+
+oyl regtest genBlocks -p oylnet
+
+//can also access oyl thru bin: node bin/oyl.js alkane execute etc
+Execute target 4:n with 6:n
+oyl alkane execute -data 6,4206901,0 --provider oylnet
