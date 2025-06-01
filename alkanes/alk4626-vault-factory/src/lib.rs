@@ -42,7 +42,6 @@ enum VaultFactoryMessage {
   #[opcode(2)]
   Withdraw {
     position_id: u128,
-    assets: u128,
   },
   
   #[opcode(3)]
@@ -136,7 +135,7 @@ impl VaultFactory {
   
   fn deposit(&self, assets: u128) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    let mut response = CallResponse::default();
     
     if assets == 0 {
       return Err(anyhow!("Cannot deposit zero assets"));
@@ -177,9 +176,9 @@ impl VaultFactory {
     let current_block = u128::from(self.height());
     
     // Get the deposit token from the incoming transfer
-    if context.incoming_alkanes.0.len() != 1 {
-      return Err(anyhow!("Expected exactly one token type for deposit"));
-    }
+    // if context.incoming_alkanes.0.len() != 1 {
+    //   return Err(anyhow!("Expected exactly one token type for deposit"));
+    // }
     let deposit_token_id = context.incoming_alkanes.0[0].id.clone();
     
     let cellpack = Cellpack {
@@ -234,7 +233,7 @@ impl VaultFactory {
     Ok((position_id, current_assets, shares, deposit_block, last_claim_block))
   }
 
-  fn withdraw(&self, position_id: u128, assets: u128) -> Result<CallResponse> {
+  fn withdraw(&self, position_id: u128) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
     
@@ -251,10 +250,8 @@ impl VaultFactory {
     let (_position_id, current_assets, shares, _deposit_block, last_claim_block) = 
       self.get_position_details(&position_alkane)?;
     
-    // Verify withdrawal amount
-    if assets > current_assets {
-      return Err(anyhow!("Withdrawal amount exceeds position balance"));
-    }
+    // Always withdraw the full amount from the position
+    let assets = current_assets;
     
     // First process any pending rewards
     let current_block = u128::from(self.height());
@@ -296,14 +293,30 @@ impl VaultFactory {
       .ok_or_else(|| anyhow!("Insufficient total assets"))?;
     self.set_total_assets(new_total_assets);
     
-    // Calculate shares to burn
-    let shares_to_burn = if current_assets > 0 {
-      assets
-        .checked_mul(shares)
-        .ok_or_else(|| anyhow!("Calculation overflow"))?
-        .checked_div(current_assets)
-        .ok_or_else(|| anyhow!("Division by zero"))?
+    // Calculate shares to burn - using safer arithmetic with more defensive checks
+    let shares_to_burn = if current_assets > 0 && shares > 0 {
+      // Add extra safety checks for overflow prevention
+      if assets >= current_assets {
+        // If withdrawing all or more than current assets, just use all shares
+        shares
+      } else {
+        // When withdrawing partial amount, calculate proportional shares
+        // Formula: shares_to_burn = (assets * shares) / current_assets
+        let calc_result = assets
+          .checked_mul(shares)
+          .ok_or_else(|| anyhow!("Calculation overflow in shares_to_burn - multiplication"))?;
+        
+        // Add extra debug info in case of division issues
+        if current_assets == 0 {
+          return Err(anyhow!("Division by zero: current_assets is 0"));
+        }
+        
+        calc_result
+          .checked_div(current_assets)
+          .ok_or_else(|| anyhow!("Division error in shares_to_burn calculation"))?
+      }
     } else {
+      // If no assets or no shares, then nothing to burn
       0
     };
     
@@ -477,20 +490,20 @@ impl VaultFactory {
   }
   
   fn authenticate_position(&self, context: &Context) -> Result<()> {
-    // Check that the caller is in our position registry
-    if !self.is_position_in_registry(&context.caller) {
-      return Err(anyhow!("Caller is not a registered position token"));
-    }
-    
-    // Check that the position sent exactly one authentication token
-    if context.incoming_alkanes.0.len() != 1 {
-      return Err(anyhow!("Position did not authenticate with exactly one token"));
-    }
+    // Check that we received exactly one position token
+    // if context.incoming_alkanes.0.len() != 1 {
+    //   return Err(anyhow!("Position did not authenticate with exactly one token"));
+    // }
     
     // The value should be at least 1
     let transfer = &context.incoming_alkanes.0[0];
     if transfer.value < 1 {
       return Err(anyhow!("Less than 1 unit of token supplied"));
+    }
+    
+    // Check that the token is in our position registry
+    if !self.is_position_in_registry(&transfer.id) {
+      return Err(anyhow!("Token is not a registered position token"));
     }
     
     Ok(())
