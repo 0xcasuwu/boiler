@@ -292,6 +292,8 @@ fn test_deployment() -> Result<()> {
             vout: 3, // The output with the deposit message
         }),
     )?;
+
+    // parse the bytes 
     let deposit_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(deposit_trace_data)?.into();
     println!("Deposit trace result: {:?}", deposit_trace_result);
 

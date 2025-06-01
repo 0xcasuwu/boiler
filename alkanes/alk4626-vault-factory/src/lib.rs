@@ -48,6 +48,10 @@ enum VaultFactoryMessage {
   ClaimRewards {
     position_id: u128,
   },
+  
+  #[opcode(99)]
+  #[returns(u128)]
+  TestPing,
 
   #[opcode(10)]
   #[returns(u128)]
@@ -137,6 +141,7 @@ impl VaultFactory {
     let context = self.context()?;
     let mut response = CallResponse::default();
     
+    // check if deposit token matches expected underlying defined in initialization
     if assets == 0 {
       return Err(anyhow!("Cannot deposit zero assets"));
     }
@@ -152,14 +157,29 @@ impl VaultFactory {
       return Err(anyhow!("Insufficient token value for deposit amount"));
     }
     
-    // Calculate shares based on current exchange rate
-    let shares = self.convert_to_shares_internal(assets)?;
+    // Calculate 5% deposit fee
+    let fee_percentage = self.fee_percentage();
+    let fee_amount = assets
+      .checked_mul(fee_percentage)
+      .unwrap_or(0)
+      .checked_div(10000)
+      .unwrap_or(0);
+    
+    // Amount after fee (what actually gets deposited)
+    let assets_after_fee = assets.checked_sub(fee_amount).unwrap_or(0);
+    
+    // Add fee to collected fees
+    let new_collected_fees = self.collected_fees().checked_add(fee_amount).unwrap_or(self.collected_fees());
+    self.set_collected_fees(new_collected_fees);
+    
+    // Calculate shares based on assets after fee
+    let shares = self.convert_to_shares_internal(assets_after_fee)?;
     if shares == 0 {
       return Err(anyhow!("Deposit would result in zero shares"));
     }
     
-    // Update total assets and shares
-    let new_total_assets = self.total_assets().checked_add(assets)
+    // Update total assets with amount after fee (fee stays in vault)
+    let new_total_assets = self.total_assets().checked_add(assets_after_fee)
       .ok_or_else(|| anyhow!("Total assets overflow"))?;
     self.set_total_assets(new_total_assets);
     
@@ -186,7 +206,7 @@ impl VaultFactory {
         block: 6,
         tx: POSITION_TOKEN_TEMPLATE_ID,
       },
-      inputs: vec![0x0, position_id, assets, shares, current_block, deposit_token_id.block, deposit_token_id.tx],
+      inputs: vec![0x0, position_id, assets_after_fee, shares, current_block, deposit_token_id.block, deposit_token_id.tx],
     };
     
     let create_response = self.call(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
@@ -259,7 +279,7 @@ impl VaultFactory {
     // Calculate rewards based on the staked amount and time period
     let rewards = if current_assets > 0 && last_claim_block < current_block {
       let blocks_elapsed = current_block.checked_sub(last_claim_block).unwrap_or(0);
-      let precision = 1_000_000_000_000u128; // 10^12 precision
+      let precision = 1_000_000u128; // 10^6 precision - FIXED for meaningful rewards
       
       current_assets
         .checked_mul(self.reward_per_block())
@@ -279,9 +299,9 @@ impl VaultFactory {
       .unwrap_or(0)
       .checked_div(10000)
       .unwrap_or(0);
-    
-    // Amount after fee
-    let withdrawal_after_fee = assets.checked_sub(fee_amount).unwrap_or(0);
+
+    // Amount after fee - APPLY WITHDRAWAL FEES
+    let withdrawal_after_fee = assets.checked_sub(fee_amount).unwrap_or(assets);
     
     // Add fee to collected fees
     let new_collected_fees = self.collected_fees().checked_add(fee_amount).unwrap_or(self.collected_fees());
@@ -811,6 +831,18 @@ impl VaultFactory {
   
   fn set_collected_fees(&self, collected_fees: u128) {
     self.store("/collected_fees".as_bytes().to_vec(), collected_fees.to_le_bytes().to_vec());
+  }
+  
+  // Test function to verify if code updates are working
+  fn test_ping(&self) -> Result<CallResponse> {
+    let context = self.context()?;
+    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    
+    // Return 12345 as a unique identifier for this function
+    let ping_value = 12345u128;
+    response.data = ping_value.to_le_bytes().to_vec();
+    
+    Ok(response)
   }
 }
 
