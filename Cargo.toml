@@ -20,8 +20,11 @@ bitcoin = { version = "0.32.4", features = ["rand"] }
 hex = "0.4.3"
 
 [dependencies]
+alkanes-runtime.workspace = true
 bitcoin.workspace = true
 hex_lit = "0.1.1"
+ordinals.workspace = true
+protobuf = "3.7.2"
 
 [dev-dependencies]
 metashrew-core = { git = "https://github.com/sandshrewmetaprotocols/metashrew", features = ["test-utils"] }

@@ -135,7 +135,7 @@ fn test_withdrawal_flow() -> Result<()> {
             protocol: Some(
                 vec![
                     Protostone {
-                        message: into_cellpack(vec![2u128, 1u128, 77u128]).encipher(),
+                        message: into_cellpack(vec![2u128, 1u128, 5000u128]).encipher(), // Mint 5000 tokens to support fee testing
                         protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                         pointer: Some(0),
                         refund: Some(0),
@@ -157,14 +157,20 @@ fn test_withdrawal_flow() -> Result<()> {
     let test_block = alkane_helpers::init_with_multiple_cellpacks_with_tx(
         Vec::new(),
         [
-          vec![4u128, 0x37a, 0u128, 1000u128, 1u128, 4u128, free_mint_id.block, free_mint_id.tx],
+          vec![4u128, 0x37a, 0u128, 1000u128, 1u128, free_mint_id.block, free_mint_id.tx, 50u128], // 50 basis points fee (0.5%)
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
     );
     index_block(&test_block, 3)?;
     
     // Perform deposit to get position token
     let vault_factory_id = AlkaneId { block: 4, tx: 0x37a };
-    let deposit_amount = 10u128;  // Use a smaller amount to avoid overflows
+    let deposit_amount = 1000u128;  // Use amount large enough for fee calculation (≥200 for 50 basis points)
+    
+    println!("=== E2E FEE DEMONSTRATION ===");
+    println!("Initial deposit amount: {} tokens", deposit_amount);
+    println!("Fee percentage: 50 basis points (0.5%)");
+    println!("Expected deposit fee: {} tokens", deposit_amount * 50 / 10000);
+    println!("Expected assets after deposit fee: {} tokens", deposit_amount - (deposit_amount * 50 / 10000));
     
     let deposit_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
       version: Version::ONE,

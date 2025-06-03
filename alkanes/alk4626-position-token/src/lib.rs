@@ -96,7 +96,7 @@ impl Token for PositionToken {
 impl PositionToken {
   fn initialize(&self, position_id: u128, initial_assets: u128, shares: u128, deposit_block: u128, deposit_token_id: AlkaneId) -> Result<CallResponse> {
     let context = self.context()?;
-    let response = CallResponse::forward(&context.incoming_alkanes);
+    let mut response = CallResponse::default();
     
     self.observe_initialization()?;
     
@@ -112,8 +112,8 @@ impl PositionToken {
     self.set_last_claim_block(deposit_block);
     self.set_deposit_token_id(&deposit_token_id)?;
     
-    // Set position token
-    let mut response = response;
+    // NEW CUSTODY ARCHITECTURE: Position token is purely authentication/tracking
+    // Return only the position token, no underlying assets
     response.alkanes.0.push(AlkaneTransfer {
       id: context.myself.clone(),
       value: 1u128,

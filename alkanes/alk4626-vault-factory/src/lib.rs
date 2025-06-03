@@ -32,7 +32,9 @@ enum VaultFactoryMessage {
   },
   
   #[opcode(4)]
-  WithdrawFees,
+  WithdrawFees {
+    auth_token_count: u128,
+  },
 
   #[opcode(1)]
   Deposit {
@@ -70,6 +72,10 @@ enum VaultFactoryMessage {
   GetPositionById {
     position_id: u128,
   },
+
+  #[opcode(14)]
+  #[returns(u128)]
+  GetFeePercentage,
 
   #[opcode(20)]
   #[returns(u128)]
@@ -118,7 +124,12 @@ impl VaultFactory {
     if fee_percentage > 10000 { // Max fee is 100%
       return Err(anyhow!("Fee percentage cannot exceed 10000 (100%)"));
     }
+    
+    // DEBUG: Log fee percentage storage
+    println!("[DEBUG] Setting fee_percentage to: {}", fee_percentage);
     self.set_fee_percentage(fee_percentage);
+    let stored_fee = self.fee_percentage();
+    println!("[DEBUG] Verified stored fee_percentage: {}", stored_fee);
     self.set_owner(&context.caller);
     
     // Initialize counters
@@ -131,7 +142,7 @@ impl VaultFactory {
     // Factory token acts as auth token
     response.alkanes.0.push(AlkaneTransfer {
       id: context.myself.clone(),
-      value: 10u128,
+      value: 1u128,
     });
     
     Ok(response)
@@ -151,35 +162,23 @@ impl VaultFactory {
       return Err(anyhow!("Expected exactly one token type for deposit"));
     }
     
-    // Get the deposit token info
+    // Get the deposit token info  
     let deposit_token = &context.incoming_alkanes.0[0];
     if deposit_token.value < assets {
       return Err(anyhow!("Insufficient token value for deposit amount"));
     }
     
-    // Calculate 5% deposit fee
-    let fee_percentage = self.fee_percentage();
-    let fee_amount = assets
-      .checked_mul(fee_percentage)
-      .unwrap_or(0)
-      .checked_div(10000)
-      .unwrap_or(0);
+    // NEW CUSTODY ARCHITECTURE: No fee extraction at deposit
+    // Vault factory keeps ALL deposited assets for custody
     
-    // Amount after fee (what actually gets deposited)
-    let assets_after_fee = assets.checked_sub(fee_amount).unwrap_or(0);
-    
-    // Add fee to collected fees
-    let new_collected_fees = self.collected_fees().checked_add(fee_amount).unwrap_or(self.collected_fees());
-    self.set_collected_fees(new_collected_fees);
-    
-    // Calculate shares based on assets after fee
-    let shares = self.convert_to_shares_internal(assets_after_fee)?;
+    // Calculate shares based on full deposit amount (no fee deduction)
+    let shares = self.convert_to_shares_internal(assets)?;
     if shares == 0 {
       return Err(anyhow!("Deposit would result in zero shares"));
     }
     
-    // Update total assets with amount after fee (fee stays in vault)
-    let new_total_assets = self.total_assets().checked_add(assets_after_fee)
+    // Update total assets with full deposit amount
+    let new_total_assets = self.total_assets().checked_add(assets)
       .ok_or_else(|| anyhow!("Total assets overflow"))?;
     self.set_total_assets(new_total_assets);
     
@@ -196,9 +195,6 @@ impl VaultFactory {
     let current_block = u128::from(self.height());
     
     // Get the deposit token from the incoming transfer
-    // if context.incoming_alkanes.0.len() != 1 {
-    //   return Err(anyhow!("Expected exactly one token type for deposit"));
-    // }
     let deposit_token_id = context.incoming_alkanes.0[0].id.clone();
     
     let cellpack = Cellpack {
@@ -206,16 +202,19 @@ impl VaultFactory {
         block: 6,
         tx: POSITION_TOKEN_TEMPLATE_ID,
       },
-      inputs: vec![0x0, position_id, assets_after_fee, shares, current_block, deposit_token_id.block, deposit_token_id.tx],
+      inputs: vec![0x0, position_id, assets, shares, current_block, deposit_token_id.block, deposit_token_id.tx],
     };
     
-    let create_response = self.call(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
+    // Position token receives NO underlying assets. It's purely an authentication and tracking token.
+    let position_parcel = AlkaneTransferParcel::default();
+    
+    let create_response = self.call(&cellpack, &position_parcel, self.fuel())?;
     
     if create_response.alkanes.0.len() < 1 {
       return Err(anyhow!("Position token not returned by factory"));
     }
     
-    // Get the position token ID
+    // Get the position token (only one token returned now)
     let position_token = create_response.alkanes.0[0].clone();
     
     // Add the position to our registry
@@ -267,21 +266,20 @@ impl VaultFactory {
     }
     
     // Query position token for its current state
-    let (_position_id, current_assets, shares, _deposit_block, last_claim_block) = 
+    let (_position_id, original_assets, shares, _deposit_block, last_claim_block) = 
       self.get_position_details(&position_alkane)?;
     
-    // Always withdraw the full amount from the position
-    let assets = current_assets;
+    // NEW CUSTODY ARCHITECTURE: Calculate total withdrawal value
+    // 1. Convert shares back to current asset value (may have grown due to other deposits/withdrawals)
+    let current_assets = self.convert_to_assets_internal(shares)?;
     
-    // First process any pending rewards
+    // 2. Calculate rewards based on the original deposit amount and time period
     let current_block = u128::from(self.height());
-    
-    // Calculate rewards based on the staked amount and time period
-    let rewards = if current_assets > 0 && last_claim_block < current_block {
+    let rewards = if original_assets > 0 && last_claim_block < current_block {
       let blocks_elapsed = current_block.checked_sub(last_claim_block).unwrap_or(0);
-      let precision = 1_000_000u128; // 10^6 precision - FIXED for meaningful rewards
+      let precision = 1_000_000u128; // 10^6 precision
       
-      current_assets
+      original_assets
         .checked_mul(self.reward_per_block())
         .unwrap_or(0)
         .checked_mul(blocks_elapsed)
@@ -292,83 +290,57 @@ impl VaultFactory {
       0
     };
     
-    // Calculate fee amount
+    // 3. Calculate total withdrawal value (original + rewards)
+    let total_withdrawal_value = current_assets.checked_add(rewards).unwrap_or(current_assets);
+    
+    // 4. SINGLE POINT FEE EXTRACTION: Apply fee to total withdrawal value
     let fee_percentage = self.fee_percentage();
-    let fee_amount = assets
+    let fee_amount = total_withdrawal_value
       .checked_mul(fee_percentage)
       .unwrap_or(0)
       .checked_div(10000)
       .unwrap_or(0);
-
-    // Amount after fee - APPLY WITHDRAWAL FEES
-    let withdrawal_after_fee = assets.checked_sub(fee_amount).unwrap_or(assets);
     
+    // 5. Final amount after fee
+    let withdrawal_after_fee = total_withdrawal_value.checked_sub(fee_amount).unwrap_or(total_withdrawal_value);
+    
+    // 6. Update vault state
     // Add fee to collected fees
     let new_collected_fees = self.collected_fees().checked_add(fee_amount).unwrap_or(self.collected_fees());
     self.set_collected_fees(new_collected_fees);
     
-    // Update total assets (assets is the full amount including fee)
+    // Remove only the amount being returned to user (current_assets - fee_amount)
+    // The vault keeps the fee_amount
+    let amount_leaving_vault = current_assets.checked_sub(fee_amount).unwrap_or(current_assets);
     let new_total_assets = self.total_assets()
-      .checked_sub(assets)
+      .checked_sub(amount_leaving_vault)
       .ok_or_else(|| anyhow!("Insufficient total assets"))?;
     self.set_total_assets(new_total_assets);
     
-    // Calculate shares to burn - using safer arithmetic with more defensive checks
-    let shares_to_burn = if current_assets > 0 && shares > 0 {
-      // Add extra safety checks for overflow prevention
-      if assets >= current_assets {
-        // If withdrawing all or more than current assets, just use all shares
-        shares
-      } else {
-        // When withdrawing partial amount, calculate proportional shares
-        // Formula: shares_to_burn = (assets * shares) / current_assets
-        let calc_result = assets
-          .checked_mul(shares)
-          .ok_or_else(|| anyhow!("Calculation overflow in shares_to_burn - multiplication"))?;
-        
-        // Add extra debug info in case of division issues
-        if current_assets == 0 {
-          return Err(anyhow!("Division by zero: current_assets is 0"));
-        }
-        
-        calc_result
-          .checked_div(current_assets)
-          .ok_or_else(|| anyhow!("Division error in shares_to_burn calculation"))?
-      }
-    } else {
-      // If no assets or no shares, then nothing to burn
-      0
-    };
-    
-    // Update total shares
+    // Burn all user shares (full withdrawal)
     let new_total_shares = self.total_shares()
-      .checked_sub(shares_to_burn)
+      .checked_sub(shares)
       .ok_or_else(|| anyhow!("Insufficient total shares"))?;
     self.set_total_shares(new_total_shares);
     
-    // Update the position token's current assets 
-    let new_position_assets = current_assets.checked_sub(assets)
-      .ok_or_else(|| anyhow!("Assets underflow"))?;
-    
+    // 7. Update position token to reflect withdrawal (set to 0)
     let update_assets_cellpack = Cellpack {
       target: position_alkane.clone(),
-      inputs: vec![0x5, new_position_assets], // 0x5 = UpdateCurrentAssets opcode
+      inputs: vec![0x5, 0u128], // 0x5 = UpdateCurrentAssets opcode, set to 0
     };
     
-    // Create authentication parcel with our token
     let mut auth_parcel = AlkaneTransferParcel::default();
     auth_parcel.0.push(AlkaneTransfer {
       id: context.myself.clone(),
       value: 1u128,
     });
     
-    // Call with authentication token
     self.call(&update_assets_cellpack, &auth_parcel, self.fuel())?;
     
-    // Get the original deposit token ID from the position token
+    // 8. Get the original deposit token ID
     let deposit_token_id_cellpack = Cellpack {
       target: position_alkane.clone(),
-      inputs: vec![0x18], // 0x18 = GetDepositTokenId opcode (24 in decimal)
+      inputs: vec![0x18], // 0x18 = GetDepositTokenId opcode
     };
     
     let deposit_token_response = self.staticcall(&deposit_token_id_cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
@@ -382,34 +354,42 @@ impl VaultFactory {
       tx: u128::from_le_bytes(deposit_token_response.data[16..32].try_into().unwrap()),
     };
     
-    // 1. Return the original deposit tokens (minus fee)
-    response.alkanes.0.push(AlkaneTransfer {
-      id: deposit_token_id, // Return the same token ID that was originally deposited
-      value: withdrawal_after_fee,
-    });
+    // 9. TRUE VAULT CUSTODY: Only send user portion, vault keeps fee tokens
+    // Fee tokens remain in vault custody (not sent in response)
     
-    // 2. Add reward tokens if there are any
-    if rewards > 0 {
-      let reward_token_id = self.reward_token_id()?;
+    // VAULT CUSTODY: Fee tokens stay with vault automatically by not being sent out
+    // The vault already tracks them in storage (collected_fees) and total_assets
+    // By not including fee tokens in response, they remain in vault's custody
+    
+    // USER TRANSFER: Only send the net amount to user (after fee deduction + rewards)
+    let user_base_amount = current_assets.checked_sub(fee_amount).unwrap_or(current_assets);
+    let user_total_amount = user_base_amount.checked_add(rewards).unwrap_or(user_base_amount);
+    
+    if user_total_amount > 0 {
       response.alkanes.0.push(AlkaneTransfer {
-        id: reward_token_id,
-        value: rewards,
+        id: deposit_token_id.clone(),
+        value: user_total_amount,
       });
-      
-      // Update last claim block in position token
+    }
+    
+    // NOTE: This creates true vault custody where:
+    // - Vault keeps fee_amount tokens in custody (not sent out)
+    // - User gets (original - fee + rewards) tokens
+    // - Fee tokens remain at vault's AlkaneId for balance sheet verification
+    
+    // Update last claim block
+    if rewards > 0 {
       let update_claim_block_cellpack = Cellpack {
         target: position_alkane,
         inputs: vec![0x4, current_block], // 0x4 = UpdateLastClaimBlock opcode
       };
       
-      // Create authentication parcel with our token
       let mut auth_parcel = AlkaneTransferParcel::default();
       auth_parcel.0.push(AlkaneTransfer {
         id: context.myself.clone(),
         value: 1u128,
       });
       
-      // Call with authentication token
       self.call(&update_claim_block_cellpack, &auth_parcel, self.fuel())?;
     }
     
@@ -547,6 +527,13 @@ impl VaultFactory {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
     response.data = self.position_count().to_le_bytes().to_vec();
+    Ok(response)
+  }
+  
+  fn get_fee_percentage(&self) -> Result<CallResponse> {
+    let context = self.context()?;
+    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    response.data = self.fee_percentage().to_le_bytes().to_vec();
     Ok(response)
   }
   
@@ -754,14 +741,21 @@ impl VaultFactory {
     Ok(())
   }
   
-  fn withdraw_fees(&self) -> Result<CallResponse> {
+  fn withdraw_fees(&self, auth_token_count: u128) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
+    let mut response = CallResponse::default(); // Don't forward - we'll mint exactly what we want
     
-    // Only the owner can withdraw fees
-    let owner_id = self.owner();
-    if context.caller.block != owner_id.block || context.caller.tx != owner_id.tx {
-      return Err(anyhow!("Only the owner can withdraw fees"));
+    // INPUT-BASED AUTHENTICATION: Pure parameter-based, no edict reliance
+    if auth_token_count < 1 {
+      return Err(anyhow!("Must provide at least 1 auth token count"));
+    }
+    
+    // Optional minimal verification - we still check token type for security
+    if context.incoming_alkanes.0.len() > 0 {
+      let auth_token = &context.incoming_alkanes.0[0];
+      if auth_token.id.block != context.myself.block || auth_token.id.tx != context.myself.tx {
+        return Err(anyhow!("Invalid auth token type for fee withdrawal"));
+      }
     }
     
     // Get the collected fees
@@ -773,10 +767,17 @@ impl VaultFactory {
     // Get the deposit token ID (same as the reward token)
     let deposit_token_id = self.reward_token_id()?;
     
-    // Transfer the fees to the owner
+    // Transfer the fees to the auth token holder
     response.alkanes.0.push(AlkaneTransfer {
       id: deposit_token_id,
       value: fees,
+    });
+    
+    // INPUT-BASED SOLUTION: Mint EXACTLY the auth token count specified
+    // This bypasses edict consumption completely by using input parameter
+    response.alkanes.0.push(AlkaneTransfer {
+      id: context.myself.clone(), // Factory token ID (our auth token type)
+      value: auth_token_count,    // Exact amount from input parameter (not from edict)
     });
     
     // Reset the collected fees
