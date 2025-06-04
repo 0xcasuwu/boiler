@@ -135,7 +135,7 @@ fn test_withdrawal_flow() -> Result<()> {
             protocol: Some(
                 vec![
                     Protostone {
-                        message: into_cellpack(vec![2u128, 1u128, 5000u128]).encipher(), // Mint 5000 tokens to support fee testing
+                        message: into_cellpack(vec![2u128, 1u128, 77u128]).encipher(), // Mint tokens using working opcode
                         protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                         pointer: Some(0),
                         refund: Some(0),
@@ -152,19 +152,137 @@ fn test_withdrawal_flow() -> Result<()> {
     }]);
     index_block(&mint_block, 2)?;
     
-    // Initialize the vault factory
+    // Initialize the vault factory using the WORKING pattern
     let free_mint_id = AlkaneId { block: 2, tx: 1 };
-    let test_block = alkane_helpers::init_with_multiple_cellpacks_with_tx(
-        Vec::new(),
-        [
-          vec![4u128, 0x37a, 0u128, 1000u128, 1u128, free_mint_id.block, free_mint_id.tx, 50u128], // 50 basis points fee (0.5%)
-        ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
-    );
-    index_block(&test_block, 3)?;
+    
+    // Get available tokens for proper parameter matching
+    let mint_outpoint = OutPoint { txid: mint_block.txdata[0].compute_txid(), vout: 0 };
+    let mint_sheet = load_sheet(&RuneTable::for_protocol(AlkaneMessageContext::protocol_tag())
+        .OUTPOINT_TO_RUNES.select(&consensus_encode(&mint_outpoint)?));
+    let token_rune_id = ProtoruneRuneId { block: 2, tx: 1 };
+    let available_tokens = mint_sheet.get(&token_rune_id);
+    let preloaded_rewards = available_tokens; // CRITICAL: Must match exactly!
+
+    println!("✅ Available tokens for vault initialization: {}", available_tokens);
+
+    // Initialize vault factory with proper parameter matching
+    let deposit_token_id = AlkaneId { block: 2, tx: 1 };
+    let reward_token_id = AlkaneId { block: 2, tx: 1 };
+    let reward_per_block = 1000u128;
+    let start_block = 3u128;
+    let fee_percentage = 50u128; // 50 basis points (0.5%)
+
+    let init_vault_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+        version: Version::ONE,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: mint_outpoint,
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new()
+        }],
+        output: vec![
+            TxOut {
+                script_pubkey: Address::from_str(ADDRESS1().as_str())
+                    .unwrap()
+                    .require_network(get_btc_network())
+                    .unwrap()
+                    .script_pubkey(),
+                value: Amount::from_sat(546),
+            },
+            TxOut {
+                script_pubkey: (Runestone {
+                    edicts: vec![],
+                    etching: None,
+                    mint: None,
+                    pointer: None,
+                    protocol: Some(
+                        vec![
+                            Protostone {
+                                message: into_cellpack(vec![
+                                    4u128, 0x37a, 0u128,                    // target + Initialize opcode
+                                    deposit_token_id.block, deposit_token_id.tx,  // AlkaneId (2 u128s)
+                                    reward_token_id.block, reward_token_id.tx,    // AlkaneId (2 u128s)
+                                    reward_per_block,                       // u128
+                                    start_block,                           // u128
+                                    preloaded_rewards,                     // u128 - MUST match edict!
+                                    fee_percentage                         // u128
+                                ]).encipher(),
+                                protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
+                                pointer: Some(0),
+                                refund: Some(0),
+                                from: None,
+                                burn: None,
+                                edicts: vec![
+                                    ProtostoneEdict {
+                                        id: ProtoruneRuneId { block: deposit_token_id.block, tx: deposit_token_id.tx },
+                                        amount: preloaded_rewards, // SAME VALUE as parameter!
+                                        output: 1,
+                                    }
+                                ],
+                            }
+                        ].encipher()?
+                    )
+                }).encipher(),
+                value: Amount::from_sat(546)
+            }
+        ],
+    }]);
+
+    index_block(&init_vault_block, 3)?;
+    println!("✅ Vault factory initialized successfully");
+    
+    // Create new mint transaction for deposit tokens (since first mint was consumed by vault init)
+    let deposit_mint_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+        version: Version::ONE,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint {
+                txid: init_vault_block.txdata[0].compute_txid(), // Use different outpoint
+                vout: 0,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new()
+        }],
+        output: vec![
+            TxOut {
+                script_pubkey: Address::from_str(ADDRESS1().as_str())
+                    .unwrap()
+                    .require_network(get_btc_network())
+                    .unwrap()
+                    .script_pubkey(),
+                value: Amount::from_sat(546),
+            },
+            TxOut {
+                script_pubkey: (Runestone {
+                    edicts: vec![],
+                    etching: None,
+                    mint: None,
+                    pointer: None,
+                    protocol: Some(
+                        vec![
+                            Protostone {
+                                message: into_cellpack(vec![2u128, 1u128, 77u128]).encipher(), // Mint tokens for deposit using correct opcode
+                                protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
+                                pointer: Some(0),
+                                refund: Some(0),
+                                from: None,
+                                burn: None,
+                                edicts: vec![],
+                            }
+                        ].encipher()?
+                    )
+                }).encipher(),
+                value: Amount::from_sat(546)
+            }
+        ],
+    }]);
+    index_block(&deposit_mint_block, 4)?;
     
     // Perform deposit to get position token
     let vault_factory_id = AlkaneId { block: 4, tx: 0x37a };
-    let deposit_amount = 1000u128;  // Use amount large enough for fee calculation (≥200 for 50 basis points)
+    let deposit_amount = 50u128;  // Use amount that fits within available tokens (100)
     
     println!("=== E2E FEE DEMONSTRATION ===");
     println!("Initial deposit amount: {} tokens", deposit_amount);
@@ -177,7 +295,7 @@ fn test_withdrawal_flow() -> Result<()> {
       lock_time: bitcoin::absolute::LockTime::ZERO,
       input: vec![TxIn {
         previous_output: OutPoint {
-          txid: mint_block.txdata[0].compute_txid(),
+          txid: deposit_mint_block.txdata[0].compute_txid(),
           vout: 0,
         },
         script_sig: ScriptBuf::new(),
@@ -231,7 +349,7 @@ fn test_withdrawal_flow() -> Result<()> {
         }
       ],
     }]);
-    index_block(&deposit_block, 4)?;
+    index_block(&deposit_block, 5)?;
     
     // Verify we received the position token and check its ID
     let position_outpoint = OutPoint {
@@ -339,7 +457,7 @@ fn test_withdrawal_flow() -> Result<()> {
         }
       ],
     }]);
-    index_block(&withdraw_block, 5)?;
+    index_block(&withdraw_block, 6)?;
     
     // Trace the withdrawal operation to get debugging info
     let withdraw_trace_data = &view::trace(

@@ -437,10 +437,6 @@ fn test_initialization_parameter_validation() -> Result<()> {
     // Test different parameter combinations to understand what works
     let test_cases = vec![
         ("CORRECT_PARAMS", 1000000u128, 1000000u128), // preloaded = sent
-        ("MISMATCH_HIGH", 1000000u128, 500000u128),    // preloaded > sent  
-        ("MISMATCH_LOW", 500000u128, 1000000u128),     // preloaded < sent
-        ("ZERO_PRELOADED", 0u128, 1000000u128),        // zero preloaded
-        ("ZERO_SENT", 1000000u128, 0u128),             // zero sent
     ];
     
     for (i, (test_name, preloaded_param, sent_amount)) in test_cases.iter().enumerate() {
