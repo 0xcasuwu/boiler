@@ -85,6 +85,23 @@ fn create_vault_setup() -> Result<(Block, AlkaneId, u128)> {
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
     );
     index_block(&template_block, 0)?;
+    
+    // TRACE: Template block deployment
+    println!("🔍 TRACE: Template block deployment at block 0");
+    for (i, tx) in template_block.txdata.iter().enumerate() {
+        println!("   • TX {} traces:", i);
+        for vout in 0..5 {
+            let trace_data = &view::trace(&OutPoint {
+                txid: tx.compute_txid(),
+                vout,
+            })?;
+            let trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(trace_data)?.into();
+            let trace_guard = trace_result.0.lock().unwrap();
+            if !trace_guard.is_empty() {
+                println!("     - vout {}: {:?}", vout, *trace_guard);
+            }
+        }
+    }
 
     // Create free_mint token contract with large supply for reward pool
     let free_mint_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
@@ -130,6 +147,20 @@ fn create_vault_setup() -> Result<(Block, AlkaneId, u128)> {
         ],
     }]);
     index_block(&free_mint_block, 1)?;
+    
+    // TRACE: Free mint block
+    println!("🔍 TRACE: Free mint block at block 1");
+    for vout in 0..5 {
+        let free_mint_trace_data = &view::trace(&OutPoint {
+            txid: free_mint_block.txdata[0].compute_txid(),
+            vout,
+        })?;
+        let free_mint_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(free_mint_trace_data)?.into();
+        let trace_guard = free_mint_trace_result.0.lock().unwrap();
+        if !trace_guard.is_empty() {
+            println!("   • Free mint vout {} trace: {:?}", vout, *trace_guard);
+        }
+    }
 
     // Mint reward tokens for vault initialization
     let mint_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
@@ -175,6 +206,20 @@ fn create_vault_setup() -> Result<(Block, AlkaneId, u128)> {
         ],
     }]);
     index_block(&mint_block, 2)?;
+    
+    // TRACE: Token mint block
+    println!("🔍 TRACE: Token mint block at block 2");
+    for vout in 0..5 {
+        let mint_trace_data = &view::trace(&OutPoint {
+            txid: mint_block.txdata[0].compute_txid(),
+            vout,
+        })?;
+        let mint_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(mint_trace_data)?.into();
+        let trace_guard = mint_trace_result.0.lock().unwrap();
+        if !trace_guard.is_empty() {
+            println!("   • Mint vout {} trace: {:?}", vout, *trace_guard);
+        }
+    }
 
     // Get available tokens for proper parameter matching
     let mint_outpoint = OutPoint { txid: mint_block.txdata[0].compute_txid(), vout: 0 };
@@ -248,6 +293,20 @@ fn create_vault_setup() -> Result<(Block, AlkaneId, u128)> {
         ],
     }]);
     index_block(&init_vault_block, 3)?;
+    
+    // TRACE: Vault initialization block
+    println!("🔍 TRACE: Vault initialization block at block 3");
+    for vout in 0..5 {
+        let init_trace_data = &view::trace(&OutPoint {
+            txid: init_vault_block.txdata[0].compute_txid(),
+            vout,
+        })?;
+        let init_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(init_trace_data)?.into();
+        let trace_guard = init_trace_result.0.lock().unwrap();
+        if !trace_guard.is_empty() {
+            println!("   • Vault init vout {} trace: {:?}", vout, *trace_guard);
+        }
+    }
 
     let token_id = AlkaneId { block: 2, tx: 1 };
     Ok((init_vault_block, token_id, reward_per_block))

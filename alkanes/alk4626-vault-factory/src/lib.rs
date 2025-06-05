@@ -203,6 +203,32 @@ impl VaultFactory {
                         deposit_token.id.block, deposit_token.id.tx));
     }
     
+    // NEW: REWARD POOL EXHAUSTION CHECK
+    // Check if reward pool has sufficient rewards to support this deposit
+    let remaining_rewards = self.remaining_rewards();
+    let current_block = u128::from(self.height());
+    let start_block = self.start_block();
+    
+    if remaining_rewards == 0 {
+      return Err(anyhow!("Reward pool exhausted - no rewards available for new deposits"));
+    }
+    
+    // Estimate minimum rewards needed for this deposit
+    // Conservative estimate: assume deposit will earn rewards for at least 10 blocks
+    let minimum_blocks = 10u128;
+    let estimated_rewards_needed = assets
+      .checked_mul(self.reward_per_block())
+      .unwrap_or(0)
+      .checked_mul(minimum_blocks)
+      .unwrap_or(0)
+      .checked_div(1_000_000u128) // Apply precision adjustment
+      .unwrap_or(0);
+    
+    if remaining_rewards < estimated_rewards_needed {
+      return Err(anyhow!("Insufficient reward pool - remaining: {}, estimated needed: {} (for {} assets over {} blocks)", 
+                        remaining_rewards, estimated_rewards_needed, assets, minimum_blocks));
+    }
+    
     // NEW CUSTODY ARCHITECTURE: No fee extraction at deposit
     // Vault factory keeps ALL deposited assets for custody
     

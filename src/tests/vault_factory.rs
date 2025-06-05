@@ -89,6 +89,20 @@ fn create_basic_token_setup() -> Result<(Block, Block, AlkaneId)> {
     }]);
     index_block(&free_mint_block, 1)?;
     
+    // TRACE: Free mint block
+    println!("🔍 TRACE: Free mint block at block 1");
+    for vout in 0..5 {
+        let free_mint_trace_data = &view::trace(&OutPoint {
+            txid: free_mint_block.txdata[0].compute_txid(),
+            vout,
+        })?;
+        let free_mint_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(free_mint_trace_data)?.into();
+        let trace_guard = free_mint_trace_result.0.lock().unwrap();
+        if !trace_guard.is_empty() {
+            println!("   • Free mint vout {} trace: {:?}", vout, *trace_guard);
+        }
+    }
+    
     // Mint tokens
     let mint_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
       version: Version::ONE,
@@ -134,6 +148,20 @@ fn create_basic_token_setup() -> Result<(Block, Block, AlkaneId)> {
     }]);
     index_block(&mint_block, 2)?;
     
+    // TRACE: Token mint block
+    println!("🔍 TRACE: Token mint block at block 2");
+    for vout in 0..5 {
+        let mint_trace_data = &view::trace(&OutPoint {
+            txid: mint_block.txdata[0].compute_txid(),
+            vout,
+        })?;
+        let mint_trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(mint_trace_data)?.into();
+        let trace_guard = mint_trace_result.0.lock().unwrap();
+        if !trace_guard.is_empty() {
+            println!("   • Mint vout {} trace: {:?}", vout, *trace_guard);
+        }
+    }
+    
     let free_mint_id = AlkaneId { block: 2, tx: 1 };
     Ok((free_mint_block, mint_block, free_mint_id))
 }
@@ -156,6 +184,23 @@ fn test_step_by_step_initialization() -> Result<()> {
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
     );
     index_block(&template_block, 0)?;
+    
+    // TRACE: Template block deployment
+    println!("🔍 TRACE: Template block deployment at block 0");
+    for (i, tx) in template_block.txdata.iter().enumerate() {
+        println!("   • TX {} traces:", i);
+        for vout in 0..5 {
+            let trace_data = &view::trace(&OutPoint {
+                txid: tx.compute_txid(),
+                vout,
+            })?;
+            let trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(trace_data)?.into();
+            let trace_guard = trace_result.0.lock().unwrap();
+            if !trace_guard.is_empty() {
+                println!("     - vout {}: {:?}", vout, *trace_guard);
+            }
+        }
+    }
     
     // STEP 1: Create and initialize one token contract
     let (_free_mint_block, mint_block, free_mint_id) = create_basic_token_setup()?;
