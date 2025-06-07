@@ -44,18 +44,8 @@ enum VaultFactoryMessage {
   },
 
   #[opcode(2)]
-  Withdraw {
-    position_id: u128,
-  },
-  
-  #[opcode(3)]
-  ClaimRewards {
-    position_id: u128,
-  },
-  
-  #[opcode(99)]
-  #[returns(u128)]
-  TestPing,
+  Withdraw,
+
 
   #[opcode(10)]
   #[returns(u128)]
@@ -129,14 +119,11 @@ impl VaultFactory {
     
     // CRITICAL: Validate that reward tokens were actually sent to vault
     let mut reward_tokens_received = 0u128;
-    let mut auth_tokens_to_return = Vec::new();
+    let mut _auth_tokens_to_return: Vec<AlkaneTransfer> = Vec::new();
     
     for transfer in &context.incoming_alkanes.0 {
       if transfer.id.block == reward_token_id.block && transfer.id.tx == reward_token_id.tx {
         reward_tokens_received += transfer.value;
-      } else {
-        // Return non-reward tokens to user (like auth tokens, etc.)
-        auth_tokens_to_return.push(transfer.clone());
       }
     }
     
@@ -182,17 +169,9 @@ impl VaultFactory {
     if assets == 0 {
       return Err(anyhow!("Cannot deposit zero assets"));
     }
-    
-    // Verify that exactly one deposit token is provided
-    // if context.incoming_alkanes.0.len() != 1 {
-    //   return Err(anyhow!("Expected exactly one token type for deposit"));
-    // }
-    
-    // Get the deposit token info  
+
+    // Get the deposit token info first
     let deposit_token = &context.incoming_alkanes.0[0];
-    if deposit_token.value < assets {
-      return Err(anyhow!("Insufficient token value for deposit amount"));
-    }
     
     // CRITICAL: Validate that the deposit token matches the expected deposit_token_id
     let expected_deposit_token_id = self.deposit_token_id()?;
@@ -201,6 +180,9 @@ impl VaultFactory {
       return Err(anyhow!("Invalid deposit token - expected AlkaneId {{ block: {}, tx: {} }}, got AlkaneId {{ block: {}, tx: {} }}", 
                         expected_deposit_token_id.block, expected_deposit_token_id.tx,
                         deposit_token.id.block, deposit_token.id.tx));
+    }
+    if deposit_token.value < assets {
+      return Err(anyhow!("Insufficient token value for deposit amount"));
     }
     
     // NEW: REWARD POOL EXHAUSTION CHECK
@@ -229,7 +211,6 @@ impl VaultFactory {
                         remaining_rewards, estimated_rewards_needed, assets, minimum_blocks));
     }
     
-    // NEW CUSTODY ARCHITECTURE: No fee extraction at deposit
     // Vault factory keeps ALL deposited assets for custody
     
     // Calculate shares based on full deposit amount (no fee deduction)
@@ -254,6 +235,7 @@ impl VaultFactory {
     
     // Get current block height for position creation
     let current_block = u128::from(self.height());
+    let _start_block = self.start_block();
     
     // Get the deposit token from the incoming transfer
     let deposit_token_id = context.incoming_alkanes.0[0].id.clone();
@@ -313,22 +295,20 @@ impl VaultFactory {
     Ok((position_id, current_assets, shares, deposit_block, last_claim_block))
   }
 
-  fn withdraw(&self, position_id: u128) -> Result<CallResponse> {
+  fn withdraw(&self) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::default(); // CRITICAL FIX: Don't forward position token - consume it!
     
     // Verify the caller is a valid position token
     self.authenticate_position(&context)?;
     
-    // Verify position_id exists
-    let position_alkane = self.find_position_by_id(position_id)?;
-    if position_alkane.block == 0 && position_alkane.tx == 0 {
-      return Err(anyhow!("Position not found"));
-    }
+    // Get the position token from context - this IS the authentication
+    let position_token = &context.incoming_alkanes.0[0];
+    let position_alkane = &position_token.id;
     
     // Query position token for its current state
     let (_position_id, original_assets, shares, _deposit_block, last_claim_block) = 
-      self.get_position_details(&position_alkane)?;
+      self.get_position_details(position_alkane)?;
     
     // NEW CUSTODY ARCHITECTURE: Calculate total withdrawal value
     // 1. Convert shares back to current asset value (may have grown due to other deposits/withdrawals)
@@ -371,9 +351,6 @@ impl VaultFactory {
       
       self.set_distributed_rewards(new_distributed_rewards);
       self.set_remaining_rewards(new_remaining_rewards);
-      
-      println!("Distributed {} rewards. Pool status: {} distributed, {} remaining", 
-               rewards, new_distributed_rewards, new_remaining_rewards);
     }
     
     // 3. Calculate total withdrawal value (original + rewards)
@@ -443,9 +420,6 @@ impl VaultFactory {
     // 9. TRUE VAULT CUSTODY: Only send user portion, vault keeps fee tokens
     // Fee tokens remain in vault custody (not sent in response)
     
-    // VAULT CUSTODY: Fee tokens stay with vault automatically by not being sent out
-    // The vault already tracks them in storage (collected_fees) and total_assets
-    // By not including fee tokens in response, they remain in vault's custody
     
     // USER TRANSFER: Only send the net amount to user (after fee deduction + rewards)
     let user_base_amount = current_assets.checked_sub(fee_amount).unwrap_or(current_assets);
@@ -458,15 +432,12 @@ impl VaultFactory {
       });
     }
     
-    // NOTE: This creates true vault custody where:
-    // - Vault keeps fee_amount tokens in custody (not sent out)
-    // - User gets (original - fee + rewards) tokens
-    // - Fee tokens remain at vault's AlkaneId for balance sheet verification
-    
+
+    // Fee tokens remain at vault's AlkaneId for balance sheet verification
     // Update last claim block
     if rewards > 0 {
       let update_claim_block_cellpack = Cellpack {
-        target: position_alkane,
+        target: position_alkane.clone(),
         inputs: vec![0x4, current_block], // 0x4 = UpdateLastClaimBlock opcode
       };
       
@@ -480,99 +451,6 @@ impl VaultFactory {
     }
     
     Ok(response)
-  }
-  
-  fn claim_rewards(&self, position_id: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    // Verify the caller is a valid position token
-    self.authenticate_position(&context)?;
-    
-    // Verify position_id exists
-    let position_alkane = self.find_position_by_id(position_id)?;
-    if position_alkane.block == 0 && position_alkane.tx == 0 {
-      return Err(anyhow!("Position not found"));
-    }
-    
-    // 1. Get position details (deposit_block, amount, last_claim_block)
-    let (_position_id, current_assets, _shares, _deposit_block, last_claim_block) = 
-      self.get_position_details(&position_alkane)?;
-    
-    // 2. Calculate rewards from last_claim_block to current block
-    let current_block = u128::from(self.height());
-    
-    // Calculate rewards based on the staked amount and time period - simplified calculation
-    let rewards = if current_assets > 0 && last_claim_block < current_block {
-      // Simple formula: amount * reward_per_block * blocks_elapsed / precision
-      let blocks_elapsed = current_block.checked_sub(last_claim_block).unwrap_or(0);
-      let precision = 1_000_000_000_000u128; // 10^12 precision
-      
-      current_assets
-        .checked_mul(self.reward_per_block())
-        .unwrap_or(0)
-        .checked_mul(blocks_elapsed)
-        .unwrap_or(0)
-        .checked_div(precision)
-        .unwrap_or(0)
-    } else {
-      0
-    };
-    
-    if rewards == 0 {
-      return Err(anyhow!("No rewards to claim"));
-    }
-    
-    // 3. Transfer rewards to the user (the position token)
-    // Use the reward token ID that was set during initialization
-    let reward_token_id = self.reward_token_id()?;
-    response.alkanes.0.push(AlkaneTransfer {
-      id: reward_token_id, // ID of the reward token being transferred, not the caller
-      value: rewards,
-    });
-    
-  // 4. Call back to position token to update its last claim block
-  // This ensures only the factory can update this critical state
-  let update_claim_block_cellpack = Cellpack {
-    target: position_alkane,
-    inputs: vec![0x4, current_block], // 0x4 = UpdateLastClaimBlock opcode
-  };
-  
-  // Create authentication parcel with our token
-  let mut auth_parcel = AlkaneTransferParcel::default();
-  auth_parcel.0.push(AlkaneTransfer {
-    id: context.myself.clone(), // Send our factory token as authentication
-    value: 1u128,
-  });
-  
-  // Call with authentication token
-  self.call(&update_claim_block_cellpack, &auth_parcel, self.fuel())?;
-    
-    Ok(response)
-  }
-  
-  // Check if a given AlkaneId is in our position registry
-  fn is_position_in_registry(&self, position_id: &AlkaneId) -> bool {
-    let position_count = self.position_count();
-    
-    // Iterate through all registered positions to find a match
-    for i in 0..position_count {
-      let id_bytes = i.to_le_bytes().to_vec();
-      let bytes = self.load_position_by_id(&id_bytes);
-      
-      if bytes.len() >= 32 {
-        let stored_id = AlkaneId {
-          block: u128::from_le_bytes(bytes[0..16].try_into().unwrap_or([0; 16])),
-          tx: u128::from_le_bytes(bytes[16..32].try_into().unwrap_or([0; 16])),
-        };
-        
-        if stored_id.block == position_id.block && stored_id.tx == position_id.tx {
-          return true;
-        }
-      }
-    }
-    
-    false
   }
   
   fn authenticate_position(&self, context: &Context) -> Result<()> {
@@ -662,6 +540,29 @@ impl VaultFactory {
     self.store_position_by_id(&position_id_bytes, bytes);
     
     Ok(())
+  }
+  
+  fn is_position_in_registry(&self, position_id: &AlkaneId) -> bool {
+    // Check all stored positions to see if this ID exists
+    let position_count = self.position_count();
+    
+    for i in 0..position_count {
+      let position_id_bytes = i.to_le_bytes().to_vec();
+      let stored_bytes = self.load_position_by_id(&position_id_bytes);
+      
+      if stored_bytes.len() >= 32 {
+        let stored_id = AlkaneId {
+          block: u128::from_le_bytes(stored_bytes[0..16].try_into().unwrap_or([0; 16])),
+          tx: u128::from_le_bytes(stored_bytes[16..32].try_into().unwrap_or([0; 16])),
+        };
+        
+        if stored_id.block == position_id.block && stored_id.tx == position_id.tx {
+          return true;
+        }
+      }
+    }
+    
+    false
   }
   
   fn calculate_rewards(&self, amount: u128, from_block: u128, to_block: u128) -> Result<CallResponse> {
