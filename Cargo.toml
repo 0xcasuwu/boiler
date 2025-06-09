@@ -19,6 +19,9 @@ anyhow = "1.0.94"
 bitcoin = { version = "0.32.4", features = ["rand"] }
 hex = "0.4.3"
 
+[features]
+debug-log = ["alkanes/debug-log"]
+
 [dependencies]
 alkanes-runtime.workspace = true
 bitcoin.workspace = true
