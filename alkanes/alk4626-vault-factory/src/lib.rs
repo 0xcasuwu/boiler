@@ -868,18 +868,6 @@ impl VaultFactory {
   fn set_remaining_rewards(&self, remaining_rewards: u128) {
     self.store("/remaining_rewards".as_bytes().to_vec(), remaining_rewards.to_le_bytes().to_vec());
   }
-  
-  // Test function to verify if code updates are working
-  fn test_ping(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    // Return 12345 as a unique identifier for this function
-    let ping_value = 12345u128;
-    response.data = ping_value.to_le_bytes().to_vec();
-    
-    Ok(response)
-  }
 }
 
 declare_alkane! {
