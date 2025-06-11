@@ -402,7 +402,7 @@ impl VaultFactory {
       }
       Err(e) => {
         // Even registered children should respond properly
-        Err(anyhow!("Registered position token failed to provide details: {}", e))
+  ```````````````````      Err(anyhow!("Registered position token failed to provide details: {}", e))
       }
     }
   }
