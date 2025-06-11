@@ -27,16 +27,6 @@ enum PositionTokenMessage {
     deposit_block: u128,
     deposit_token_id: AlkaneId,
   },
-  
-  #[opcode(4)]
-  UpdateLastClaimBlock {
-    new_block: u128,
-  },
-
-  #[opcode(5)]
-  UpdateCurrentAssets {
-    new_amount: u128,
-  },
 
   #[opcode(10)]
   #[returns(u128)]
@@ -333,57 +323,15 @@ impl PositionToken {
     }
   }
   
-  fn update_current_assets(&self, new_amount: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let response = CallResponse::forward(&context.incoming_alkanes);
-    
-    // Only the vault factory can update the current assets
-    let vault_id = self.vault_ref();
-    
-    if context.incoming_alkanes.0.len() != 1 {
-      return Err(anyhow!("Did not authenticate with only the vault factory token"));
-    }
-    
-    let transfer = context.incoming_alkanes.0[0].clone();
-    if transfer.id != vault_id {
-      return Err(anyhow!("Supplied alkane is not the vault factory token"));
-    }
-    
-    if transfer.value < 1 {
-      return Err(anyhow!("Less than 1 unit of vault factory token supplied"));
-    }
-    
-    // Update the current assets
+  // INTERNAL-ONLY FUNCTIONS: These are no longer accessible via external opcodes
+  // Only the vault factory can call these through internal function calls
+  
+  pub fn update_current_assets(&self, new_amount: u128) {
     self.set_current_assets(new_amount);
-    
-    Ok(response)
   }
   
-  fn update_last_claim_block(&self, new_block: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let response = CallResponse::forward(&context.incoming_alkanes);
-    
-    // Only the vault factory can update the last claim block
-    // Authentication by vault token, not by caller address
-    let vault_id = self.vault_ref();
-    
-    if context.incoming_alkanes.0.len() != 1 {
-      return Err(anyhow!("Did not authenticate with only the vault factory token"));
-    }
-    
-    let transfer = context.incoming_alkanes.0[0].clone();
-    if transfer.id != vault_id {
-      return Err(anyhow!("Supplied alkane is not the vault factory token"));
-    }
-    
-    if transfer.value < 1 {
-      return Err(anyhow!("Less than 1 unit of vault factory token supplied"));
-    }
-    
-    // Update the last claim block
+  pub fn update_last_claim_block(&self, new_block: u128) {
     self.set_last_claim_block(new_block);
-    
-    Ok(response)
   }
   
   fn get_all_details(&self) -> Result<CallResponse> {

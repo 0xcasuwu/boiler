@@ -30,13 +30,8 @@ enum VaultFactoryMessage {
     reward_per_block: u128,        // Emission rate per block
     start_block: u128,             // When rewards begin
     preloaded_rewards: u128,       // Total reward pool loaded at init
-    fee_percentage: u128,          // Fee in basis points
   },
   
-  #[opcode(4)]
-  WithdrawFees {
-    auth_token_count: u128,
-  },
 
   #[opcode(1)]
   Deposit {
@@ -55,19 +50,7 @@ enum VaultFactoryMessage {
   #[returns(u128)]
   GetTotalShares,
 
-  #[opcode(12)]
-  #[returns(u128)]
-  GetPositionCount,
 
-  #[opcode(13)]
-  #[returns(AlkaneId)]
-  GetPositionById {
-    position_id: u128,
-  },
-
-  #[opcode(14)]
-  #[returns(u128)]
-  GetFeePercentage,
 
   #[opcode(20)]
   #[returns(u128)]
@@ -101,16 +84,11 @@ impl Token for VaultFactory {
 }
 
 impl VaultFactory {
-  fn initialize(&self, deposit_token_id: AlkaneId, reward_token_id: AlkaneId, reward_per_block: u128, start_block: u128, preloaded_rewards: u128, fee_percentage: u128) -> Result<CallResponse> {
+  fn initialize(&self, deposit_token_id: AlkaneId, reward_token_id: AlkaneId, reward_per_block: u128, start_block: u128, preloaded_rewards: u128) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::default(); // Don't forward all tokens - process selectively
     
     self.observe_initialization()?;
-    
-    // Validate fee percentage (in basis points, 1% = 100)
-    if fee_percentage > 10000 { // Max fee is 100%
-      return Err(anyhow!("Fee percentage cannot exceed 10000 (100%)"));
-    }
     
     // Validate preloaded rewards
     if preloaded_rewards == 0 {
@@ -137,19 +115,16 @@ impl VaultFactory {
     self.set_reward_token_id(&reward_token_id)?;
     self.set_reward_per_block(reward_per_block);
     self.set_start_block(start_block);
-    self.set_fee_percentage(fee_percentage);
     
     // Initialize reward pool tracking
     self.set_total_reward_pool(preloaded_rewards);
     self.set_distributed_rewards(0);
-    self.set_remaining_rewards(preloaded_rewards);
     
     // Initialize counters
     self.set_position_count(0);
     self.set_total_assets(0);
     self.set_total_shares(0);
     self.set_last_update_block(u128::from(self.height()));
-    self.set_collected_fees(0);
     self.set_owner(&context.caller);
     
     // Factory token acts as auth token
@@ -194,25 +169,7 @@ impl VaultFactory {
     if remaining_rewards == 0 {
       return Err(anyhow!("Reward pool exhausted - no rewards available for new deposits"));
     }
-    
-    // Estimate minimum rewards needed for this deposit
-    // Conservative estimate: assume deposit will earn rewards for at least 10 blocks
-    let minimum_blocks = 10u128;
-    let estimated_rewards_needed = assets
-      .checked_mul(self.reward_per_block())
-      .unwrap_or(0)
-      .checked_mul(minimum_blocks)
-      .unwrap_or(0)
-      .checked_div(1_000_000u128) // Apply precision adjustment
-      .unwrap_or(0);
-    
-    if remaining_rewards < estimated_rewards_needed {
-      return Err(anyhow!("Insufficient reward pool - remaining: {}, estimated needed: {} (for {} assets over {} blocks)", 
-                        remaining_rewards, estimated_rewards_needed, assets, minimum_blocks));
-    }
-    
-    // Vault factory keeps ALL deposited assets for custody
-    
+        
     // Calculate shares based on full deposit amount (no fee deduction)
     let shares = self.convert_to_shares_internal(assets)?;
     if shares == 0 {
@@ -260,8 +217,10 @@ impl VaultFactory {
     // Get the position token (only one token returned now)
     let position_token = create_response.alkanes.0[0].clone();
     
-    // Add the position to our registry
-    self.add_position(&position_token.id)?;
+    // SECURITY CRITICAL: Register this position token as our child
+    self.register_child(&position_token.id);
+    
+    // Update the position counter for sequential IDs
     self.set_position_count(next_position_id);
     
     // Return the position token to the user
@@ -282,15 +241,30 @@ impl VaultFactory {
     
     // The data contains 5 u128 values, each 16 bytes
     if response.data.len() < 16 * 5 {
-      return Err(anyhow!("Invalid response from position token"));
+      return Err(anyhow!("Invalid response from position token - insufficient data length"));
     }
     
-    // Extract each value from the packed data
-    let position_id = u128::from_le_bytes(response.data[0..16].try_into().unwrap());
-    let current_assets = u128::from_le_bytes(response.data[16..32].try_into().unwrap());
-    let shares = u128::from_le_bytes(response.data[32..48].try_into().unwrap());
-    let deposit_block = u128::from_le_bytes(response.data[48..64].try_into().unwrap());
-    let last_claim_block = u128::from_le_bytes(response.data[64..80].try_into().unwrap());
+    // Extract each value from the packed data with proper error handling
+    let position_id = u128::from_le_bytes(
+      response.data[0..16].try_into()
+        .map_err(|_| anyhow!("Failed to parse position_id from position token response"))?
+    );
+    let current_assets = u128::from_le_bytes(
+      response.data[16..32].try_into()
+        .map_err(|_| anyhow!("Failed to parse current_assets from position token response"))?
+    );
+    let shares = u128::from_le_bytes(
+      response.data[32..48].try_into()
+        .map_err(|_| anyhow!("Failed to parse shares from position token response"))?
+    );
+    let deposit_block = u128::from_le_bytes(
+      response.data[48..64].try_into()
+        .map_err(|_| anyhow!("Failed to parse deposit_block from position token response"))?
+    );
+    let last_claim_block = u128::from_le_bytes(
+      response.data[64..80].try_into()
+        .map_err(|_| anyhow!("Failed to parse last_claim_block from position token response"))?
+    );
     
     Ok((position_id, current_assets, shares, deposit_block, last_claim_block))
   }
@@ -310,7 +284,7 @@ impl VaultFactory {
     let (_position_id, original_assets, shares, _deposit_block, last_claim_block) = 
       self.get_position_details(position_alkane)?;
     
-    // NEW CUSTODY ARCHITECTURE: Calculate total withdrawal value
+    // Calculate total withdrawal value
     // 1. Convert shares back to current asset value (may have grown due to other deposits/withdrawals)
     let current_assets = self.convert_to_assets_internal(shares)?;
     
@@ -350,33 +324,14 @@ impl VaultFactory {
         .unwrap_or(0);
       
       self.set_distributed_rewards(new_distributed_rewards);
-      self.set_remaining_rewards(new_remaining_rewards);
     }
     
-    // 3. Calculate total withdrawal value (original + rewards)
+    // 3. Calculate total withdrawal value (current assets + rewards) - NO FEES
     let total_withdrawal_value = current_assets.checked_add(rewards).unwrap_or(current_assets);
     
-    // 4. SINGLE POINT FEE EXTRACTION: Apply fee to total withdrawal value
-    let fee_percentage = self.fee_percentage();
-    let fee_amount = total_withdrawal_value
-      .checked_mul(fee_percentage)
-      .unwrap_or(0)
-      .checked_div(10000)
-      .unwrap_or(0);
-    
-    // 5. Final amount after fee
-    let withdrawal_after_fee = total_withdrawal_value.checked_sub(fee_amount).unwrap_or(total_withdrawal_value);
-    
-    // 6. Update vault state
-    // Add fee to collected fees
-    let new_collected_fees = self.collected_fees().checked_add(fee_amount).unwrap_or(self.collected_fees());
-    self.set_collected_fees(new_collected_fees);
-    
-    // Remove only the amount being returned to user (current_assets - fee_amount)
-    // The vault keeps the fee_amount
-    let amount_leaving_vault = current_assets.checked_sub(fee_amount).unwrap_or(current_assets);
+    // 4. Update vault state - remove full current_assets (user gets everything)
     let new_total_assets = self.total_assets()
-      .checked_sub(amount_leaving_vault)
+      .checked_sub(current_assets)
       .ok_or_else(|| anyhow!("Insufficient total assets"))?;
     self.set_total_assets(new_total_assets);
     
@@ -386,21 +341,7 @@ impl VaultFactory {
       .ok_or_else(|| anyhow!("Insufficient total shares"))?;
     self.set_total_shares(new_total_shares);
     
-    // 7. Update position token to reflect withdrawal (set to 0)
-    let update_assets_cellpack = Cellpack {
-      target: position_alkane.clone(),
-      inputs: vec![0x5, 0u128], // 0x5 = UpdateCurrentAssets opcode, set to 0
-    };
-    
-    let mut auth_parcel = AlkaneTransferParcel::default();
-    auth_parcel.0.push(AlkaneTransfer {
-      id: context.myself.clone(),
-      value: 1u128,
-    });
-    
-    self.call(&update_assets_cellpack, &auth_parcel, self.fuel())?;
-    
-    // 8. Get the original deposit token ID
+    // 5. Get the original deposit token ID
     let deposit_token_id_cellpack = Cellpack {
       target: position_alkane.clone(),
       inputs: vec![0x18], // 0x18 = GetDepositTokenId opcode
@@ -409,55 +350,36 @@ impl VaultFactory {
     let deposit_token_response = self.staticcall(&deposit_token_id_cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
     
     if deposit_token_response.data.len() < 32 {
-      return Err(anyhow!("Invalid deposit token ID response"));
+      return Err(anyhow!("Invalid deposit token ID response - insufficient data length"));
     }
     
     let deposit_token_id = AlkaneId {
-      block: u128::from_le_bytes(deposit_token_response.data[0..16].try_into().unwrap()),
-      tx: u128::from_le_bytes(deposit_token_response.data[16..32].try_into().unwrap()),
+      block: u128::from_le_bytes(
+        deposit_token_response.data[0..16].try_into()
+          .map_err(|_| anyhow!("Failed to parse deposit token block ID from position token response"))?
+      ),
+      tx: u128::from_le_bytes(
+        deposit_token_response.data[16..32].try_into()
+          .map_err(|_| anyhow!("Failed to parse deposit token tx ID from position token response"))?
+      ),
     };
     
-    // 9. TRUE VAULT CUSTODY: Only send user portion, vault keeps fee tokens
-    // Fee tokens remain in vault custody (not sent in response)
-    
-    
-    // USER TRANSFER: Only send the net amount to user (after fee deduction + rewards)
-    let user_base_amount = current_assets.checked_sub(fee_amount).unwrap_or(current_assets);
-    let user_total_amount = user_base_amount.checked_add(rewards).unwrap_or(user_base_amount);
-    
-    if user_total_amount > 0 {
+    // 6. Send full withdrawal amount to user (current assets + rewards)
+    if total_withdrawal_value > 0 {
       response.alkanes.0.push(AlkaneTransfer {
         id: deposit_token_id.clone(),
-        value: user_total_amount,
+        value: total_withdrawal_value,
       });
-    }
-    
-
-    // Fee tokens remain at vault's AlkaneId for balance sheet verification
-    // Update last claim block
-    if rewards > 0 {
-      let update_claim_block_cellpack = Cellpack {
-        target: position_alkane.clone(),
-        inputs: vec![0x4, current_block], // 0x4 = UpdateLastClaimBlock opcode
-      };
-      
-      let mut auth_parcel = AlkaneTransferParcel::default();
-      auth_parcel.0.push(AlkaneTransfer {
-        id: context.myself.clone(),
-        value: 1u128,
-      });
-      
-      self.call(&update_claim_block_cellpack, &auth_parcel, self.fuel())?;
     }
     
     Ok(response)
   }
   
   fn authenticate_position(&self, context: &Context) -> Result<()> {
-    // Check that we received exactly one position token
-    // if context.incoming_alkanes.0.len() != 1 {
-    //   return Err(anyhow!("Position did not authenticate with exactly one token"));
-    // }
+    // Validate incoming alkanes structure
+    if context.incoming_alkanes.0.is_empty() {
+      return Err(anyhow!("No incoming alkanes for position authentication"));
+    }
     
     // The value should be at least 1
     let transfer = &context.incoming_alkanes.0[0];
@@ -465,12 +387,24 @@ impl VaultFactory {
       return Err(anyhow!("Less than 1 unit of token supplied"));
     }
     
-    // Check that the token is in our position registry
-    if !self.is_position_in_registry(&transfer.id) {
-      return Err(anyhow!("Token is not a registered position token"));
+    // SECURITY CRITICAL: Verify this position token was created by US FIRST
+    // This prevents calling malicious contracts that could cause panics
+    if !self.is_registered_child(&transfer.id) {
+      return Err(anyhow!("Position token not our registered child - potential spoofing attack"));
     }
     
-    Ok(())
+    // SECONDARY: Only query position for additional validation if it passed registry check
+    // This is safe because we know it's our registered child
+    match self.get_position_details(&transfer.id) {
+      Ok((_position_id, _original_assets, _shares, _deposit_block, _last_claim_block)) => {
+        // Position token is registered child and responded correctly
+        Ok(())
+      }
+      Err(e) => {
+        // Even registered children should respond properly
+        Err(anyhow!("Registered position token failed to provide details: {}", e))
+      }
+    }
   }
   
   fn get_total_assets(&self) -> Result<CallResponse> {
@@ -487,83 +421,7 @@ impl VaultFactory {
     Ok(response)
   }
   
-  fn get_position_count(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.position_count().to_le_bytes().to_vec();
-    Ok(response)
-  }
   
-  fn get_fee_percentage(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.fee_percentage().to_le_bytes().to_vec();
-    Ok(response)
-  }
-  
-  fn find_position_by_id(&self, position_id: u128) -> Result<AlkaneId> {
-    let position_id_bytes = position_id.to_le_bytes().to_vec();
-    let bytes = self.load_position_by_id(&position_id_bytes);
-    
-    if bytes.len() < 32 {
-      return Ok(AlkaneId { block: 0, tx: 0 });
-    }
-    
-    Ok(AlkaneId {
-      block: u128::from_le_bytes(bytes[0..16].try_into().unwrap()),
-      tx: u128::from_le_bytes(bytes[16..32].try_into().unwrap()),
-    })
-  }
-  
-  fn get_position_by_id(&self, position_id: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    let alkane_id = self.find_position_by_id(position_id)?;
-    
-    let mut bytes = Vec::with_capacity(32);
-    bytes.extend_from_slice(&alkane_id.block.to_le_bytes());
-    bytes.extend_from_slice(&alkane_id.tx.to_le_bytes());
-    
-    response.data = bytes;
-    Ok(response)
-  }
-  
-  fn add_position(&self, position_id: &AlkaneId) -> Result<()> {
-    let position_count = self.position_count();
-    let position_id_bytes = position_count.to_le_bytes().to_vec();
-    
-    let mut bytes = Vec::with_capacity(32);
-    bytes.extend_from_slice(&position_id.block.to_le_bytes());
-    bytes.extend_from_slice(&position_id.tx.to_le_bytes());
-    
-    self.store_position_by_id(&position_id_bytes, bytes);
-    
-    Ok(())
-  }
-  
-  fn is_position_in_registry(&self, position_id: &AlkaneId) -> bool {
-    // Check all stored positions to see if this ID exists
-    let position_count = self.position_count();
-    
-    for i in 0..position_count {
-      let position_id_bytes = i.to_le_bytes().to_vec();
-      let stored_bytes = self.load_position_by_id(&position_id_bytes);
-      
-      if stored_bytes.len() >= 32 {
-        let stored_id = AlkaneId {
-          block: u128::from_le_bytes(stored_bytes[0..16].try_into().unwrap_or([0; 16])),
-          tx: u128::from_le_bytes(stored_bytes[16..32].try_into().unwrap_or([0; 16])),
-        };
-        
-        if stored_id.block == position_id.block && stored_id.tx == position_id.tx {
-          return true;
-        }
-      }
-    }
-    
-    false
-  }
   
   fn calculate_rewards(&self, amount: u128, from_block: u128, to_block: u128) -> Result<CallResponse> {
     let context = self.context()?;
@@ -696,15 +554,6 @@ impl VaultFactory {
     self.store("/position_count".as_bytes().to_vec(), position_count.to_le_bytes().to_vec());
   }
   
-  fn load_position_by_id(&self, id_bytes: &Vec<u8>) -> Vec<u8> {
-    let key = format!("/positions_by_id/{}", hex::encode(id_bytes)).into_bytes();
-    self.load(key)
-  }
-  
-  fn store_position_by_id(&self, id_bytes: &Vec<u8>, value: Vec<u8>) {
-    let key = format!("/positions_by_id/{}", hex::encode(id_bytes)).into_bytes();
-    self.store(key, value);
-  }
   
   fn reward_token_id(&self) -> Result<AlkaneId> {
     let bytes = self.load("/reward_token_id".as_bytes().to_vec());
@@ -714,8 +563,14 @@ impl VaultFactory {
     }
     
     Ok(AlkaneId {
-      block: u128::from_le_bytes(bytes[0..16].try_into().unwrap()),
-      tx: u128::from_le_bytes(bytes[16..32].try_into().unwrap()),
+      block: u128::from_le_bytes(
+        bytes[0..16].try_into()
+          .map_err(|_| anyhow!("Failed to parse reward token block ID from storage"))?
+      ),
+      tx: u128::from_le_bytes(
+        bytes[16..32].try_into()
+          .map_err(|_| anyhow!("Failed to parse reward token tx ID from storage"))?
+      ),
     })
   }
   
@@ -728,50 +583,6 @@ impl VaultFactory {
     Ok(())
   }
   
-  fn withdraw_fees(&self, auth_token_count: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::default(); // Don't forward - we'll mint exactly what we want
-    
-    // INPUT-BASED AUTHENTICATION: Pure parameter-based, no edict reliance
-    if auth_token_count < 1 {
-      return Err(anyhow!("Must provide at least 1 auth token count"));
-    }
-    
-    // Optional minimal verification - we still check token type for security
-    if context.incoming_alkanes.0.len() > 0 {
-      let auth_token = &context.incoming_alkanes.0[0];
-      if auth_token.id.block != context.myself.block || auth_token.id.tx != context.myself.tx {
-        return Err(anyhow!("Invalid auth token type for fee withdrawal"));
-      }
-    }
-    
-    // Get the collected fees
-    let fees = self.collected_fees();
-    if fees == 0 {
-      return Err(anyhow!("No fees to withdraw"));
-    }
-    
-    // Get the deposit token ID (same as the reward token)
-    let deposit_token_id = self.reward_token_id()?;
-    
-    // Transfer the fees to the auth token holder
-    response.alkanes.0.push(AlkaneTransfer {
-      id: deposit_token_id,
-      value: fees,
-    });
-    
-    // INPUT-BASED SOLUTION: Mint EXACTLY the auth token count specified
-    // This bypasses edict consumption completely by using input parameter
-    response.alkanes.0.push(AlkaneTransfer {
-      id: context.myself.clone(), // Factory token ID (our auth token type)
-      value: auth_token_count,    // Exact amount from input parameter (not from edict)
-    });
-    
-    // Reset the collected fees
-    self.set_collected_fees(0);
-    
-    Ok(response)
-  }
 
   // Helper function to load u128 values from storage
   fn load_u128(&self, key_str: &str) -> u128 {
@@ -785,43 +596,6 @@ impl VaultFactory {
     }
   }
   
-  fn fee_percentage(&self) -> u128 {
-    self.load_u128("/fee_percentage")
-  }
-  
-  fn set_fee_percentage(&self, fee_percentage: u128) {
-    self.store("/fee_percentage".as_bytes().to_vec(), fee_percentage.to_le_bytes().to_vec());
-  }
-  
-  fn owner(&self) -> AlkaneId {
-    let bytes = self.load("/owner".as_bytes().to_vec());
-    if bytes.len() < 32 {
-      panic!("Owner not set");
-    }
-    
-    AlkaneId {
-      block: u128::from_le_bytes(bytes[0..16].try_into().unwrap()),
-      tx: u128::from_le_bytes(bytes[16..32].try_into().unwrap()),
-    }
-  }
-  
-  fn set_owner(&self, id: &AlkaneId) {
-    let mut bytes = Vec::with_capacity(32);
-    bytes.extend_from_slice(&id.block.to_le_bytes());
-    bytes.extend_from_slice(&id.tx.to_le_bytes());
-    
-    self.store("/owner".as_bytes().to_vec(), bytes);
-  }
-  
-  fn collected_fees(&self) -> u128 {
-    self.load_u128("/collected_fees")
-  }
-  
-  fn set_collected_fees(&self, collected_fees: u128) {
-    self.store("/collected_fees".as_bytes().to_vec(), collected_fees.to_le_bytes().to_vec());
-  }
-  
-  // NEW: Deposit token ID storage
   fn deposit_token_id(&self) -> Result<AlkaneId> {
     let bytes = self.load("/deposit_token_id".as_bytes().to_vec());
     
@@ -830,8 +604,14 @@ impl VaultFactory {
     }
     
     Ok(AlkaneId {
-      block: u128::from_le_bytes(bytes[0..16].try_into().unwrap()),
-      tx: u128::from_le_bytes(bytes[16..32].try_into().unwrap()),
+      block: u128::from_le_bytes(
+        bytes[0..16].try_into()
+          .map_err(|_| anyhow!("Failed to parse deposit token block ID from storage"))?
+      ),
+      tx: u128::from_le_bytes(
+        bytes[16..32].try_into()
+          .map_err(|_| anyhow!("Failed to parse deposit token tx ID from storage"))?
+      ),
     })
   }
   
@@ -844,7 +624,6 @@ impl VaultFactory {
     Ok(())
   }
   
-  // NEW: Reward pool tracking storage
   fn total_reward_pool(&self) -> u128 {
     self.load_u128("/total_reward_pool")
   }
@@ -862,11 +641,27 @@ impl VaultFactory {
   }
   
   fn remaining_rewards(&self) -> u128 {
-    self.load_u128("/remaining_rewards")
+    let total_pool = self.total_reward_pool();
+    let distributed = self.distributed_rewards();
+    total_pool.saturating_sub(distributed)
   }
   
-  fn set_remaining_rewards(&self, remaining_rewards: u128) {
-    self.store("/remaining_rewards".as_bytes().to_vec(), remaining_rewards.to_le_bytes().to_vec());
+  fn set_owner(&self, owner: &AlkaneId) {
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend_from_slice(&owner.block.to_le_bytes());
+    bytes.extend_from_slice(&owner.tx.to_le_bytes());
+    self.store("/owner".as_bytes().to_vec(), bytes);
+  }
+  
+  fn is_registered_child(&self, child_id: &AlkaneId) -> bool {
+    let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
+    let bytes = self.load(key);
+    !bytes.is_empty() && bytes[0] == 1
+  }
+  
+  fn register_child(&self, child_id: &AlkaneId) {
+    let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
+    self.store(key, vec![1u8]);
   }
 }
 

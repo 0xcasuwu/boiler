@@ -17,11 +17,8 @@
 ```rust
 #[wasm_bindgen_test] 
 fn test_comprehensive_phase_1_critical_coverage() -> Result<()> {
-    // Test 1: Full Withdrawal Flow
-    test_full_withdrawal_flow_with_fee_extraction()?;
     
     // Test 2: Admin Fee Withdrawal  
-    test_admin_fee_withdrawal_with_input_authentication()?;
     
     // Test 3: Multi-User Interactions
     test_multi_user_fair_reward_distribution()?;
