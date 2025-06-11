@@ -14,7 +14,7 @@ TXID=$1
 VOUT=${2:-3}
 
 OYL_CMD="node bin/oyl.js"
-OYL_DIR="./oyl-sdk"
+OYL_DIR="../oyl-sdk"
 
 echo "Running trace on transaction: $TXID with vout=$VOUT"
 echo "----------------------------------------"
