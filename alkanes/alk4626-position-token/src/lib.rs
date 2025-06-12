@@ -22,8 +22,8 @@ enum PositionTokenMessage {
   #[opcode(0)]
   Initialize {
     position_id: u128,
-    initial_assets: u128,
-    shares: u128,
+    deposit_amount: u128,
+    reward_debt: u128,
     deposit_block: u128,
     deposit_token_id: AlkaneId,
   },
@@ -34,38 +34,18 @@ enum PositionTokenMessage {
 
   #[opcode(11)]
   #[returns(u128)]
-  GetInitialAssets,
-
-  #[opcode(12)]
-  #[returns(u128)]
-  GetCurrentAssets,
-
-  #[opcode(13)]
-  #[returns(u128)]
-  GetShares,
+  GetDepositAmount,
 
   #[opcode(14)]
   #[returns(u128)]
   GetDepositBlock,
 
-  #[opcode(15)]
+  #[opcode(16)]
   #[returns(u128)]
-  GetLastClaimBlock,
-
-  #[opcode(20)]
-  #[returns(u128)]
-  CalculateBlocksStaked,
-
-  #[opcode(21)]
-  #[returns(u128)]
-  GetPendingRewards,
-
-  #[opcode(22)]
-  #[returns(u128)]
-  GetPositionValue,
+  GetRewardDebt,
   
   #[opcode(23)]
-  #[returns((u128, u128, u128, u128, u128))]
+  #[returns((u128, u128, u128, u128))]
   GetAllDetails,
   
   #[opcode(24)]
@@ -84,26 +64,21 @@ impl Token for PositionToken {
 }
 
 impl PositionToken {
-  fn initialize(&self, position_id: u128, initial_assets: u128, shares: u128, deposit_block: u128, deposit_token_id: AlkaneId) -> Result<CallResponse> {
+  fn initialize(&self, position_id: u128, deposit_amount: u128, reward_debt: u128, deposit_block: u128, deposit_token_id: AlkaneId) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::default();
     
     self.observe_initialization()?;
     
-    // Store position details
+    // PURE MASTERCHEF: Store only essential position details
     self.set_vault_id(&context.caller);
     self.set_position_id(position_id);
-    self.set_initial_assets(initial_assets);
-    self.set_current_assets(initial_assets);
-    self.set_shares(shares);
-    
-    // Record block heights and deposit token ID
+    self.set_deposit_amount(deposit_amount);
+    self.set_reward_debt(reward_debt);
     self.set_deposit_block(deposit_block);
-    self.set_last_claim_block(deposit_block);
     self.set_deposit_token_id(&deposit_token_id)?;
     
-    // NEW CUSTODY ARCHITECTURE: Position token is purely authentication/tracking
-    // Return only the position token, no underlying assets
+    // Position token is purely authentication/tracking
     response.alkanes.0.push(AlkaneTransfer {
       id: context.myself.clone(),
       value: 1u128,
@@ -121,24 +96,17 @@ impl PositionToken {
     Ok(response)
   }
   
-  fn get_initial_assets(&self) -> Result<CallResponse> {
+  fn get_deposit_amount(&self) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.initial_assets().to_le_bytes().to_vec();
+    response.data = self.deposit_amount().to_le_bytes().to_vec();
     Ok(response)
   }
   
-  fn get_current_assets(&self) -> Result<CallResponse> {
+  fn get_reward_debt(&self) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.current_assets().to_le_bytes().to_vec();
-    Ok(response)
-  }
-  
-  fn get_shares(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.shares().to_le_bytes().to_vec();
+    response.data = self.reward_debt().to_le_bytes().to_vec();
     Ok(response)
   }
   
@@ -185,8 +153,8 @@ impl PositionToken {
       target: vault_id,
       inputs: vec![
         0x20,  // 0x20 = CalculateRewards opcode
-        self.current_assets(),
-        self.last_claim_block(),
+        self.deposit_amount(),  // PURE MASTERCHEF: use deposit_amount instead of current_assets
+        self.deposit_block(),   // PURE MASTERCHEF: use deposit_block as start point
         u128::from(self.height()),  // Current block
       ],
     };
@@ -201,20 +169,8 @@ impl PositionToken {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
     
-    // Get the vault factory reference
-    let vault_id = self.vault_ref();
-    
-    // Call vault to convert shares to assets
-    let cellpack = Cellpack {
-      target: vault_id,
-      inputs: vec![
-        0x22,  // 0x22 = ConvertToAssets opcode
-        self.shares(),
-      ],
-    };
-    
-    let vault_response = self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
-    response.data = vault_response.data;
+    // PURE MASTERCHEF: Position value is simply the deposit amount (1:1 ratio)
+    response.data = self.deposit_amount().to_le_bytes().to_vec();
     
     Ok(response)
   }
@@ -249,28 +205,13 @@ impl PositionToken {
     self.store("/position_id".as_bytes().to_vec(), position_id.to_le_bytes().to_vec());
   }
   
-  fn initial_assets(&self) -> u128 {
-    self.load_u128("/initial_assets")
+  // PURE MASTERCHEF: Essential storage functions
+  fn deposit_amount(&self) -> u128 {
+    self.load_u128("/deposit_amount")
   }
   
-  fn set_initial_assets(&self, initial_assets: u128) {
-    self.store("/initial_assets".as_bytes().to_vec(), initial_assets.to_le_bytes().to_vec());
-  }
-  
-  fn current_assets(&self) -> u128 {
-    self.load_u128("/current_assets")
-  }
-  
-  fn set_current_assets(&self, current_assets: u128) {
-    self.store("/current_assets".as_bytes().to_vec(), current_assets.to_le_bytes().to_vec());
-  }
-  
-  fn shares(&self) -> u128 {
-    self.load_u128("/shares")
-  }
-  
-  fn set_shares(&self, shares: u128) {
-    self.store("/shares".as_bytes().to_vec(), shares.to_le_bytes().to_vec());
+  fn set_deposit_amount(&self, deposit_amount: u128) {
+    self.store("/deposit_amount".as_bytes().to_vec(), deposit_amount.to_le_bytes().to_vec());
   }
   
   fn deposit_block(&self) -> u128 {
@@ -311,6 +252,15 @@ impl PositionToken {
     Ok(())
   }
   
+  // SUSHISWAP-STYLE: Reward debt storage functions
+  fn reward_debt(&self) -> u128 {
+    self.load_u128("/reward_debt")
+  }
+  
+  fn set_reward_debt(&self, reward_debt: u128) {
+    self.store("/reward_debt".as_bytes().to_vec(), reward_debt.to_le_bytes().to_vec());
+  }
+  
   // Helper function to load u128 values from storage
   fn load_u128(&self, key_str: &str) -> u128 {
     let key = key_str.as_bytes().to_vec();
@@ -323,35 +273,26 @@ impl PositionToken {
     }
   }
   
-  // INTERNAL-ONLY FUNCTIONS: These are no longer accessible via external opcodes
-  // Only the vault factory can call these through internal function calls
-  
-  pub fn update_current_assets(&self, new_amount: u128) {
-    self.set_current_assets(new_amount);
-  }
-  
-  pub fn update_last_claim_block(&self, new_block: u128) {
-    self.set_last_claim_block(new_block);
-  }
+  // PURE MASTERCHEF: No internal update functions needed
+  // All data is immutable after position creation
   
   fn get_all_details(&self) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::forward(&context.incoming_alkanes);
     
+    // PURE MASTERCHEF: Return only essential fields (4 values total)
     let position_id = self.position_id();
-    let current_assets = self.current_assets();
-    let shares = self.shares();
+    let deposit_amount = self.deposit_amount();
+    let reward_debt = self.reward_debt();
     let deposit_block = self.deposit_block();
-    let last_claim_block = self.last_claim_block();
     
-    // Pack all values into a single byte array
-    // Each value is 16 bytes (128 bits)
-    let mut data = Vec::with_capacity(16 * 5);
+    // Pack only essential values into a single byte array
+    // Each value is 16 bytes (128 bits) - 4 values total for pure MasterChef
+    let mut data = Vec::with_capacity(16 * 4);
     data.extend_from_slice(&position_id.to_le_bytes());
-    data.extend_from_slice(&current_assets.to_le_bytes());
-    data.extend_from_slice(&shares.to_le_bytes());
+    data.extend_from_slice(&deposit_amount.to_le_bytes());
+    data.extend_from_slice(&reward_debt.to_le_bytes());
     data.extend_from_slice(&deposit_block.to_le_bytes());
-    data.extend_from_slice(&last_claim_block.to_le_bytes());
     
     response.data = data;
     Ok(response)

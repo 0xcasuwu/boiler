@@ -46,30 +46,12 @@ enum VaultFactoryMessage {
   #[returns(u128)]
   GetTotalAssets,
 
-  #[opcode(11)]
-  #[returns(u128)]
-  GetTotalShares,
-
-
-
   #[opcode(20)]
   #[returns(u128)]
   CalculateRewards {
     amount: u128,
     from_block: u128,
     to_block: u128,
-  },
-
-  #[opcode(21)]
-  #[returns(u128)]
-  ConvertToShares {
-    assets: u128,
-  },
-
-  #[opcode(22)]
-  #[returns(u128)]
-  ConvertToAssets {
-    shares: u128,
   },
 }
 
@@ -123,9 +105,11 @@ impl VaultFactory {
     // Initialize counters
     self.set_position_count(0);
     self.set_total_assets(0);
-    self.set_total_shares(0);
     self.set_last_update_block(u128::from(self.height()));
-    self.set_owner(&context.caller);
+    
+    // PURE MASTERCHEF: Initialize global accumulator
+    self.set_acc_reward_per_share(0);
+    self.set_last_reward_block(start_block);
     
     // Factory token acts as auth token
     response.alkanes.0.push(AlkaneTransfer {
@@ -163,27 +147,29 @@ impl VaultFactory {
     // NEW: REWARD POOL EXHAUSTION CHECK
     // Check if reward pool has sufficient rewards to support this deposit
     let remaining_rewards = self.remaining_rewards();
-    let current_block = u128::from(self.height());
-    let start_block = self.start_block();
     
     if remaining_rewards == 0 {
       return Err(anyhow!("Reward pool exhausted - no rewards available for new deposits"));
     }
-        
-    // Calculate shares based on full deposit amount (no fee deduction)
-    let shares = self.convert_to_shares_internal(assets)?;
-    if shares == 0 {
-      return Err(anyhow!("Deposit would result in zero shares"));
-    }
     
-    // Update total assets with full deposit amount
-    let new_total_assets = self.total_assets().checked_add(assets)
+    // PURE MASTERCHEF: Update global rewards before changing total assets
+    self.update_rewards();
+        
+    // PURE MASTERCHEF: 1:1 deposit ratio (no conversion)
+    let deposit_amount = assets;
+    
+    // PURE MASTERCHEF: Calculate reward debt for this position
+    let current_acc_reward_per_share = self.acc_reward_per_share();
+    let precision = 1_000_000_000_000u128; // 10^12 precision
+    let reward_debt = deposit_amount * current_acc_reward_per_share / precision;
+    
+    // Update total assets (no total_shares in pure MasterChef)
+    let new_total_assets = self.total_assets().checked_add(deposit_amount)
       .ok_or_else(|| anyhow!("Total assets overflow"))?;
     self.set_total_assets(new_total_assets);
     
-    let new_total_shares = self.total_shares().checked_add(shares)
-      .ok_or_else(|| anyhow!("Total shares overflow"))?;
-    self.set_total_shares(new_total_shares);
+    // CRITICAL: Hold the deposit tokens in the vault (don't forward them - vault keeps them)
+    // The vault now holds these tokens to return them later during withdrawal
     
     // Create a new position token
     let position_id = self.position_count();
@@ -192,7 +178,6 @@ impl VaultFactory {
     
     // Get current block height for position creation
     let current_block = u128::from(self.height());
-    let _start_block = self.start_block();
     
     // Get the deposit token from the incoming transfer
     let deposit_token_id = context.incoming_alkanes.0[0].id.clone();
@@ -202,7 +187,8 @@ impl VaultFactory {
         block: 6,
         tx: POSITION_TOKEN_TEMPLATE_ID,
       },
-      inputs: vec![0x0, position_id, assets, shares, current_block, deposit_token_id.block, deposit_token_id.tx],
+      // PURE MASTERCHEF: Include reward_debt in position token creation (simplified inputs)
+      inputs: vec![0x0, position_id, deposit_amount, reward_debt, current_block, deposit_token_id.block, deposit_token_id.tx],
     };
     
     // Position token receives NO underlying assets. It's purely an authentication and tracking token.
@@ -229,9 +215,9 @@ impl VaultFactory {
     Ok(response)
   }
   
-  // Helper function to query position details from the position token
-  fn get_position_details(&self, position_alkane: &AlkaneId) -> Result<(u128, u128, u128, u128, u128)> {
-    // Single call to get all position details at once
+  // Helper function to query position details from the position token (PURE MASTERCHEF)
+  fn get_position_details(&self, position_alkane: &AlkaneId) -> Result<(u128, u128, u128, u128)> {
+    // Single call to get all position details at once (simplified for pure MasterChef)
     let cellpack = Cellpack {
       target: position_alkane.clone(),
       inputs: vec![0x17],  // 0x17 = GetAllDetails opcode (23 in decimal)
@@ -239,8 +225,8 @@ impl VaultFactory {
     
     let response = self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
     
-    // The data contains 5 u128 values, each 16 bytes
-    if response.data.len() < 16 * 5 {
+    // The data contains 4 u128 values, each 16 bytes (pure MasterChef essentials)
+    if response.data.len() < 16 * 4 {
       return Err(anyhow!("Invalid response from position token - insufficient data length"));
     }
     
@@ -249,99 +235,63 @@ impl VaultFactory {
       response.data[0..16].try_into()
         .map_err(|_| anyhow!("Failed to parse position_id from position token response"))?
     );
-    let current_assets = u128::from_le_bytes(
+    let deposit_amount = u128::from_le_bytes(
       response.data[16..32].try_into()
-        .map_err(|_| anyhow!("Failed to parse current_assets from position token response"))?
+        .map_err(|_| anyhow!("Failed to parse deposit_amount from position token response"))?
     );
-    let shares = u128::from_le_bytes(
+    let reward_debt = u128::from_le_bytes(
       response.data[32..48].try_into()
-        .map_err(|_| anyhow!("Failed to parse shares from position token response"))?
+        .map_err(|_| anyhow!("Failed to parse reward_debt from position token response"))?
     );
     let deposit_block = u128::from_le_bytes(
       response.data[48..64].try_into()
         .map_err(|_| anyhow!("Failed to parse deposit_block from position token response"))?
     );
-    let last_claim_block = u128::from_le_bytes(
-      response.data[64..80].try_into()
-        .map_err(|_| anyhow!("Failed to parse last_claim_block from position token response"))?
-    );
     
-    Ok((position_id, current_assets, shares, deposit_block, last_claim_block))
+    Ok((position_id, deposit_amount, reward_debt, deposit_block))
   }
 
   fn withdraw(&self) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::default(); // CRITICAL FIX: Don't forward position token - consume it!
+    let mut response = CallResponse::default();
     
     // Verify the caller is a valid position token
     self.authenticate_position(&context)?;
+    
+    // PURE MASTERCHEF: Update global rewards before calculating user rewards
+    self.update_rewards();
     
     // Get the position token from context - this IS the authentication
     let position_token = &context.incoming_alkanes.0[0];
     let position_alkane = &position_token.id;
     
-    // Query position token for its current state
-    let (_position_id, original_assets, shares, _deposit_block, last_claim_block) = 
-      self.get_position_details(position_alkane)?;
+    // Query position token for its current state including reward debt
+    let position_details = self.get_position_details(position_alkane)?;
+    let (_position_id, deposit_amount, reward_debt, _deposit_block) = position_details;
     
-    // Calculate total withdrawal value
-    // 1. Convert shares back to current asset value (may have grown due to other deposits/withdrawals)
-    let current_assets = self.convert_to_assets_internal(shares)?;
+    // PURE MASTERCHEF REWARD CALCULATION: 
+    // pending_rewards = (deposit_amount * accRewardPerShare / 1e12) - rewardDebt
+    let current_acc_reward_per_share = self.acc_reward_per_share();
+    let precision = 1_000_000_000_000u128; // 10^12 precision
     
-    // 2. Calculate rewards based on the original deposit amount and time period
-    let current_block = u128::from(self.height());
-    let calculated_rewards = if original_assets > 0 && last_claim_block < current_block {
-      let blocks_elapsed = current_block.checked_sub(last_claim_block).unwrap_or(0);
-      let precision = 1_000_000u128; // 10^6 precision
-      
-      original_assets
-        .checked_mul(self.reward_per_block())
-        .unwrap_or(0)
-        .checked_mul(blocks_elapsed)
-        .unwrap_or(0)
-        .checked_div(precision)
-        .unwrap_or(0)
-    } else {
-      0
-    };
+    let accumulated_rewards = deposit_amount * current_acc_reward_per_share / precision;
+    let pending_rewards = accumulated_rewards.saturating_sub(reward_debt);
     
-    // 2.1. REWARD POOL MANAGEMENT: Check if sufficient rewards remain
-    let remaining_rewards = self.remaining_rewards();
-    let rewards = if calculated_rewards > remaining_rewards {
-      // If calculated rewards exceed remaining pool, only distribute what's left
-      remaining_rewards
-    } else {
-      calculated_rewards
-    };
+    // CRITICAL: Real-time pool validation to prevent over-distribution
+    let remaining_pool = self.remaining_rewards();
+    let actual_rewards = std::cmp::min(pending_rewards, remaining_pool);
     
-    // 2.2. Update reward pool tracking if rewards are distributed
-    if rewards > 0 {
-      let new_distributed_rewards = self.distributed_rewards()
-        .checked_add(rewards)
-        .unwrap_or(self.distributed_rewards());
-      let new_remaining_rewards = remaining_rewards
-        .checked_sub(rewards)
-        .unwrap_or(0);
-      
-      self.set_distributed_rewards(new_distributed_rewards);
-    }
+    // Update distributed_rewards with ACTUAL payout only
+    let new_distributed = self.distributed_rewards() + actual_rewards;
+    self.set_distributed_rewards(new_distributed);
     
-    // 3. Calculate total withdrawal value (current assets + rewards) - NO FEES
-    let total_withdrawal_value = current_assets.checked_add(rewards).unwrap_or(current_assets);
-    
-    // 4. Update vault state - remove full current_assets (user gets everything)
+    // Update vault state - remove deposit amount (pure 1:1 MasterChef)
     let new_total_assets = self.total_assets()
-      .checked_sub(current_assets)
+      .checked_sub(deposit_amount)
       .ok_or_else(|| anyhow!("Insufficient total assets"))?;
     self.set_total_assets(new_total_assets);
     
-    // Burn all user shares (full withdrawal)
-    let new_total_shares = self.total_shares()
-      .checked_sub(shares)
-      .ok_or_else(|| anyhow!("Insufficient total shares"))?;
-    self.set_total_shares(new_total_shares);
-    
-    // 5. Get the original deposit token ID
+    // Get the original deposit token ID
     let deposit_token_id_cellpack = Cellpack {
       target: position_alkane.clone(),
       inputs: vec![0x18], // 0x18 = GetDepositTokenId opcode
@@ -364,11 +314,20 @@ impl VaultFactory {
       ),
     };
     
-    // 6. Send full withdrawal amount to user (current assets + rewards)
-    if total_withdrawal_value > 0 {
+    // PURE MASTERCHEF: Return original deposit (1:1) + capped rewards
+    if deposit_amount > 0 {
       response.alkanes.0.push(AlkaneTransfer {
         id: deposit_token_id.clone(),
-        value: total_withdrawal_value,
+        value: deposit_amount,  // Always 1:1 principal return
+      });
+    }
+    
+    // Return actual rewards (capped to available pool)
+    if actual_rewards > 0 {
+      let reward_token_id = self.reward_token_id()?;
+      response.alkanes.0.push(AlkaneTransfer {
+        id: reward_token_id,
+        value: actual_rewards,  // Pool-validated reward distribution
       });
     }
     
@@ -396,7 +355,7 @@ impl VaultFactory {
     // SECONDARY: Only query position for additional validation if it passed registry check
     // This is safe because we know it's our registered child
     match self.get_position_details(&transfer.id) {
-      Ok((_position_id, _original_assets, _shares, _deposit_block, _last_claim_block)) => {
+      Ok((_position_id, _deposit_amount, _reward_debt, _deposit_block)) => {
         // Position token is registered child and responded correctly
         Ok(())
       }
@@ -413,15 +372,6 @@ impl VaultFactory {
     response.data = self.total_assets().to_le_bytes().to_vec();
     Ok(response)
   }
-  
-  fn get_total_shares(&self) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    response.data = self.total_shares().to_le_bytes().to_vec();
-    Ok(response)
-  }
-  
-  
   
   fn calculate_rewards(&self, amount: u128, from_block: u128, to_block: u128) -> Result<CallResponse> {
     let context = self.context()?;
@@ -453,56 +403,6 @@ impl VaultFactory {
     response.data = rewards.to_le_bytes().to_vec();
     Ok(response)
   }
-    
-  fn convert_to_shares(&self, assets: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    let shares = self.convert_to_shares_internal(assets)?;
-    
-    response.data = shares.to_le_bytes().to_vec();
-    Ok(response)
-  }
-  
-  fn convert_to_shares_internal(&self, assets: u128) -> Result<u128> {
-    if self.total_assets() == 0 {
-      return Ok(assets); // Initial exchange rate 1:1
-    }
-    
-    // shares = assets * total_shares / total_assets
-    let shares = assets
-      .checked_mul(self.total_shares())
-      .ok_or_else(|| anyhow!("Calculation overflow"))?
-      .checked_div(self.total_assets())
-      .ok_or_else(|| anyhow!("Division by zero"))?;
-      
-    Ok(shares)
-  }
-  
-  fn convert_to_assets(&self, shares: u128) -> Result<CallResponse> {
-    let context = self.context()?;
-    let mut response = CallResponse::forward(&context.incoming_alkanes);
-    
-    let assets = self.convert_to_assets_internal(shares)?;
-    
-    response.data = assets.to_le_bytes().to_vec();
-    Ok(response)
-  }
-  
-  fn convert_to_assets_internal(&self, shares: u128) -> Result<u128> {
-    if self.total_shares() == 0 {
-      return Ok(0); // No assets if no shares
-    }
-    
-    // assets = shares * total_assets / total_shares
-    let assets = shares
-      .checked_mul(self.total_assets())
-      .ok_or_else(|| anyhow!("Calculation overflow"))?
-      .checked_div(self.total_shares())
-      .ok_or_else(|| anyhow!("Division by zero"))?;
-      
-    Ok(assets)
-  }
   
   // Storage operations using direct store/load methods
   
@@ -530,14 +430,6 @@ impl VaultFactory {
     self.store("/total_assets".as_bytes().to_vec(), total_assets.to_le_bytes().to_vec());
   }
   
-  fn total_shares(&self) -> u128 {
-    self.load_u128("/total_shares")
-  }
-  
-  fn set_total_shares(&self, total_shares: u128) {
-    self.store("/total_shares".as_bytes().to_vec(), total_shares.to_le_bytes().to_vec());
-  }
-  
   fn last_update_block(&self) -> u128 {
     self.load_u128("/last_update_block")
   }
@@ -553,7 +445,6 @@ impl VaultFactory {
   fn set_position_count(&self, position_count: u128) {
     self.store("/position_count".as_bytes().to_vec(), position_count.to_le_bytes().to_vec());
   }
-  
   
   fn reward_token_id(&self) -> Result<AlkaneId> {
     let bytes = self.load("/reward_token_id".as_bytes().to_vec());
@@ -582,7 +473,6 @@ impl VaultFactory {
     self.store("/reward_token_id".as_bytes().to_vec(), bytes);
     Ok(())
   }
-  
 
   // Helper function to load u128 values from storage
   fn load_u128(&self, key_str: &str) -> u128 {
@@ -645,13 +535,7 @@ impl VaultFactory {
     let distributed = self.distributed_rewards();
     total_pool.saturating_sub(distributed)
   }
-  
-  fn set_owner(&self, owner: &AlkaneId) {
-    let mut bytes = Vec::with_capacity(32);
-    bytes.extend_from_slice(&owner.block.to_le_bytes());
-    bytes.extend_from_slice(&owner.tx.to_le_bytes());
-    self.store("/owner".as_bytes().to_vec(), bytes);
-  }
+
   
   fn is_registered_child(&self, child_id: &AlkaneId) -> bool {
     let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
@@ -662,6 +546,104 @@ impl VaultFactory {
   fn register_child(&self, child_id: &AlkaneId) {
     let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
     self.store(key, vec![1u8]);
+  }
+  
+  // PURE MASTERCHEF REWARD-PER-SHARE STORAGE FUNCTIONS
+  
+  fn acc_reward_per_share(&self) -> u128 {
+    self.load_u128("/acc_reward_per_share")
+  }
+  
+  fn set_acc_reward_per_share(&self, acc_reward_per_share: u128) {
+    self.store("/acc_reward_per_share".as_bytes().to_vec(), acc_reward_per_share.to_le_bytes().to_vec());
+  }
+  
+  fn last_reward_block(&self) -> u128 {
+    self.load_u128("/last_reward_block")
+  }
+  
+  fn set_last_reward_block(&self, last_reward_block: u128) {
+    self.store("/last_reward_block".as_bytes().to_vec(), last_reward_block.to_le_bytes().to_vec());
+  }
+  
+  fn update_rewards(&self) {
+    let current_block = u128::from(self.height());
+    let last_reward_block = self.last_reward_block();
+    let total_assets = self.total_assets();
+    
+    // Skip if already updated this block
+    if current_block <= last_reward_block {
+      return;
+    }
+    
+    // CRITICAL BUG FIX: If no assets exist, only update last_reward_block to current
+    // This prevents accumulating rewards for periods with no stakers
+    if total_assets == 0 {
+      self.set_last_reward_block(current_block);
+      return;
+    }
+    
+    // Calculate blocks elapsed since last update
+    let blocks_elapsed = current_block - last_reward_block;
+    let reward_per_block = self.reward_per_block();
+    
+    // POOL EXHAUSTION FIX: Calculate sustainable reward rate
+    let theoretical_period_rewards = blocks_elapsed * reward_per_block;
+    let remaining_pool = self.remaining_rewards();
+    
+    // Cap to available pool
+    let capped_period_rewards = if theoretical_period_rewards > remaining_pool {
+      remaining_pool
+    } else {
+      theoretical_period_rewards
+    };
+    
+    // Skip if no rewards available
+    if capped_period_rewards == 0 {
+      self.set_last_reward_block(current_block);
+      return;
+    }
+    
+    // CRITICAL POOL EXHAUSTION FIX: 
+    // Calculate the maximum safe accumulator growth that won't lead to over-distribution
+    let precision = 1_000_000_000_000u128;
+    
+    // Calculate what the new accumulator would be with capped rewards
+    let additional_acc_reward_per_share = capped_period_rewards
+      .checked_mul(precision)
+      .and_then(|x| x.checked_div(total_assets))
+      .unwrap_or(0);
+    
+    let potential_new_acc_reward_per_share = self.acc_reward_per_share()
+      .checked_add(additional_acc_reward_per_share)
+      .unwrap_or(self.acc_reward_per_share());
+    
+    // POOL SAFETY CHECK: Ensure the new accumulator won't enable over-distribution
+    // Calculate potential max payout if all current stakers withdrew at this new rate
+    let potential_max_payout = total_assets * potential_new_acc_reward_per_share / precision;
+    
+    // Only update the accumulator if the potential max payout is within pool limits
+    // Add a safety buffer to account for precision and future stakers
+    let safe_payout_limit = remaining_pool + self.distributed_rewards(); // Total pool
+    
+    if potential_max_payout <= safe_payout_limit {
+      // Safe to update accumulator
+      self.set_acc_reward_per_share(potential_new_acc_reward_per_share);
+    } else {
+      // Accumulator growth would risk over-distribution - calculate a safer rate
+      let safe_max_total_rewards = safe_payout_limit;
+      let safe_acc_reward_per_share = if total_assets > 0 {
+        safe_max_total_rewards * precision / total_assets
+      } else {
+        self.acc_reward_per_share()
+      };
+      
+      // Only increase accumulator, never decrease it (to maintain fairness for existing stakers)
+      let final_acc_reward_per_share = std::cmp::max(safe_acc_reward_per_share, self.acc_reward_per_share());
+      self.set_acc_reward_per_share(final_acc_reward_per_share);
+    }
+    
+    self.set_last_reward_block(current_block);
   }
 }
 

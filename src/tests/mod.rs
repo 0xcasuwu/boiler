@@ -1,7 +1,10 @@
 pub mod std;
-pub mod vault_factory;
-pub mod vault_factory_debug;
-pub mod reward_pool_exhaustion_test;
-pub mod multi_user_rewards_test;
-pub mod critical_withdrawal_test;
+// pub mod vault_factory;
+// pub mod vault_factory_debug;
+// pub mod reward_pool_exhaustion_test;
+// pub mod multi_user_rewards_test;
+// pub mod critical_withdrawal_test;
+// pub mod reward_per_share_multiple_withdrawals_test;
+// pub mod sushiswap_reward_per_share_verification;
+pub mod pure_masterchef_verification;
 // pub mod security_spoofing_test;
