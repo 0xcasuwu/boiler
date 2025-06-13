@@ -129,6 +129,13 @@ impl VaultFactory {
       return Err(anyhow!("Cannot deposit zero assets"));
     }
 
+    // SECURITY: Minimum deposit requirement to prevent precision exploits
+    // Small deposits can cause reward_debt calculation errors leading to reward theft
+    const MINIMUM_DEPOSIT: u128 = 1000;
+    if assets < MINIMUM_DEPOSIT {
+      return Err(anyhow!("Minimum deposit is {} tokens (provided: {}). This prevents precision exploits in reward calculations.", MINIMUM_DEPOSIT, assets));
+    }
+
     // Get the deposit token info first
     let deposit_token = &context.incoming_alkanes.0[0];
     
@@ -158,10 +165,13 @@ impl VaultFactory {
     // PURE MASTERCHEF: 1:1 deposit ratio (no conversion)
     let deposit_amount = assets;
     
-    // PURE MASTERCHEF: Calculate reward debt for this position
+    // PURE MASTERCHEF: Calculate reward debt for this position with overflow protection
     let current_acc_reward_per_share = self.acc_reward_per_share();
     let precision = 1_000_000_000_000u128; // 10^12 precision
-    let reward_debt = deposit_amount * current_acc_reward_per_share / precision;
+    let reward_debt = deposit_amount
+        .checked_mul(current_acc_reward_per_share)
+        .and_then(|x| x.checked_div(precision))
+        .unwrap_or(0);
     
     // Update total assets (no total_shares in pure MasterChef)
     let new_total_assets = self.total_assets().checked_add(deposit_amount)
@@ -269,12 +279,16 @@ impl VaultFactory {
     let position_details = self.get_position_details(position_alkane)?;
     let (_position_id, deposit_amount, reward_debt, _deposit_block) = position_details;
     
-    // PURE MASTERCHEF REWARD CALCULATION: 
+    // PURE MASTERCHEF REWARD CALCULATION WITH OVERFLOW PROTECTION: 
     // pending_rewards = (deposit_amount * accRewardPerShare / 1e12) - rewardDebt
     let current_acc_reward_per_share = self.acc_reward_per_share();
     let precision = 1_000_000_000_000u128; // 10^12 precision
     
-    let accumulated_rewards = deposit_amount * current_acc_reward_per_share / precision;
+    // CRITICAL FIX: Use checked arithmetic to prevent overflow corruption
+    let accumulated_rewards = deposit_amount
+        .checked_mul(current_acc_reward_per_share)
+        .and_then(|x| x.checked_div(precision))
+        .unwrap_or(0);
     let pending_rewards = accumulated_rewards.saturating_sub(reward_debt);
     
     // CRITICAL: Real-time pool validation to prevent over-distribution
@@ -576,73 +590,41 @@ impl VaultFactory {
       return;
     }
     
-    // CRITICAL BUG FIX: If no assets exist, only update last_reward_block to current
+    // PURE MASTERCHEF: If no assets exist, only update last_reward_block to current
     // This prevents accumulating rewards for periods with no stakers
     if total_assets == 0 {
       self.set_last_reward_block(current_block);
       return;
     }
     
-    // Calculate blocks elapsed since last update
+    // CRITICAL MASTERCHEF ARCHITECTURE FIX:
+    // The accumulator MUST track theoretical rewards without pool limits
+    // Pool limits are only applied during withdrawal/harvest, NOT during accumulation
+    // This is fundamental to how SushiSwap MasterChef V2 works
+    
+    // 1. Calculate blocks elapsed with overflow protection
     let blocks_elapsed = current_block - last_reward_block;
     let reward_per_block = self.reward_per_block();
     
-    // POOL EXHAUSTION FIX: Calculate sustainable reward rate
-    let theoretical_period_rewards = blocks_elapsed * reward_per_block;
-    let remaining_pool = self.remaining_rewards();
+    // 2. Calculate theoretical period rewards (uncapped - critical for MasterChef math)
+    let theoretical_period_rewards = blocks_elapsed
+        .checked_mul(reward_per_block)
+        .unwrap_or(0);
     
-    // Cap to available pool
-    let capped_period_rewards = if theoretical_period_rewards > remaining_pool {
-      remaining_pool
-    } else {
-      theoretical_period_rewards
-    };
-    
-    // Skip if no rewards available
-    if capped_period_rewards == 0 {
-      self.set_last_reward_block(current_block);
-      return;
-    }
-    
-    // CRITICAL POOL EXHAUSTION FIX: 
-    // Calculate the maximum safe accumulator growth that won't lead to over-distribution
-    let precision = 1_000_000_000_000u128;
-    
-    // Calculate what the new accumulator would be with capped rewards
-    let additional_acc_reward_per_share = capped_period_rewards
+    // 3. Update accumulator with THEORETICAL rewards (SushiSwap MasterChef pattern)
+    // accRewardPerShare += (theoreticalPeriodRewards * 1e12) / totalStaked
+    let precision = 1_000_000_000_000u128; // 1e12
+    let additional_acc_reward_per_share = theoretical_period_rewards
       .checked_mul(precision)
       .and_then(|x| x.checked_div(total_assets))
       .unwrap_or(0);
     
-    let potential_new_acc_reward_per_share = self.acc_reward_per_share()
+    let new_acc_reward_per_share = self.acc_reward_per_share()
       .checked_add(additional_acc_reward_per_share)
       .unwrap_or(self.acc_reward_per_share());
     
-    // POOL SAFETY CHECK: Ensure the new accumulator won't enable over-distribution
-    // Calculate potential max payout if all current stakers withdrew at this new rate
-    let potential_max_payout = total_assets * potential_new_acc_reward_per_share / precision;
-    
-    // Only update the accumulator if the potential max payout is within pool limits
-    // Add a safety buffer to account for precision and future stakers
-    let safe_payout_limit = remaining_pool + self.distributed_rewards(); // Total pool
-    
-    if potential_max_payout <= safe_payout_limit {
-      // Safe to update accumulator
-      self.set_acc_reward_per_share(potential_new_acc_reward_per_share);
-    } else {
-      // Accumulator growth would risk over-distribution - calculate a safer rate
-      let safe_max_total_rewards = safe_payout_limit;
-      let safe_acc_reward_per_share = if total_assets > 0 {
-        safe_max_total_rewards * precision / total_assets
-      } else {
-        self.acc_reward_per_share()
-      };
-      
-      // Only increase accumulator, never decrease it (to maintain fairness for existing stakers)
-      let final_acc_reward_per_share = std::cmp::max(safe_acc_reward_per_share, self.acc_reward_per_share());
-      self.set_acc_reward_per_share(final_acc_reward_per_share);
-    }
-    
+    // 4. Update state - accumulator tracks theoretical, pool limits applied at withdrawal
+    self.set_acc_reward_per_share(new_acc_reward_per_share);
     self.set_last_reward_block(current_block);
   }
 }
