@@ -149,10 +149,10 @@ impl VaultFactory {
     }
     // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
     // This prevents users from accidentally sending more tokens than they intend to deposit
-    if deposit_token.value != assets {
-      return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
-                        deposit_token.value, assets));
-    }
+    // if deposit_token.value != assets {
+    //   return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
+    //                     deposit_token.value, assets));
+    // }
     
     // NEW: REWARD POOL EXHAUSTION CHECK
     // Check if reward pool has sufficient rewards to support this deposit

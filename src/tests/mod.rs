@@ -7,4 +7,5 @@ pub mod std;
 // pub mod reward_per_share_multiple_withdrawals_test;
 // pub mod sushiswap_reward_per_share_verification;
 pub mod four_player_musical_chairs_test;
+pub mod lower_bounds_musical_chairs_test;
 // pub mod security_spoofing_test;
