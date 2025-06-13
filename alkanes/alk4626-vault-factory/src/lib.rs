@@ -131,7 +131,7 @@ impl VaultFactory {
 
     // SECURITY: Minimum deposit requirement to prevent precision exploits
     // Small deposits can cause reward_debt calculation errors leading to reward theft
-    const MINIMUM_DEPOSIT: u128 = 1000;
+    const MINIMUM_DEPOSIT: u128 = 100;
     if assets < MINIMUM_DEPOSIT {
       return Err(anyhow!("Minimum deposit is {} tokens (provided: {}). This prevents precision exploits in reward calculations.", MINIMUM_DEPOSIT, assets));
     }
@@ -147,8 +147,11 @@ impl VaultFactory {
                         expected_deposit_token_id.block, expected_deposit_token_id.tx,
                         deposit_token.id.block, deposit_token.id.tx));
     }
-    if deposit_token.value < assets {
-      return Err(anyhow!("Insufficient token value for deposit amount"));
+    // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
+    // This prevents users from accidentally sending more tokens than they intend to deposit
+    if deposit_token.value != assets {
+      return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
+                        deposit_token.value, assets));
     }
     
     // NEW: REWARD POOL EXHAUSTION CHECK

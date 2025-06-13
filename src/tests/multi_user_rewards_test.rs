@@ -571,9 +571,3 @@ fn test_single_user_multiple_deposits() -> Result<()> {
     
     Ok(())
 }
-
-// REMOVED: Pure arithmetic test - no actual vault interaction
-
-// REMOVED: Pure arithmetic overflow test - no actual vault interaction  
-
-// REMOVED: Pure arithmetic test masquerading as multi-user integration
