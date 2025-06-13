@@ -6,6 +6,5 @@ pub mod std;
 // pub mod critical_withdrawal_test;
 // pub mod reward_per_share_multiple_withdrawals_test;
 // pub mod sushiswap_reward_per_share_verification;
-pub mod pure_masterchef_verification;
-pub mod debug_masterchef_math;
+pub mod four_player_musical_chairs_test;
 // pub mod security_spoofing_test;
