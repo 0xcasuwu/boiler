@@ -187,7 +187,7 @@ fn create_complete_system_setup() -> Result<(AlkaneId, AlkaneId, AlkaneId, OutPo
                     protocol: Some(
                         vec![
                             Protostone {
-                                message: into_cellpack(vec![2u128, 1u128, 77u128]).encipher(),
+                                message: into_cellpack(vec![2u128, 1u128, 77u128, 1000u128]).encipher(), // Added value parameter for dynamic minting
                                 protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                                 pointer: Some(0),
                                 refund: Some(0),
@@ -348,7 +348,7 @@ fn create_deposit_tokens(block_height: u32) -> Result<Block> {
                     protocol: Some(
                         vec![
                             Protostone {
-                                message: into_cellpack(vec![2u128, 1u128, 77u128]).encipher(),
+                                message: into_cellpack(vec![2u128, 1u128, 77u128, 1000u128]).encipher(), // Added value parameter for dynamic minting
                                 protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                                 pointer: Some(0),
                                 refund: Some(0),
@@ -763,20 +763,22 @@ fn test_end_to_end_flow() -> Result<()> {
     println!("");
     println!("👤 TRACE: Alice's Journey - Long-term Holder");
     
-    // Alice's journey: Deposit 500 tokens, hold for 20 blocks
-    let alice_deposit_amount = 500u128;
+    // Alice's journey: Deposit 1000 tokens, hold for 10 blocks  
+    let alice_deposit_amount = 1000u128;
     let alice_deposit_block = 10u32;
-    let alice_withdrawal_block = 30u32;
+    let alice_withdrawal_block = 20u32;
     let alice_blocks_held = alice_withdrawal_block - alice_deposit_block;
     let alice_expected_rewards = alice_deposit_amount * 10 * (alice_blocks_held as u128) / 1000; // 100 rewards
+    let alice_expected_total = alice_deposit_amount + alice_expected_rewards;
     
     println!("   📈 Alice's Investment Plan:");
     println!("     • Deposit amount: {} tokens", alice_deposit_amount);
     println!("     • Deposit block: {}", alice_deposit_block);
     println!("     • Withdrawal block: {}", alice_withdrawal_block);
     println!("     • Holding period: {} blocks", alice_blocks_held);
-    println!("     • Expected rewards: {} tokens ({}% APY)", alice_expected_rewards, (alice_expected_rewards as f64 / alice_deposit_amount as f64) * 100.0);
-    println!("     • Mathematical basis: deposit_amount × 10 rewards/block × blocks_held ÷ 1000");
+    println!("     • Expected rewards: {} tokens", alice_expected_rewards);
+    println!("     • Expected total: {} tokens ({}% return)", alice_expected_total, (alice_expected_rewards as f64 / alice_deposit_amount as f64) * 100.0);
+    println!("     • Mathematical basis: {} × 10 rewards/block × {} blocks ÷ 1000 = {} rewards", alice_deposit_amount, alice_blocks_held, alice_expected_rewards);
     
     // Alice's complete flow - FIXED: deposits don't need auth tokens
     let alice_token_block = create_deposit_tokens(5)?;
@@ -799,20 +801,22 @@ fn test_end_to_end_flow() -> Result<()> {
     println!("");
     println!("👤 TRACE: Bob's Journey - Short-term Holder");
     
-    // Bob's journey: Deposit 200 tokens, hold for 10 blocks
-    let bob_deposit_amount = 200u128;
-    let bob_deposit_block = 15u32;
-    let bob_withdrawal_block = 25u32;
+    // Bob's journey: Deposit 500 tokens, hold for 5 blocks 
+    let bob_deposit_amount = 500u128;
+    let bob_deposit_block = 25u32;
+    let bob_withdrawal_block = 30u32;
     let bob_blocks_held = bob_withdrawal_block - bob_deposit_block;
-    let bob_expected_rewards = bob_deposit_amount * 10 * (bob_blocks_held as u128) / 1000; // 20 rewards
+    let bob_expected_rewards = bob_deposit_amount * 10 * (bob_blocks_held as u128) / 1000; // 25 rewards
+    let bob_expected_total = bob_deposit_amount + bob_expected_rewards;
     
     println!("   📈 Bob's Investment Plan:");
     println!("     • Deposit amount: {} tokens", bob_deposit_amount);
     println!("     • Deposit block: {}", bob_deposit_block);
     println!("     • Withdrawal block: {}", bob_withdrawal_block);
     println!("     • Holding period: {} blocks", bob_blocks_held);
-    println!("     • Expected rewards: {} tokens ({}% APY)", bob_expected_rewards, (bob_expected_rewards as f64 / bob_deposit_amount as f64) * 100.0);
-    println!("     • Mathematical basis: deposit_amount × 10 rewards/block × blocks_held ÷ 1000");
+    println!("     • Expected rewards: {} tokens", bob_expected_rewards);
+    println!("     • Expected total: {} tokens ({}% return)", bob_expected_total, (bob_expected_rewards as f64 / bob_deposit_amount as f64) * 100.0);
+    println!("     • Mathematical basis: {} × 10 rewards/block × {} blocks ÷ 1000 = {} rewards", bob_deposit_amount, bob_blocks_held, bob_expected_rewards);
     
     // Bob's complete flow
     let bob_token_block = create_deposit_tokens(6)?;
@@ -832,25 +836,42 @@ fn test_end_to_end_flow() -> Result<()> {
     )?;
     
     println!("");
-    println!("🔍 TRACE: Final Results Verification");
+    println!("🔍 TRACE: Final Results Verification - Testing Time-Weighted Rewards");
     
     println!("   👤 Alice's Results:");
-    println!("     • Expected: {} tokens", alice_expected_rewards);
-    println!("     • Actual: {} tokens", alice_total_received);
-    println!("     • Difference: {} tokens", alice_total_received as i128 - alice_expected_rewards as i128);
-    println!("     • Success: {}", alice_total_received >= alice_expected_rewards);
+    println!("     • Expected total: {} tokens (1000 principal + 100 rewards)", alice_expected_total);
+    println!("     • Actual total: {} tokens", alice_total_received);
+    println!("     • Expected rewards only: {} tokens", alice_expected_rewards);
+    println!("     • Actual rewards: {} tokens", alice_total_received.saturating_sub(alice_deposit_amount));
+    println!("     • Difference from expected: {} tokens", alice_total_received as i128 - alice_expected_total as i128);
+    println!("     • Time-weighted success: {}", alice_total_received >= alice_expected_total);
     
     println!("   👤 Bob's Results:");
-    println!("     • Expected: {} tokens", bob_expected_rewards);
-    println!("     • Actual: {} tokens", bob_total_received);
-    println!("     • Difference: {} tokens", bob_total_received as i128 - bob_expected_rewards as i128);
-    println!("     • Success: {}", bob_total_received >= bob_expected_rewards);
+    println!("     • Expected total: {} tokens (500 principal + 25 rewards)", bob_expected_total);
+    println!("     • Actual total: {} tokens", bob_total_received);
+    println!("     • Expected rewards only: {} tokens", bob_expected_rewards);
+    println!("     • Actual rewards: {} tokens", bob_total_received.saturating_sub(bob_deposit_amount));
+    println!("     • Difference from expected: {} tokens", bob_total_received as i128 - bob_expected_total as i128);
+    println!("     • Time-weighted success: {}", bob_total_received >= bob_expected_total);
     
-    // Verify the results
-    assert!(alice_total_received >= alice_expected_rewards, 
-           "Alice should receive at least {} rewards, got {}", alice_expected_rewards, alice_total_received);
-    assert!(bob_total_received >= bob_expected_rewards, 
-           "Bob should receive at least {} rewards, got {}", bob_expected_rewards, bob_total_received);
+    println!("   📊 Proportional Reward Analysis:");
+    let alice_reward_ratio = (alice_expected_rewards as f64) / (alice_deposit_amount as f64) / (alice_blocks_held as f64);
+    let bob_reward_ratio = (bob_expected_rewards as f64) / (bob_deposit_amount as f64) / (bob_blocks_held as f64);
+    println!("     • Alice reward rate: {:.6} per token per block", alice_reward_ratio);
+    println!("     • Bob reward rate: {:.6} per token per block", bob_reward_ratio);
+    println!("     • Rates match (proportional): {}", (alice_reward_ratio - bob_reward_ratio).abs() < 0.000001);
+    
+    // Verify both users receive appropriate time-weighted rewards
+    assert!(alice_total_received >= alice_expected_total, 
+           "Alice should receive at least {} total tokens (principal + rewards), got {}", alice_expected_total, alice_total_received);
+    assert!(bob_total_received >= bob_expected_total, 
+           "Bob should receive at least {} total tokens (principal + rewards), got {}", bob_expected_total, bob_total_received);
+    
+    // Verify both users actually got rewards (not just principal)
+    let alice_actual_rewards = alice_total_received.saturating_sub(alice_deposit_amount);
+    let bob_actual_rewards = bob_total_received.saturating_sub(bob_deposit_amount);
+    assert!(alice_actual_rewards > 0, "Alice should receive some rewards, got 0");
+    assert!(bob_actual_rewards > 0, "Bob should receive some rewards, got 0");
     
     println!("");
     println!("🎉 TRACE: End-to-End Test PASSED!");
