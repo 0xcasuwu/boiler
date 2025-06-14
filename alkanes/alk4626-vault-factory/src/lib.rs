@@ -262,16 +262,14 @@ impl VaultFactory {
       
       let mint_cellpack = Cellpack {
         target: free_mint_contract,
-        inputs: vec![78u128, pending_rewards], // 78 = AuthorizedMint opcode
+        inputs: vec![77u128, pending_rewards], // 77 = MintTokens opcode
       };
       
       // Send factory auth token to authorize the mint
-      let mint_parcel = AlkaneTransferParcel {
-        alkanes: vec![AlkaneTransfer {
-          id: context.myself.clone(),
-          value: 1u128,
-        }].into(),
-      };
+      let mint_parcel = AlkaneTransferParcel(vec![AlkaneTransfer {
+        id: context.myself.clone(),
+        value: 1u128,
+      }]);
       
       match self.call(&mint_cellpack, &mint_parcel, self.fuel()) {
         Ok(mint_response) => {
@@ -594,3 +592,24 @@ impl VaultFactory {
         .checked_mul(reward_per_block)
         .unwrap_or(0);
     
+    // PURE MASTERCHEF: Update accumulator with precision
+    let precision = 1_000_000_000_000u128; // 10^12 precision
+    let reward_increment = theoretical_period_rewards
+        .checked_mul(precision)
+        .and_then(|x| x.checked_div(total_assets))
+        .unwrap_or(0);
+    
+    let new_acc_reward_per_share = self.acc_reward_per_share()
+        .checked_add(reward_increment)
+        .unwrap_or(self.acc_reward_per_share());
+    
+    self.set_acc_reward_per_share(new_acc_reward_per_share);
+    self.set_last_reward_block(current_block);
+  }
+}
+
+declare_alkane! {
+  impl AlkaneResponder for VaultFactory {
+    type Message = VaultFactoryMessage;
+  }
+}
