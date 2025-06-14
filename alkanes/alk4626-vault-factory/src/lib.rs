@@ -26,10 +26,10 @@ enum VaultFactoryMessage {
   #[opcode(0)]
   Initialize {
     deposit_token_id: AlkaneId,    // Token users must deposit (e.g., USDC)
-    reward_token_id: AlkaneId,     // Token for rewards (can be same or different)
     reward_per_block: u128,        // Emission rate per block
     start_block: u128,             // When rewards begin
-    preloaded_rewards: u128,       // Total reward pool loaded at init
+    end_reward_block: u128,        // When rewards stop accruing (temporal cap)
+    free_mint_contract_id: AlkaneId, // Free-mint contract for reward generation
   },
   
 
@@ -66,43 +66,25 @@ impl Token for VaultFactory {
 }
 
 impl VaultFactory {
-  fn initialize(&self, deposit_token_id: AlkaneId, reward_token_id: AlkaneId, reward_per_block: u128, start_block: u128, preloaded_rewards: u128) -> Result<CallResponse> {
+  fn initialize(&self, deposit_token_id: AlkaneId, reward_per_block: u128, start_block: u128, end_reward_block: u128, free_mint_contract_id: AlkaneId) -> Result<CallResponse> {
     let context = self.context()?;
-    let mut response = CallResponse::default(); // Don't forward all tokens - process selectively
+    let mut response = CallResponse::default();
     
     self.observe_initialization()?;
     
-    // Validate preloaded rewards
-    if preloaded_rewards == 0 {
-      return Err(anyhow!("Must preload reward pool with tokens"));
-    }
-    
-    // CRITICAL: Validate that reward tokens were actually sent to vault
-    let mut reward_tokens_received = 0u128;
-    let mut _auth_tokens_to_return: Vec<AlkaneTransfer> = Vec::new();
-    
-    for transfer in &context.incoming_alkanes.0 {
-      if transfer.id.block == reward_token_id.block && transfer.id.tx == reward_token_id.tx {
-        reward_tokens_received += transfer.value;
-      }
-    }
-    
-    // Ensure exactly the preloaded amount was provided
-    if reward_tokens_received != preloaded_rewards {
-      return Err(anyhow!("Reward token amount ({}) doesn't match preloaded_rewards parameter ({})", reward_tokens_received, preloaded_rewards));
+    // Validate temporal cap
+    if end_reward_block <= start_block {
+      return Err(anyhow!("End reward block must be after start block"));
     }
     
     // Store all parameters
     self.set_deposit_token_id(&deposit_token_id)?;
-    self.set_reward_token_id(&reward_token_id)?;
     self.set_reward_per_block(reward_per_block);
     self.set_start_block(start_block);
+    self.set_end_reward_block(end_reward_block);
+    self.set_free_mint_contract_id(&free_mint_contract_id)?;
     
-    // Initialize reward pool tracking
-    self.set_total_reward_pool(preloaded_rewards);
-    self.set_distributed_rewards(0);
-    
-    // Initialize counters
+    // Initialize counters (no preloaded reward tracking needed)
     self.set_position_count(0);
     self.set_total_assets(0);
     self.set_last_update_block(u128::from(self.height()));
@@ -111,12 +93,11 @@ impl VaultFactory {
     self.set_acc_reward_per_share(0);
     self.set_last_reward_block(start_block);
     
-    // Factory token acts as auth token
+    // Factory token acts as auth token for calling free-mint
     response.alkanes.0.push(AlkaneTransfer {
       id: context.myself.clone(),
       value: 1u128,
     });
-  
     
     Ok(response)
   }
@@ -129,12 +110,6 @@ impl VaultFactory {
       return Err(anyhow!("Cannot deposit zero assets"));
     }
 
-    // SECURITY: Minimum deposit requirement to prevent precision exploits
-    // Small deposits can cause reward_debt calculation errors leading to reward theft
-    const MINIMUM_DEPOSIT: u128 = 100;
-    if assets < MINIMUM_DEPOSIT {
-      return Err(anyhow!("Minimum deposit is {} tokens (provided: {}). This prevents precision exploits in reward calculations.", MINIMUM_DEPOSIT, assets));
-    }
 
     // Get the deposit token info first
     let deposit_token = &context.incoming_alkanes.0[0];
@@ -146,20 +121,6 @@ impl VaultFactory {
       return Err(anyhow!("Invalid deposit token - expected AlkaneId {{ block: {}, tx: {} }}, got AlkaneId {{ block: {}, tx: {} }}", 
                         expected_deposit_token_id.block, expected_deposit_token_id.tx,
                         deposit_token.id.block, deposit_token.id.tx));
-    }
-    // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
-    // This prevents users from accidentally sending more tokens than they intend to deposit
-    // if deposit_token.value != assets {
-    //   return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
-    //                     deposit_token.value, assets));
-    // }
-    
-    // NEW: REWARD POOL EXHAUSTION CHECK
-    // Check if reward pool has sufficient rewards to support this deposit
-    let remaining_rewards = self.remaining_rewards();
-    
-    if remaining_rewards == 0 {
-      return Err(anyhow!("Reward pool exhausted - no rewards available for new deposits"));
     }
     
     // PURE MASTERCHEF: Update global rewards before changing total assets
@@ -183,7 +144,6 @@ impl VaultFactory {
     
     // CRITICAL: Hold the deposit tokens in the vault (don't forward them - vault keeps them)
     // The vault now holds these tokens to return them later during withdrawal
-    
     // Create a new position token
     let position_id = self.position_count();
     let next_position_id = position_id.checked_add(1)
@@ -282,25 +242,53 @@ impl VaultFactory {
     let position_details = self.get_position_details(position_alkane)?;
     let (_position_id, deposit_amount, reward_debt, _deposit_block) = position_details;
     
-    // PURE MASTERCHEF REWARD CALCULATION WITH OVERFLOW PROTECTION: 
+    // PURE MASTERCHEF REWARD CALCULATION WITH TEMPORAL CAP: 
     // pending_rewards = (deposit_amount * accRewardPerShare / 1e12) - rewardDebt
     let current_acc_reward_per_share = self.acc_reward_per_share();
     let precision = 1_000_000_000_000u128; // 10^12 precision
     
-    // CRITICAL FIX: Use checked arithmetic to prevent overflow corruption
+    // Calculate accumulated rewards with overflow protection
     let accumulated_rewards = deposit_amount
         .checked_mul(current_acc_reward_per_share)
         .and_then(|x| x.checked_div(precision))
         .unwrap_or(0);
     let pending_rewards = accumulated_rewards.saturating_sub(reward_debt);
     
-    // CRITICAL: Real-time pool validation to prevent over-distribution
-    let remaining_pool = self.remaining_rewards();
-    let actual_rewards = std::cmp::min(pending_rewards, remaining_pool);
-    
-    // Update distributed_rewards with ACTUAL payout only
-    let new_distributed = self.distributed_rewards() + actual_rewards;
-    self.set_distributed_rewards(new_distributed);
+    // NEW: Call free-mint contract to mint the rewards on-demand
+    let mut actual_rewards = 0u128;
+    if pending_rewards > 0 {
+      // Call free-mint contract with authorization to mint exact reward amount
+      let free_mint_contract = self.free_mint_contract_id()?;
+      
+      let mint_cellpack = Cellpack {
+        target: free_mint_contract,
+        inputs: vec![78u128, pending_rewards], // 78 = AuthorizedMint opcode
+      };
+      
+      // Send factory auth token to authorize the mint
+      let mint_parcel = AlkaneTransferParcel {
+        alkanes: vec![AlkaneTransfer {
+          id: context.myself.clone(),
+          value: 1u128,
+        }].into(),
+      };
+      
+      match self.call(&mint_cellpack, &mint_parcel, self.fuel()) {
+        Ok(mint_response) => {
+          // Extract minted tokens from response
+          for transfer in &mint_response.alkanes.0 {
+            if transfer.id.block == free_mint_contract.block &&
+               transfer.id.tx == free_mint_contract.tx {
+              actual_rewards += transfer.value;
+            }
+          }
+        }
+        Err(_) => {
+          // If mint fails, user gets no rewards but still gets principal back
+          actual_rewards = 0;
+        }
+      }
+    }
     
     // Update vault state - remove deposit amount (pure 1:1 MasterChef)
     let new_total_assets = self.total_assets()
@@ -331,7 +319,7 @@ impl VaultFactory {
       ),
     };
     
-    // PURE MASTERCHEF: Return original deposit (1:1) + capped rewards
+    // Return original deposit (1:1) + freshly minted rewards
     if deposit_amount > 0 {
       response.alkanes.0.push(AlkaneTransfer {
         id: deposit_token_id.clone(),
@@ -339,12 +327,12 @@ impl VaultFactory {
       });
     }
     
-    // Return actual rewards (capped to available pool)
+    // Return freshly minted rewards
     if actual_rewards > 0 {
-      let reward_token_id = self.reward_token_id()?;
+      let free_mint_contract = self.free_mint_contract_id()?;
       response.alkanes.0.push(AlkaneTransfer {
-        id: reward_token_id,
-        value: actual_rewards,  // Pool-validated reward distribution
+        id: free_mint_contract,
+        value: actual_rewards,  // On-demand minted rewards
       });
     }
     
@@ -397,9 +385,12 @@ impl VaultFactory {
     // Don't calculate rewards before start_block
     let effective_from = std::cmp::max(from_block, self.start_block());
     
-    // Don't calculate beyond current block
+    // Don't calculate beyond end_reward_block (temporal cap)
+    let effective_to = std::cmp::min(to_block, self.end_reward_block());
+    
+    // Also don't calculate beyond current block
     let current_block = u128::from(self.height());
-    let effective_to = std::cmp::min(to_block, current_block);
+    let effective_to = std::cmp::min(effective_to, current_block);
     
     let rewards = if effective_from >= effective_to {
       0
@@ -438,6 +429,42 @@ impl VaultFactory {
   fn set_start_block(&self, start_block: u128) {
     self.store("/start_block".as_bytes().to_vec(), start_block.to_le_bytes().to_vec());
   }
+
+  fn end_reward_block(&self) -> u128 {
+    self.load_u128("/end_reward_block")
+  }
+  
+  fn set_end_reward_block(&self, end_reward_block: u128) {
+    self.store("/end_reward_block".as_bytes().to_vec(), end_reward_block.to_le_bytes().to_vec());
+  }
+
+  fn free_mint_contract_id(&self) -> Result<AlkaneId> {
+    let bytes = self.load("/free_mint_contract_id".as_bytes().to_vec());
+    
+    if bytes.len() < 32 {
+      return Err(anyhow!("Free mint contract ID not set"));
+    }
+    
+    Ok(AlkaneId {
+      block: u128::from_le_bytes(
+        bytes[0..16].try_into()
+          .map_err(|_| anyhow!("Failed to parse free mint contract block ID from storage"))?
+      ),
+      tx: u128::from_le_bytes(
+        bytes[16..32].try_into()
+          .map_err(|_| anyhow!("Failed to parse free mint contract tx ID from storage"))?
+      ),
+    })
+  }
+  
+  fn set_free_mint_contract_id(&self, id: &AlkaneId) -> Result<()> {
+    let mut bytes = Vec::with_capacity(32);
+    bytes.extend_from_slice(&id.block.to_le_bytes());
+    bytes.extend_from_slice(&id.tx.to_le_bytes());
+    
+    self.store("/free_mint_contract_id".as_bytes().to_vec(), bytes);
+    Ok(())
+  }
     
   fn total_assets(&self) -> u128 {
     self.load_u128("/total_assets")
@@ -461,34 +488,6 @@ impl VaultFactory {
   
   fn set_position_count(&self, position_count: u128) {
     self.store("/position_count".as_bytes().to_vec(), position_count.to_le_bytes().to_vec());
-  }
-  
-  fn reward_token_id(&self) -> Result<AlkaneId> {
-    let bytes = self.load("/reward_token_id".as_bytes().to_vec());
-    
-    if bytes.len() < 32 {
-      return Err(anyhow!("Reward token ID not set"));
-    }
-    
-    Ok(AlkaneId {
-      block: u128::from_le_bytes(
-        bytes[0..16].try_into()
-          .map_err(|_| anyhow!("Failed to parse reward token block ID from storage"))?
-      ),
-      tx: u128::from_le_bytes(
-        bytes[16..32].try_into()
-          .map_err(|_| anyhow!("Failed to parse reward token tx ID from storage"))?
-      ),
-    })
-  }
-  
-  fn set_reward_token_id(&self, id: &AlkaneId) -> Result<()> {
-    let mut bytes = Vec::with_capacity(32);
-    bytes.extend_from_slice(&id.block.to_le_bytes());
-    bytes.extend_from_slice(&id.tx.to_le_bytes());
-    
-    self.store("/reward_token_id".as_bytes().to_vec(), bytes);
-    Ok(())
   }
 
   // Helper function to load u128 values from storage
@@ -530,29 +529,6 @@ impl VaultFactory {
     self.store("/deposit_token_id".as_bytes().to_vec(), bytes);
     Ok(())
   }
-  
-  fn total_reward_pool(&self) -> u128 {
-    self.load_u128("/total_reward_pool")
-  }
-  
-  fn set_total_reward_pool(&self, total_reward_pool: u128) {
-    self.store("/total_reward_pool".as_bytes().to_vec(), total_reward_pool.to_le_bytes().to_vec());
-  }
-  
-  fn distributed_rewards(&self) -> u128 {
-    self.load_u128("/distributed_rewards")
-  }
-  
-  fn set_distributed_rewards(&self, distributed_rewards: u128) {
-    self.store("/distributed_rewards".as_bytes().to_vec(), distributed_rewards.to_le_bytes().to_vec());
-  }
-  
-  fn remaining_rewards(&self) -> u128 {
-    let total_pool = self.total_reward_pool();
-    let distributed = self.distributed_rewards();
-    total_pool.saturating_sub(distributed)
-  }
-
   
   fn is_registered_child(&self, child_id: &AlkaneId) -> bool {
     let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
@@ -600,40 +576,21 @@ impl VaultFactory {
       return;
     }
     
-    // CRITICAL MASTERCHEF ARCHITECTURE FIX:
-    // The accumulator MUST track theoretical rewards without pool limits
-    // Pool limits are only applied during withdrawal/harvest, NOT during accumulation
-    // This is fundamental to how SushiSwap MasterChef V2 works
+    // NEW: Apply temporal cap - don't accumulate rewards beyond end_reward_block
+    let effective_end_block = std::cmp::min(current_block, self.end_reward_block());
     
-    // 1. Calculate blocks elapsed with overflow protection
-    let blocks_elapsed = current_block - last_reward_block;
+    // If we're already past the end reward block, just update the last reward block
+    if last_reward_block >= effective_end_block {
+      self.set_last_reward_block(current_block);
+      return;
+    }
+    
+    // Calculate blocks elapsed with temporal cap
+    let blocks_elapsed = effective_end_block - last_reward_block;
     let reward_per_block = self.reward_per_block();
     
-    // 2. Calculate theoretical period rewards (uncapped - critical for MasterChef math)
+    // Calculate theoretical period rewards (with temporal cap)
     let theoretical_period_rewards = blocks_elapsed
         .checked_mul(reward_per_block)
         .unwrap_or(0);
     
-    // 3. Update accumulator with THEORETICAL rewards (SushiSwap MasterChef pattern)
-    // accRewardPerShare += (theoreticalPeriodRewards * 1e12) / totalStaked
-    let precision = 1_000_000_000_000u128; // 1e12
-    let additional_acc_reward_per_share = theoretical_period_rewards
-      .checked_mul(precision)
-      .and_then(|x| x.checked_div(total_assets))
-      .unwrap_or(0);
-    
-    let new_acc_reward_per_share = self.acc_reward_per_share()
-      .checked_add(additional_acc_reward_per_share)
-      .unwrap_or(self.acc_reward_per_share());
-    
-    // 4. Update state - accumulator tracks theoretical, pool limits applied at withdrawal
-    self.set_acc_reward_per_share(new_acc_reward_per_share);
-    self.set_last_reward_block(current_block);
-  }
-}
-
-declare_alkane! {
-  impl AlkaneResponder for VaultFactory {
-    type Message = VaultFactoryMessage;
-  }
-}
