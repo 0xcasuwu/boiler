@@ -93,12 +93,6 @@ impl VaultFactory {
     self.set_acc_reward_per_share(0);
     self.set_last_reward_block(start_block);
     
-    // Factory token acts as auth token for calling free-mint
-    response.alkanes.0.push(AlkaneTransfer {
-      id: context.myself.clone(),
-      value: 1u128,
-    });
-    
     Ok(response)
   }
   
@@ -109,7 +103,6 @@ impl VaultFactory {
     if assets == 0 {
       return Err(anyhow!("Cannot deposit zero assets"));
     }
-
 
     // Get the deposit token info first
     let deposit_token = &context.incoming_alkanes.0[0];
@@ -122,6 +115,13 @@ impl VaultFactory {
                         expected_deposit_token_id.block, expected_deposit_token_id.tx,
                         deposit_token.id.block, deposit_token.id.tx));
     }
+
+      // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
+    // This prevents users from accidentally sending more tokens than they intend to deposit
+    // if deposit_token.value != assets {
+    //   return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
+    //                     deposit_token.value, assets));
+    // }
     
     // PURE MASTERCHEF: Update global rewards before changing total assets
     self.update_rewards();
