@@ -260,10 +260,6 @@ enum MintableAlkaneMessage {
     FactoryMintTokens { 
         value: u128,
     },
-=======
-        tx: u128
->>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
-    },
 
     /// Mint new tokens
     #[opcode(77)]
@@ -523,16 +519,6 @@ impl MintableAlkane {
         let is_authorized = self.is_caller_authorized(&context)?;
 
         if !is_authorized {
->>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
-            return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
-        }
-        // SECURITY: Check if the caller is an authorized factory
-        if !is_authorized {
-            return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
-        }
-=======
-        if !is_authorized {
->>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
