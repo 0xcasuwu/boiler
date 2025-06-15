@@ -2,7 +2,7 @@
 //!
 //! A modernized and secure version of the free mint alkane contract that follows
 //! current best practices and security patterns while providing full functionality
-//! of a standard token plus free mint capabilities with probabilistic minting.
+//! of a standard token plus free mint capabilities.
 
 use alkanes_runtime::storage::StoragePointer;
 use alkanes_runtime::{declare_alkane, message::MessageDispatch, runtime::AlkaneResponder};
@@ -13,7 +13,7 @@ use alkanes_support::witness::find_witness_payload;
 use alkanes_support::{context::Context, parcel::AlkaneTransfer};
 use anyhow::{anyhow, Result};
 use bitcoin::hashes::Hash;
-use bitcoin::{Block, Transaction, Txid};
+use bitcoin::{Transaction, Txid};
 use metashrew_support::compat::to_arraybuffer_layout;
 use metashrew_support::index_pointer::KeyValuePointer;
 use metashrew_support::utils::consensus_decode;
@@ -61,7 +61,7 @@ pub struct TokenName {
 impl From<TokenName> for String {
     fn from(name: TokenName) -> Self {
         // Trim both parts and concatenate them
-        format!("{}{}", trim(name.part1), trim(name.part2))
+        format!("{}{}", trim(name.part1), trim(name.part2)) 
     }
 }
 
@@ -216,10 +216,9 @@ enum MintableAlkaneMessage {
     /// Initialize the token with configuration
     #[opcode(0)]
     Initialize {
+        premine: u128
         /// Initial token units
         token_units: u128,
-        /// Value per mint
-        value_per_mint: u128,
         /// Maximum supply cap (0 for unlimited)
         cap: u128,
         /// Token name part 1
@@ -228,18 +227,22 @@ enum MintableAlkaneMessage {
         name_part2: u128,
         /// Token symbol
         symbol: u128,
-        /// Initial authorized factory (block)
-        factory_block: u128,
-        /// Initial authorized factory (tx)  
-        factory_tx: u128,
     },
 
-    /// Mint new tokens (SECURED - only authorized factories can mint)
+    #[opcode(1)]
+    UpdateFactoryWhitelist {
+        block: u128,
+        tx: u128
+    }
+
+    /// Mint new tokens
     #[opcode(77)]
-    MintTokens {
-        /// Amount of tokens to mint
-        value: u128,
-    },
+    MintTokens,
+
+    #[opcode(78)]
+    FactoryMintTokens { 
+        value: u128 
+    }
 
     /// Get the token name
     #[opcode(99)]
@@ -275,32 +278,6 @@ enum MintableAlkaneMessage {
     #[opcode(1000)]
     #[returns(Vec<u8>)]
     GetData,
-
-    /// Get the random value for a given transaction (for debugging)
-    #[opcode(1001)]
-    #[returns(u8)]
-    GetRandomValue,
-
-    /// Set owner - manage authorized factories (requires auth token)
-    #[opcode(1002)]
-    SetOwner {
-        /// Factory block ID to authorize/deauthorize
-        factory_block: u128,
-        /// Factory tx ID to authorize/deauthorize
-        factory_tx: u128,
-        /// True to authorize, false to deauthorize
-        authorize: u128,
-    },
-
-    /// Check if factory is authorized
-    #[opcode(1003)]
-    #[returns(u8)]
-    IsAuthorizedFactory {
-        /// Factory block ID to check
-        factory_block: u128,
-        /// Factory tx ID to check
-        factory_tx: u128,
-    },
 }
 
 impl MintableAlkane {
@@ -360,24 +337,14 @@ impl MintableAlkane {
         Ok(())
     }
 
-    /// Get the current block
-    fn get_current_block(&self) -> Result<Block> {
-        let block_data = self.block();
-        consensus_decode::<Block>(&mut Cursor::new(block_data))
-            .map_err(|e| anyhow!("Failed to decode current block: {}", e))
-    }
-
-
-    /// Initialize the token with configuration and security
+    /// Initialize the token with configuration
     fn initialize(
         &self,
-        token_units: u128,
+        premine: u128,
         cap: u128,
         name_part1: u128,
         name_part2: u128,
         symbol: u128,
-        factory_block: u128,
-        factory_tx: u128,
     ) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
@@ -394,30 +361,117 @@ impl MintableAlkane {
         let name = TokenName::new(name_part1, name_part2);
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
-        // SECURITY: Set up initial authorized factory
-        self.set_authorized_factory(factory_block, factory_tx, true)?;
-
-        // SECURITY: Create self-cloned auth token for ownership management
-        response.alkanes.0.push(AlkaneTransfer {
-            id: context.myself.clone(),
-            value: 1u128, // Auth token for ownership operations
-        });
-
         // Mint initial tokens
-        if token_units > 0 {
+        if premine > 0 {
             response.alkanes.0.push(self.mint(&context, token_units)?);
         }
 
         Ok(response)
     }
 
+    /// Mint new tokens
+    fn mint_tokens(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        let txid = context.transaction_id()?;
+
+        if self.has_tx_hash(&txid) {
+            return Err(anyhow!("Transaction already used for minting"));
+        }
+
+        let txid_bytes = txid.to_byte_array();
+        let mut reversed_bytes = txid_bytes.to_vec();
+        reversed_bytes.reverse();
+        let txid_hex = hex::encode(&reversed_bytes);
+        
+        let is_muggle = !txid_hex[8..10].eq_ignore_ascii_case("49");
+
+        let mist_multiplier_str = &txid_hex[12..14];
+
+        // Use 110, 115, 120, etc. for 1.1x, 1.15x, 1.2x, etc.
+        let mist_multiplier = match mist_multiplier_str {
+            "00" => 110u128, // 1.10x
+            "01" => 115u128, // 1.15x
+            "02" => 120u128, // 1.20x
+            "03" => 125u128, // 1.25x
+            "04" => 130u128, // 1.30x
+            _ => 100u128,    // 1.00x (no bonus)
+        };
+
+        if self.minted() >= self.cap() {
+            return Err(anyhow!(
+                "Supply cap reached: {} of {}",
+                self.minted(),
+                self.cap()
+            ));
+        }
+
+        self.add_tx_hash(&txid)?;
+
+        let last4 = &txid_hex[txid_hex.len() - 8..txid_hex.len() - 4];
+        let number = u16::from_str_radix(last4, 16)? as u128;
+
+        let max_units = 6_553_500_000u128;
+        let mut scaled_value = (number * max_units) / 65535;
+
+        let last_two = &last4[last4.len() - 2..];
+        let multiplier = if last_two == "49" {
+            100u128  // Highest priority for 69
+        } else if last4.contains("490") {
+            150u128   // Triple zeros
+        } else if last4.contains("420") {
+            200u128   // 420 pattern
+        } else if last4.contains("888") {
+            250u128   // Triple eights
+        } else {
+            match last_two {
+                "11" => 11u128,
+                "22" => 22u128,
+                "33" => 33u128,
+                "44" => 44u128,
+                "55" => 55u128,
+                "66" => 66u128,
+                "77" => 77u128,
+                "88" => 88u128,
+                "99" => 99u128,
+                _ => {
+                    match last4.chars().last().unwrap() {
+                        '1' => 1u128,
+                        '2' => 2u128,
+                        '3' => 3u128,
+                        '4' => 4u128,
+                        '5' => 5u128,
+                        '6' => 6u128,
+                        '7' => 7u128,
+                        '8' => 8u128,
+                        '9' => 9u128,
+                        _ => 1u128,
+                    }
+                }
+            }
+        };
+
+        if is_muggle {
+            scaled_value = 100_000_000u128; 
+        } else {
+            scaled_value = (scaled_value * multiplier * mist_multiplier) / 100;
+        }
+
+        response.alkanes.0.push(self.mint(&context, scaled_value)?);
+
+        self.increment_mint()?;
+
+        Ok(response)
+    }
+
     /// Mint new tokens (SECURED - only authorized factories can mint)
-    fn mint_tokens(&self, value: u128) -> Result<CallResponse> {
+    fn factory_mint_tokens(&self, value: u128) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         // SECURITY: Check if the caller is an authorized factory
-        if !self.is_caller_authorized(&context)? && self.get_minted() > 100000 {
+        if !self.is_caller_authorized(&context) {
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
@@ -429,15 +483,6 @@ impl MintableAlkane {
             return Err(anyhow!("Transaction already used for minting"));
         }
 
-        // Check if minting would exceed cap
-        if self.minted() >= self.cap() {
-            return Err(anyhow!(
-                "Supply cap reached: {} of {}",
-                self.minted(),
-                self.cap()
-            ));
-        }
-
         // Record transaction hash
         self.add_tx_hash(&txid)?;
 
@@ -446,6 +491,23 @@ impl MintableAlkane {
 
         // Increment mint counter
         self.increment_mint()?;
+
+        Ok(response)
+    }
+
+    /// Set the token name and symbol
+    fn set_name_and_symbol(
+        &self,
+        name_part1: u128,
+        name_part2: u128,
+        symbol: u128,
+    ) -> Result<CallResponse> {
+        let context = self.context()?;
+        let response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Create TokenName from the two parts
+        let name = TokenName::new(name_part1, name_part2);
+        <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
         Ok(response)
     }
@@ -500,16 +562,6 @@ impl MintableAlkane {
         Ok(response)
     }
 
-    /// Get the value per mint
-    fn get_value_per_mint(&self) -> Result<CallResponse> {
-        let context = self.context()?;
-        let mut response = CallResponse::forward(&context.incoming_alkanes);
-
-        response.data = self.value_per_mint().to_le_bytes().to_vec();
-
-        Ok(response)
-    }
-
     /// Get the token data
     fn get_data(&self) -> Result<CallResponse> {
         let context = self.context()?;
@@ -520,54 +572,9 @@ impl MintableAlkane {
         Ok(response)
     }
 
-
-    // ===== SECURITY FUNCTIONS =====
-
-    /// Set/unset authorized factory (requires auth token)
-    fn set_owner(&self, factory_block: u128, factory_tx: u128, authorize: u128) -> Result<CallResponse> {
-        let context = self.context()?;
-        let response = CallResponse::forward(&context.incoming_alkanes);
-
-        // SECURITY: Verify caller has auth token
-        if !self.has_auth_token(&context)? {
-            return Err(anyhow!("SetOwner requires authentication token"));
-        }
-
-        // Set/unset authorization
-        self.set_authorized_factory(factory_block, factory_tx, authorize != 0)?;
-
-        Ok(response)
-    }
-
-    /// Check if factory is authorized (public query)
-    fn is_authorized_factory(&self, factory_block: u128, factory_tx: u128) -> Result<CallResponse> {
-        let context = self.context()?;
-        let mut response = CallResponse::forward(&context.incoming_alkanes);
-
-        let authorized = self.is_factory_authorized(factory_block, factory_tx);
-        response.data = vec![if authorized { 1u8 } else { 0u8 }];
-
-        Ok(response)
-    }
-
-    /// Internal: Set/unset authorized factory
-    fn set_authorized_factory(&self, factory_block: u128, factory_tx: u128, authorize: bool) -> Result<()> {
-        let key = format!("/authorized_factories/{}/{}", factory_block, factory_tx);
-        let value = if authorize { 1u8 } else { 0u8 };
-        
-        StoragePointer::from_keyword(&key).set_value::<u8>(value);
-        Ok(())
-    }
-
-    /// Internal: Check if specific factory is authorized
-    fn is_factory_authorized(&self, factory_block: u128, factory_tx: u128) -> bool {
-        let key = format!("/authorized_factories/{}/{}", factory_block, factory_tx);
-        StoragePointer::from_keyword(&key).get_value::<u8>() == 1
-    }
-
-    /// Internal: Check if caller has required authentication
+        /// Internal: Check if caller has required authentication
     fn is_caller_authorized(&self, context: &Context) -> Result<bool> {
-        // Check if caller is the factory itself (context.caller)
+
         // The caller should have its factory auth token in incoming_alkanes
         if context.incoming_alkanes.0.is_empty() {
             return Ok(false);
@@ -584,22 +591,34 @@ impl MintableAlkane {
         Ok(false)
     }
 
-    /// Internal: Check if caller has self-cloned auth token for ownership operations
-    fn has_auth_token(&self, context: &Context) -> Result<bool> {
-        if context.incoming_alkanes.0.is_empty() {
-            return Ok(false);
+        /// Internal: Check if specific factory is authorized
+    fn is_factory_authorized(&self, factory_block: u128, factory_tx: u128) -> bool {
+        let key = format!("/authorized_factories/{}/{}", factory_block, factory_tx);
+        StoragePointer::from_keyword(&key).get_value::<u8>() == 1
+    }
+
+        /// Set/unset authorized factory (requires auth token)
+    fn update_factory_whitelist(&self, factory_block: u128, factory_tx: u128) -> Result<CallResponse> {
+        let context = self.context()?;
+        let response = CallResponse::forward(&context.incoming_alkanes);
+
+        // SECURITY: Check if the caller is an authorized factory
+        if !self.is_caller_authorized(&context) {
+            return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
-        // Look for self-cloned auth token
-        for transfer in &context.incoming_alkanes.0 {
-            if transfer.id.block == context.myself.block && 
-               transfer.id.tx == context.myself.tx && 
-               transfer.value >= 1 {
-                return Ok(true);
-            }
-        }
+        self.set_authorized_factory(factory_block, factory_tx)?;
 
-        Ok(false)
+        Ok(response)
+    }
+
+        /// Internal: Set/unset authorized factory
+    fn set_authorized_factory(&self, factory_block: u128, factory_tx: u128) -> Result<()> {
+        let key = format!("/authorized_factories/{}/{}", factory_block, factory_tx);
+        let value = 1u8
+        
+        StoragePointer::from_keyword(&key).set_value::<u8>(value);
+        Ok(())
     }
 }
 
