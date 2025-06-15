@@ -216,14 +216,16 @@ fn setup_test_environment() -> Result<(AlkaneId, AlkaneId, AlkaneId)> {
 
 #[wasm_bindgen_test]
 fn test_direct_attack_prevention() -> Result<()> {
-    println!("🛡️ SECURITY TEST: Direct Attack Prevention");
+    println!("🛡️ SECURITY TEST: Direct Attack Prevention - Enhanced Trace Analysis");
     
     let (free_mint_id, _deposit_token_id, vault_factory_id) = setup_test_environment()?;
     
-    // TEST 1: Direct unauthorized mint call (no authorization)
-    println!("🔍 TEST 1: Direct unauthorized mint call");
+    // TEST 1: Opcode 77 (MintTokens) - Public Free Mint (SHOULD WORK)
+    println!("🔍 TEST 1: Opcode 77 (MintTokens) - Public Free Mint");
+    println!("   🎯 Attack Vector: Direct opcode 77 call (public free mint)");
+    println!("   ✅ Expected Result: Should SUCCEED (this is intentionally public)");
     
-    let direct_attack_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+    let free_mint_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
         version: Version::ONE,
         lock_time: bitcoin::absolute::LockTime::ZERO,
         input: vec![TxIn {
@@ -251,15 +253,14 @@ fn test_direct_attack_prevention() -> Result<()> {
                         vec![
                             Protostone {
                                 message: into_cellpack(vec![
-                                    free_mint_id.block, free_mint_id.tx, 77u128, // Direct call with MintTokens opcode
-                                    1000u128, // Large amount attempt
+                                    free_mint_id.block, free_mint_id.tx, 77u128, // Opcode 77 - Public free mint
                                 ]).encipher(),
                                 protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                                 pointer: Some(0),
                                 refund: Some(0),
                                 from: None,
                                 burn: None,
-                                edicts: vec![], // NO AUTHORIZATION TOKENS
+                                edicts: vec![], // No auth tokens needed for opcode 77
                             }
                         ].encipher()?
                     )
@@ -268,19 +269,118 @@ fn test_direct_attack_prevention() -> Result<()> {
             }
         ],
     }]);
-    index_block(&direct_attack_block, 4)?;
+    index_block(&free_mint_block, 4)?;
     
-    let direct_trace_data = &view::trace(&OutPoint {
-        txid: direct_attack_block.txdata[0].compute_txid(),
+    let free_mint_trace = &view::trace(&OutPoint {
+        txid: free_mint_block.txdata[0].compute_txid(),
         vout: 3,
     })?;
-    let direct_trace_result: Trace = AlkanesTrace::parse_from_bytes(direct_trace_data)?.into();
-    let direct_trace_str = format!("{:?}", direct_trace_result.0.lock().unwrap());
-    let direct_attack_blocked = direct_trace_str.contains("RevertContext") || !direct_trace_str.contains("ReturnContext");
+    let free_mint_result: Trace = AlkanesTrace::parse_from_bytes(free_mint_trace)?.into();
+    let free_mint_succeeded = format!("{:?}", free_mint_result.0.lock().unwrap()).contains("AlkaneTransfer");
     
-    println!("✅ Direct attack blocked: {}", direct_attack_blocked);
-    assert!(direct_attack_blocked, "Direct attack should be blocked");
+    println!("   ✅ Opcode 77 (MintTokens) succeeded: {} (expected: true)", free_mint_succeeded);
+    assert!(free_mint_succeeded, "Opcode 77 should succeed - it's public free mint");
     
-    println!("🎉 All direct attack prevention tests PASSED!");
+    // TEST 2: Opcode 78 (FactoryMintTokens) - Unauthorized Attack (SHOULD FAIL)
+    println!("🔍 TEST 2: Opcode 78 (FactoryMintTokens) - Unauthorized Attack");
+    println!("   🎯 Attack Vector: Direct opcode 78 call without authorization tokens");
+    println!("   🔒 Expected Result: Should be BLOCKED by authorization system");
+    
+    let attack_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+        version: Version::ONE,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new()
+        }],
+        output: vec![
+            TxOut {
+                script_pubkey: Address::from_str(ADDRESS1().as_str())
+                    .unwrap()
+                    .require_network(get_btc_network())
+                    .unwrap()
+                    .script_pubkey(),
+                value: Amount::from_sat(546),
+            },
+            TxOut {
+                script_pubkey: (Runestone {
+                    edicts: vec![],
+                    etching: None,
+                    mint: None,
+                    pointer: None,
+                    protocol: Some(
+                        vec![
+                            Protostone {
+                                message: into_cellpack(vec![
+                                    free_mint_id.block, free_mint_id.tx, 78u128, // Opcode 78 - Requires authorization!
+                                    1000000u128, // Large amount attempt
+                                ]).encipher(),
+                                protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
+                                pointer: Some(0),
+                                refund: Some(0),
+                                from: None,
+                                burn: None,
+                                edicts: vec![], // NO AUTHORIZATION TOKENS - THIS IS THE REAL ATTACK
+                            }
+                        ].encipher()?
+                    )
+                }).encipher(),
+                value: Amount::from_sat(546)
+            }
+        ],
+    }]);
+    index_block(&attack_block, 5)?;
+    
+    println!("🔍 TRACE: Unauthorized opcode 78 attack indexed at block 5");
+    
+    let attack_trace_data = &view::trace(&OutPoint {
+        txid: attack_block.txdata[0].compute_txid(),
+        vout: 3,
+    })?;
+    let attack_trace_result: Trace = AlkanesTrace::parse_from_bytes(attack_trace_data)?.into();
+    
+    // DETAILED TRACE ANALYSIS
+    println!("=== OPCODE 78 SECURITY TRACE ANALYSIS ===");
+    let trace_guard = attack_trace_result.0.lock().unwrap();
+    println!("Opcode 78 attack trace: {:?}", *trace_guard);
+    
+    let has_enter_call = format!("{:?}", *trace_guard).contains("EnterCall");
+    let has_return_context = format!("{:?}", *trace_guard).contains("ReturnContext");
+    let has_revert_context = format!("{:?}", *trace_guard).contains("RevertContext");
+    let has_alkane_transfer = format!("{:?}", *trace_guard).contains("AlkaneTransfer");
+    let contains_unauthorized = format!("{:?}", *trace_guard).contains("Unauthorized");
+    
+    println!("📊 DETAILED TRACE BREAKDOWN:");
+    println!("   • EnterCall detected: {}", has_enter_call);
+    println!("   • ReturnContext detected: {}", has_return_context);
+    println!("   • RevertContext detected: {}", has_revert_context);
+    println!("   • AlkaneTransfer detected: {}", has_alkane_transfer);
+    println!("   • 'Unauthorized' error detected: {}", contains_unauthorized);
+    
+    // Security Analysis - Opcode 78 should be blocked without authorization
+    let attack_was_blocked = has_revert_context || contains_unauthorized || !has_alkane_transfer;
+    
+    println!("🔒 OPCODE 78 SECURITY VERDICT:");
+    if attack_was_blocked {
+        println!("   ✅ ATTACK BLOCKED: Authorization system working correctly");
+        println!("   🛡️ Opcode 78 properly requires authorization tokens");
+    } else {
+        println!("   ❌ ATTACK SUCCEEDED: Security breach detected!");
+        println!("   🚨 CRITICAL: Unauthorized opcode 78 call was not blocked");
+        if has_alkane_transfer {
+            println!("   🚨 TOKENS WERE MINTED WITHOUT AUTHORIZATION!");
+        }
+    }
+    
+    // Assert that opcode 78 attack should be blocked
+    assert!(attack_was_blocked, 
+        "❌ SECURITY FAILURE: Opcode 78 unauthorized attack was not blocked! \
+         This means the free-mint contract allowed opcode 78 minting without proper authorization tokens. \
+         Expected: RevertContext, 'Unauthorized' error, or no successful token minting. \
+         Got: Successful token minting without authorization.");
+    
+    println!("🎉 SECURITY TEST PASSED: Direct attack prevention working correctly!");
     Ok(())
 }

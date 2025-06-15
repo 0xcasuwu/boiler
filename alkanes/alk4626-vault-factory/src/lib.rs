@@ -114,7 +114,7 @@ impl VaultFactory {
                         deposit_token.id.block, deposit_token.id.tx));
     }
 
-      // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
+    // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
     // This prevents users from accidentally sending more tokens than they intend to deposit
     // if deposit_token.value != assets {
     //   return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.", 
@@ -140,8 +140,8 @@ impl VaultFactory {
       .ok_or_else(|| anyhow!("Total assets overflow"))?;
     self.set_total_assets(new_total_assets);
     
-    // CRITICAL: Hold the deposit tokens in the vault (don't forward them - vault keeps them)
-    // The vault now holds these tokens to return them later during withdrawal
+    // CRITICAL: Hold the deposit tokens in the vault (don't forward them - vault keeps them) 
+    // to return them later during withdrawal
     // Create a new position token
     let position_id = self.position_count();
     let next_position_id = position_id.checked_add(1)
