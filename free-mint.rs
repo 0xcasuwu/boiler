@@ -210,6 +210,18 @@ pub struct MintableAlkane(());
 
 impl MintableToken for MintableAlkane {}
 
+        tx: u128
+>>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
+    },
+
+    /// Mint new tokens
+    #[opcode(77)]
+    MintTokens,
+
+    #[opcode(78)]
+    FactoryMintTokens { 
+        value: u128 
+    },
 /// Message enum for opcode-based dispatch
 #[derive(MessageDispatch)]
 enum MintableAlkaneMessage {
@@ -247,6 +259,19 @@ enum MintableAlkaneMessage {
     #[opcode(78)]
     FactoryMintTokens { 
         value: u128,
+    },
+=======
+        tx: u128
+>>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
+    },
+
+    /// Mint new tokens
+    #[opcode(77)]
+    MintTokens,
+
+    #[opcode(78)]
+    FactoryMintTokens { 
+        value: u128 
     },
 
     /// Get the token name
@@ -495,8 +520,14 @@ impl MintableAlkane {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
+        let is_authorized = self.is_caller_authorized(&context)?;
+
         // SECURITY: Check if the caller is an authorized factory
+<<<<<<< HEAD
         if !self.is_caller_authorized(&context)? {
+=======
+        if !is_authorized {
+>>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
@@ -638,10 +669,10 @@ impl MintableAlkane {
         let context = self.context()?;
         let response = CallResponse::forward(&context.incoming_alkanes);
 
+        let is_authorized = self.is_caller_authorized(&context)?;
 
-        
         // SECURITY: Check if the caller is an authorized factory
-        if !self.is_caller_authorized(&context)? {
+        if !is_authorized {
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
