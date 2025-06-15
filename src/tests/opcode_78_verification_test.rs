@@ -94,8 +94,8 @@ fn create_opcode_78_test_setup() -> Result<(AlkaneId, AlkaneId, AlkaneId, OutPoi
                                     0x46524545,           // name_part1 ("FREE")
                                     0x4d494e54,           // name_part2 ("MINT")
                                     0x46524d,             // symbol ("FRM")
-                                    4u128,                // vault_factory_block
-                                    0x37a,                // vault_factory_tx
+                                    4u128,                // initial_factory_block (vault factory)
+                                    0x37a,                // initial_factory_tx (vault factory)
                                 ]).encipher(),
                                 protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                                 pointer: Some(0),
