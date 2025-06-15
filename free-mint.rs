@@ -228,13 +228,17 @@ enum MintableAlkaneMessage {
         name_part2: u128,
         /// Token symbol
         symbol: u128,
+        /// Initial authorized factory block (0 to skip)
+        initial_factory_block: u128,
+        /// Initial authorized factory tx (0 to skip)
+        initial_factory_tx: u128,
     },
 
     #[opcode(1)]
     UpdateFactoryWhitelist {
         block: u128,
-        tx: u128
-    }
+        tx: u128,
+    },
 
     /// Mint new tokens
     #[opcode(77)]
@@ -242,8 +246,8 @@ enum MintableAlkaneMessage {
 
     #[opcode(78)]
     FactoryMintTokens { 
-        value: u128 
-    }
+        value: u128,
+    },
 
     /// Get the token name
     #[opcode(99)]
@@ -362,6 +366,8 @@ impl MintableAlkane {
         name_part1: u128,
         name_part2: u128,
         symbol: u128,
+        initial_factory_block: u128,
+        initial_factory_tx: u128,
     ) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
@@ -377,6 +383,8 @@ impl MintableAlkane {
         // Create TokenName from the two parts
         let name = TokenName::new(name_part1, name_part2);
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
+
+        self.set_authorized_factory(initial_factory_block, initial_factory_tx)?;
 
         // Mint initial tokens
         if token_units > 0 {
@@ -488,7 +496,7 @@ impl MintableAlkane {
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         // SECURITY: Check if the caller is an authorized factory
-        if !self.is_caller_authorized(&context) {
+        if !self.is_caller_authorized(&context)? {
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
@@ -630,8 +638,10 @@ impl MintableAlkane {
         let context = self.context()?;
         let response = CallResponse::forward(&context.incoming_alkanes);
 
+
+        
         // SECURITY: Check if the caller is an authorized factory
-        if !self.is_caller_authorized(&context) {
+        if !self.is_caller_authorized(&context)? {
             return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
         }
 
