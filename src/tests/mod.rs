@@ -13,6 +13,8 @@ pub mod long_term_determinism_test;
 pub mod comprehensive_security_test;
 pub mod opcode_78_verification_test;
 pub mod test_cap_independence;
+pub mod temporal_cap_manipulation_test;
+pub mod masterchef_temporal_boundary_bug_test;
 // pub mod security_verification_test;
 // pub mod security_authorization_test;
 // pub mod security_spoofing_test;
