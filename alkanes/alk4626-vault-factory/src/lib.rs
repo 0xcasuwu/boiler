@@ -262,7 +262,7 @@ impl VaultFactory {
       
       let mint_cellpack = Cellpack {
         target: free_mint_contract,
-        inputs: vec![77u128, pending_rewards], // 77 = MintTokens opcode
+        inputs: vec![78u128, pending_rewards], // 78 = FactoryMintTokens opcode (SECURED)
       };
       
       // Send factory auth token to authorize the mint
@@ -277,7 +277,7 @@ impl VaultFactory {
           for transfer in &mint_response.alkanes.0 {
             if transfer.id.block == free_mint_contract.block &&
                transfer.id.tx == free_mint_contract.tx {
-              actual_rewards += transfer.value;
+              actual_rewards = actual_rewards.checked_add(transfer.value).unwrap_or(actual_rewards);
             }
           }
         }

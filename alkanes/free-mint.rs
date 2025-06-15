@@ -357,7 +357,7 @@ impl MintableAlkane {
     fn initialize(
         &self,
         token_units: u128,
-        value_per_mint: u128
+        value_per_mint: u128,
         cap: u128,
         name_part1: u128,
         name_part2: u128,
@@ -643,7 +643,7 @@ impl MintableAlkane {
         /// Internal: Set/unset authorized factory
     fn set_authorized_factory(&self, factory_block: u128, factory_tx: u128) -> Result<()> {
         let key = format!("/authorized_factories/{}/{}", factory_block, factory_tx);
-        let value = 1u8
+        let value = 1u8;
         
         StoragePointer::from_keyword(&key).set_value::<u8>(value);
         Ok(())

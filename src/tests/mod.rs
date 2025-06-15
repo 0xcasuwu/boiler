@@ -11,6 +11,7 @@ pub mod lower_bounds_musical_chairs_test;
 pub mod end_to_end_flow_test;
 pub mod long_term_determinism_test;
 pub mod comprehensive_security_test;
+pub mod opcode_78_verification_test;
 // pub mod security_verification_test;
 // pub mod security_authorization_test;
 // pub mod security_spoofing_test;
