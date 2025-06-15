@@ -216,9 +216,10 @@ enum MintableAlkaneMessage {
     /// Initialize the token with configuration
     #[opcode(0)]
     Initialize {
-        premine: u128
         /// Initial token units
         token_units: u128,
+        /// Value Per Mint
+        value_per_mint: u128,
         /// Maximum supply cap (0 for unlimited)
         cap: u128,
         /// Token name part 1
@@ -305,6 +306,21 @@ impl MintableAlkane {
         Ok(())
     }
 
+        /// Get the pointer to the value per mint
+    pub fn value_per_mint_pointer(&self) -> StoragePointer {
+        StoragePointer::from_keyword("/value-per-mint")
+    }
+
+    /// Get the value per mint
+    pub fn value_per_mint(&self) -> u128 {
+        self.value_per_mint_pointer().get_value::<u128>()
+    }
+
+    /// Set the value per mint
+    pub fn set_value_per_mint(&self, v: u128) {
+        self.value_per_mint_pointer().set_value::<u128>(v);
+    }
+
     /// Get the pointer to the supply cap
     pub fn cap_pointer(&self) -> StoragePointer {
         StoragePointer::from_keyword("/cap")
@@ -340,7 +356,8 @@ impl MintableAlkane {
     /// Initialize the token with configuration
     fn initialize(
         &self,
-        premine: u128,
+        token_units: u128,
+        value_per_mint: u128
         cap: u128,
         name_part1: u128,
         name_part2: u128,
@@ -362,7 +379,7 @@ impl MintableAlkane {
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
         // Mint initial tokens
-        if premine > 0 {
+        if token_units > 0 {
             response.alkanes.0.push(self.mint(&context, token_units)?);
         }
 
@@ -561,6 +578,17 @@ impl MintableAlkane {
 
         Ok(response)
     }
+
+    /// Get the value per mint
+    fn get_value_per_mint(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        response.data = self.value_per_mint().to_le_bytes().to_vec();
+
+        Ok(response)
+    }
+
 
     /// Get the token data
     fn get_data(&self) -> Result<CallResponse> {
