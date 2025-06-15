@@ -34,9 +34,7 @@ enum VaultFactoryMessage {
   
 
   #[opcode(1)]
-  Deposit {
-    assets: u128,
-  },
+  Deposit,
 
   #[opcode(2)]
   Withdraw,
@@ -96,7 +94,7 @@ impl VaultFactory {
     Ok(response)
   }
   
-  fn deposit(&self, assets: u128) -> Result<CallResponse> {
+  fn deposit(&self) -> Result<CallResponse> {
     let context = self.context()?;
     let mut response = CallResponse::default();
     
@@ -127,7 +125,7 @@ impl VaultFactory {
     self.update_rewards();
         
     // PURE MASTERCHEF: 1:1 deposit ratio (no conversion)
-    let deposit_amount = assets;
+    let deposit_amount = deposit_token.value;
     
     // PURE MASTERCHEF: Calculate reward debt for this position with overflow protection
     let current_acc_reward_per_share = self.acc_reward_per_share();
