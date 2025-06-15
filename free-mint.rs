@@ -210,18 +210,6 @@ pub struct MintableAlkane(());
 
 impl MintableToken for MintableAlkane {}
 
-        tx: u128
->>>>>>> e92fdb88af3c30052961a6eefadc0084f4d06531
-    },
-
-    /// Mint new tokens
-    #[opcode(77)]
-    MintTokens,
-
-    #[opcode(78)]
-    FactoryMintTokens { 
-        value: u128 
-    },
 /// Message enum for opcode-based dispatch
 #[derive(MessageDispatch)]
 enum MintableAlkaneMessage {
