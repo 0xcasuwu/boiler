@@ -98,12 +98,12 @@ impl VaultFactory {
     let context = self.context()?;
     let mut response = CallResponse::default();
     
-    if assets == 0 {
-      return Err(anyhow!("Cannot deposit zero assets"));
-    }
-
     // Get the deposit token info first
     let deposit_token = &context.incoming_alkanes.0[0];
+    
+    if deposit_token.value == 0 {
+      return Err(anyhow!("Cannot deposit zero assets"));
+    }
     
     // CRITICAL: Validate that the deposit token matches the expected deposit_token_id
     let expected_deposit_token_id = self.deposit_token_id()?;
@@ -391,16 +391,17 @@ impl VaultFactory {
     let rewards = if effective_from >= effective_to {
       0
     } else {
-      // Simple reward calculation: amount * reward_per_block * blocks_elapsed / precision
-      let blocks_elapsed = effective_to - effective_from;
+      // FIXED: Use proper MasterChef calculation based on current acc_reward_per_share
+      // This gives an approximation assuming the user was staked for the entire period
+      // Note: This is still an approximation since we don't know the exact pool composition history
+      let current_acc_reward_per_share = self.acc_reward_per_share();
       let precision = 1_000_000_000_000u128; // 10^12 precision
       
+      // Calculate what the rewards would be if user had been staked from the beginning
+      // This is an approximation - actual rewards depend on exact timing and pool composition
       amount
-        .checked_mul(self.reward_per_block())
-        .unwrap_or(0)
-        .checked_mul(blocks_elapsed)
-        .unwrap_or(0)
-        .checked_div(precision)
+        .checked_mul(current_acc_reward_per_share)
+        .and_then(|x| x.checked_div(precision))
         .unwrap_or(0)
     };
     

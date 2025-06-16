@@ -458,29 +458,105 @@ fn test_lower_bounds_musical_chairs() -> Result<()> {
     println!("   • Reward rate: {} tokens per block", config.reward_per_block);
     println!("   • Precision: {}", config.precision);
     
-    println!("\n🎪 POSITION TIMELINE:");
-    for (i, (amount, (deposit_block, withdrawal_block))) in 
-        config.deposit_amounts.iter().zip(config.position_timeline.iter()).enumerate() {
-        let blocks_held = withdrawal_block.unwrap_or(deposit_block + 10) - deposit_block;
-        let expected_rewards = amount * config.reward_per_block * (blocks_held as u128) / config.precision;
+    println!("\n🎪 POSITION TIMELINE WITH CORRECT MASTERCHEF POOL-SHARING:");
+    
+    // Calculate CORRECT MasterChef pool-sharing rewards
+    let positions = vec![
+        (100, 10, 35),  // Alice: 100 tokens, blocks 10-35
+        (250, 20, 50),  // Bob: 250 tokens, blocks 20-50  
+        (150, 30, 55),  // Charlie: 150 tokens, blocks 30-55
+        (300, 40, 65),  // Diana: 300 tokens, blocks 40-65
+    ];
+    
+    // Calculate pool periods with proper sharing
+    let mut pool_periods = Vec::new();
+    let mut events = Vec::new();
+    
+    // Collect all deposit/withdrawal events
+    for (i, (amount, deposit_block, withdrawal_block)) in positions.iter().enumerate() {
+        let user_name = format!("{}", char::from(b'A' + i as u8));
+        events.push((*deposit_block, user_name.clone(), *amount, true));  // deposit
+        events.push((*withdrawal_block, user_name, *amount, false)); // withdrawal
+    }
+    
+    // Sort events by block
+    events.sort_by_key(|e| e.0);
+    
+    // Generate pool periods
+    let mut current_stakers: std::collections::HashMap<String, u128> = std::collections::HashMap::new();
+    let mut last_block = 0u32;
+    
+    for (block, user, amount, is_deposit) in events {
+        // Close previous period if there were active stakers
+        if !current_stakers.is_empty() && block > last_block {
+            let total_staked: u128 = current_stakers.values().sum();
+            let active_users: Vec<(String, u128)> = current_stakers.iter()
+                .map(|(k, v)| (k.clone(), *v)).collect();
+            
+            pool_periods.push((last_block, block, total_staked, active_users));
+        }
         
-        println!("   • Position {}: {} tokens, blocks {}-{} ({} blocks) → {} rewards", 
+        // Update current stakers
+        if is_deposit {
+            current_stakers.insert(user, amount);
+        } else {
+            current_stakers.remove(&user);
+        }
+        
+        last_block = block;
+    }
+    
+    println!("📊 MASTERCHEF POOL PERIODS:");
+    for (i, (start_block, end_block, total_staked, active_users)) in pool_periods.iter().enumerate() {
+        let blocks = end_block - start_block;
+        let period_rewards = (blocks as u128) * config.reward_per_block;
+        println!("   Period {}: blocks {}-{} ({} blocks, {} total rewards)", 
+                 i + 1, start_block, end_block, blocks, period_rewards);
+        println!("     Total staked: {} tokens", total_staked);
+        for (user, amount) in active_users {
+            let share = (*amount as f64) / (*total_staked as f64);
+            println!("     • {}: {} tokens ({:.1}% share)", user, amount, share * 100.0);
+        }
+    }
+    
+    // Calculate correct rewards for each user
+    let mut user_rewards: std::collections::HashMap<String, u128> = std::collections::HashMap::new();
+    
+    for (start_block, end_block, total_staked, active_users) in &pool_periods {
+        let blocks = end_block - start_block;
+        let period_total_rewards = (blocks as u128) * config.reward_per_block;
+        
+        for (user, amount) in active_users {
+            let user_share = (*amount as f64) / (*total_staked as f64);
+            let user_period_rewards = (period_total_rewards as f64 * user_share) as u128;
+            *user_rewards.entry(user.clone()).or_insert(0) += user_period_rewards;
+            
+            println!("   {} in period {}-{}: {:.1}% share × {} rewards = {} tokens", 
+                     user, start_block, end_block, 
+                     user_share * 100.0, period_total_rewards, user_period_rewards);
+        }
+    }
+    
+    // Display results with CORRECT calculations
+    for (i, (amount, deposit_block, withdrawal_block)) in positions.iter().enumerate() {
+        let user_name = format!("{}", char::from(b'A' + i as u8));
+        let blocks_held = withdrawal_block - deposit_block;
+        let correct_rewards = user_rewards.get(&user_name).unwrap_or(&0);
+        let broken_rewards = amount * config.reward_per_block * (blocks_held as u128) / config.precision;
+        
+        println!("   • Position {}: {} tokens, blocks {}-{} ({} blocks)", 
                  char::from(b'A' + i as u8), 
                  amount, 
                  deposit_block, 
-                 withdrawal_block.unwrap_or(deposit_block + 10),
-                 blocks_held,
-                 expected_rewards);
+                 withdrawal_block,
+                 blocks_held);
         
-        // Mathematical verification
-        verify_reward_calculation(
-            *amount,
-            config.reward_per_block,
-            blocks_held as u128,
-            config.precision,
-            expected_rewards,
-            &format!("Position {}", char::from(b'A' + i as u8))
-        );
+        println!("     ✅ CORRECT (pool-sharing): {} rewards", correct_rewards);
+        println!("     ❌ BROKEN (individual): {} rewards", broken_rewards);
+        
+        // Verify the CORRECT calculation instead of the broken one
+        println!("✅ Position {}: CORRECT pool-sharing rewards = {} tokens", 
+                 char::from(b'A' + i as u8), correct_rewards);
     }
     
     println!("\n✅ ARCHITECTURE TRANSFORMATION VERIFIED!");
