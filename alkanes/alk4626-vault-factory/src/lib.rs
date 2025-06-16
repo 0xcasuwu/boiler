@@ -71,7 +71,6 @@ impl VaultFactory {
         end_reward_block: u128,
         free_mint_contract_id: AlkaneId,
     ) -> Result<CallResponse> {
-        let context = self.context()?;
         let mut response = CallResponse::default();
 
         self.observe_initialization()?;
@@ -113,20 +112,11 @@ impl VaultFactory {
 
         // CRITICAL: Validate that the deposit token matches the expected deposit_token_id
         let expected_deposit_token_id = self.deposit_token_id()?;
-        if deposit_token.id.block != expected_deposit_token_id.block
-            || deposit_token.id.tx != expected_deposit_token_id.tx
-        {
+        if deposit_token.id != expected_deposit_token_id {
             return Err(anyhow!("Invalid deposit token - expected AlkaneId {{ block: {}, tx: {} }}, got AlkaneId {{ block: {}, tx: {} }}", 
                         expected_deposit_token_id.block, expected_deposit_token_id.tx,
                         deposit_token.id.block, deposit_token.id.tx));
         }
-
-        // SECURITY: Precise deposit validation - sent amount must equal intended deposit amount
-        // This prevents users from accidentally sending more tokens than they intend to deposit
-        // if deposit_token.value != assets {
-        //   return Err(anyhow!("Sent token amount ({}) must exactly equal deposit amount ({}). Cannot send more or less than intended deposit.",
-        //                     deposit_token.value, assets));
-        // }
 
         // PURE MASTERCHEF: Update global rewards before changing total assets
         self.update_rewards();
