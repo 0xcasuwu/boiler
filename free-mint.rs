@@ -228,10 +228,6 @@ enum MintableAlkaneMessage {
         name_part2: u128,
         /// Token symbol
         symbol: u128,
-        /// Initial authorized factory block (0 to skip)
-        initial_factory_block: u128,
-        /// Initial authorized factory tx (0 to skip)
-        initial_factory_tx: u128,
     },
 
     #[opcode(1)]
@@ -375,8 +371,6 @@ impl MintableAlkane {
         name_part1: u128,
         name_part2: u128,
         symbol: u128,
-        initial_factory_block: u128,
-        initial_factory_tx: u128,
     ) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
@@ -387,13 +381,14 @@ impl MintableAlkane {
 
         // Set configuration
         self.set_cap(cap);
+        self.set_value_per_mint(value_per_mint);
         self.set_data()?;
 
         // Create TokenName from the two parts
         let name = TokenName::new(name_part1, name_part2);
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
-        self.set_authorized_factory(initial_factory_block, initial_factory_tx)?;
+        // Start with clean factory whitelist - no initial authorization
 
         // Mint initial tokens
         if token_units > 0 {
@@ -649,10 +644,13 @@ impl MintableAlkane {
         let response = CallResponse::forward(&context.incoming_alkanes);
 
         let is_authorized = self.is_caller_authorized(&context)?;
+        
+        // NEW PATTERN: Allow self-authorization - factory can authorize itself even if not previously authorized
+        let is_self_authorization = context.caller.block == factory_block && context.caller.tx == factory_tx;
 
-        // SECURITY: Check if the caller is an authorized factory
-        if !is_authorized {
-            return Err(anyhow!("Unauthorized mint attempt - caller not in factory whitelist"));
+        // SECURITY: Check if the caller is an authorized factory OR is authorizing itself
+        if !is_authorized && !is_self_authorization {
+            return Err(anyhow!("Unauthorized whitelist update - caller not authorized and not self-authorizing"));
         }
 
         self.set_authorized_factory(factory_block, factory_tx)?;

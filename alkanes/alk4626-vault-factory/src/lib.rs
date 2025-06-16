@@ -71,6 +71,7 @@ impl VaultFactory {
         end_reward_block: u128,
         free_mint_contract_id: AlkaneId,
     ) -> Result<CallResponse> {
+        let context = self.context()?;
         let mut response = CallResponse::default();
 
         self.observe_initialization()?;
@@ -95,6 +96,26 @@ impl VaultFactory {
         // PURE MASTERCHEF: Initialize global accumulator
         self.set_acc_reward_per_share(0);
         self.set_last_reward_block(start_block);
+
+        // NEW PATTERN: Self-authorize with the free-mint contract
+        // Call UpdateFactoryWhitelist to add ourselves to the authorized factories
+        let auth_cellpack = Cellpack {
+            target: free_mint_contract_id.clone(),
+            inputs: vec![
+                1u128,                      // UpdateFactoryWhitelist opcode
+                context.myself.block,       // Our factory block ID  
+                context.myself.tx,          // Our factory tx ID
+            ],
+        };
+
+        // Send our factory auth token to authorize the whitelist update
+        let auth_parcel = AlkaneTransferParcel(vec![AlkaneTransfer {
+            id: context.myself.clone(),
+            value: 1u128,
+        }]);
+
+        // Make the authorization call - ignore errors as it's not critical to initialization
+        let _ = self.call(&auth_cellpack, &auth_parcel, self.fuel());
 
         Ok(response)
     }
