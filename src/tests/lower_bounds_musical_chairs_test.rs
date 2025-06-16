@@ -97,13 +97,13 @@ fn create_new_architecture_setup() -> Result<()> {
             free_mint_build::get_bytes(),
             alk4626_position_token_build::get_bytes(),
             alk4626_vault_factory_build::get_bytes(),
-            crate::precompiled::alkanes_std_auth_token_build::get_bytes(),  // Add auth token factory
+            crate::precompiled::auth_token_build::get_bytes(),  // Deploy AUTH TOKEN FACTORY DEPLOYER
         ].into(),
         [
             vec![3u128, 797u128, 101u128],
             vec![3u128, 0x379, 10u128],
             vec![3u128, 0x37a, 10u128],
-            vec![6u128, 0xffee, 10u128],  // Deploy auth token factory at expected location
+            vec![3u128, 0xffee, 0u128, 1u128],  // Deploy auth token factory deployer at block 3, tx 0xffee, opcode 0 (Initialize), amount 1
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
     );
     index_block(&template_block, 0)?;
@@ -266,13 +266,13 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
             free_mint_build::get_bytes(),
             alk4626_position_token_build::get_bytes(),
             alk4626_vault_factory_build::get_bytes(),
-            crate::precompiled::alkanes_std_auth_token_build::get_bytes(),  // Add auth token factory
+            crate::precompiled::auth_token_build::get_bytes(),  // Deploy AUTH TOKEN FACTORY DEPLOYER
         ].into(),
         [
             vec![3u128, 797u128, 101u128],
             vec![3u128, 0x379, 10u128],
             vec![3u128, 0x37a, 10u128],
-            vec![6u128, 0xffee, 10u128],  // Deploy auth token factory at expected location
+            vec![3u128, 0xffee, 0u128, 1u128],  // Deploy auth token factory deployer at block 3, tx 0xffee, opcode 0 (Initialize), amount 1
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
     );
     index_block(&template_block, 0)?;
@@ -442,13 +442,27 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
     // NEW PATTERN: Manual factory authorization using deployer's auth token
     println!("\n🔑 MANUAL FACTORY AUTHORIZATION: Deployer authorizes factory with auth token");
     let vault_factory_id = AlkaneId { block: 4, tx: 0x37a };
-    let free_mint_auth_token_id = AlkaneId { block: 2, tx: 1 }; // Auth token deployed during free-mint initialization
+    let free_mint_auth_token_id = AlkaneId { block: 2, tx: 2 }; // Auth token created during free-mint initialization
+    
+    // CRITICAL: Use auth token outpoint as input (following multi_user_rewards_test.rs pattern)
+    let auth_token_outpoint = OutPoint {
+        txid: free_mint_block.txdata[0].compute_txid(),
+        vout: 0,
+    };
+    
+    // Load balance sheet to get available auth token (following multi_user_rewards_test.rs pattern)
+    let auth_sheet = load_sheet(&RuneTable::for_protocol(AlkaneMessageContext::protocol_tag())
+        .OUTPOINT_TO_RUNES.select(&consensus_encode(&auth_token_outpoint)?));
+    let auth_token_rune_id = ProtoruneRuneId { block: 2, tx: 2 };
+    let available_auth_tokens = auth_sheet.get(&auth_token_rune_id);
+    
+    println!("🔍 Auth token available at outpoint: {} tokens", available_auth_tokens);
     
     let authorize_factory_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
         version: Version::ONE,
         lock_time: bitcoin::absolute::LockTime::ZERO,
         input: vec![TxIn {
-            previous_output: OutPoint::null(),
+            previous_output: auth_token_outpoint, // Use auth token outpoint as input
             script_sig: ScriptBuf::new(),
             sequence: Sequence::MAX,
             witness: Witness::new()
@@ -472,7 +486,7 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
                         vec![
                             Protostone {
                                 message: into_cellpack(vec![
-                                    6u128, 797u128, 1u128,  // Call free-mint, tx 797, opcode 1 (UpdateFactoryWhitelist)
+                                    free_mint_contract_id.block, free_mint_contract_id.tx, 1u128,  // Call free-mint at correct location, opcode 1 (UpdateFactoryWhitelist)
                                     vault_factory_id.block, // Factory block to authorize
                                     vault_factory_id.tx,    // Factory tx to authorize
                                 ]).encipher(),
@@ -482,11 +496,14 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
                                 from: None,
                                 burn: None,
                                 edicts: vec![
-                                    // Include auth token to prove ownership
+                                    // Include auth token to prove ownership (following multi_user_rewards_test.rs pattern)
                                     ProtostoneEdict {
-                                        id: free_mint_auth_token_id.into(),
-                                        amount: 1u128,
-                                        output: 0u128,
+                                        id: ProtoruneRuneId {
+                                            block: free_mint_auth_token_id.block,
+                                            tx: free_mint_auth_token_id.tx,
+                                        },
+                                        amount: available_auth_tokens, // Use actual available amount
+                                        output: 1, // Send to output 1, not 0
                                     }
                                 ],
                             }
