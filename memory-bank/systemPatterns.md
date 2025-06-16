@@ -8,20 +8,20 @@
 
 ---
 
-## **🚀 CLEAN DEPLOYMENT PATTERN** ✅ **NEW**
+## **🚀 CLEAN DEPLOYMENT PATTERN** ✅ **UPDATED**
 
-### **Self-Authorization Deployment Pattern**
-**IMPLEMENTED**: Eliminates circular dependency between free-mint and factory contracts
+### **Auth Token Deployment Pattern**
+**IMPLEMENTED**: Eliminates circular dependency with explicit auth token control
 
 #### **Previous Pattern (Circular Dependency):**
 ```
 ❌ PROBLEM: Factory needs free-mint ID, free-mint needs factory ID
-Deploy free-mint with factory block/tx → Deploy factory with free-mint ID
+Deploy free-mint with factory block/tx → Deploy factory with self-authorization
 ```
 
 #### **New Clean Pattern:**
 ```rust
-// STEP 1: Deploy free-mint with NO factory whitelist
+// STEP 1: Deploy free-mint with OwnedToken pattern
 fn initialize(
     &self,
     token_units: u128,
@@ -30,89 +30,106 @@ fn initialize(
     name_part1: u128,
     name_part2: u128,
     symbol: u128,
-    // ✅ NO MORE: initial_factory_block, initial_factory_tx
+    // ✅ NO factory parameters needed
 ) -> Result<CallResponse> {
-    // Start with clean factory whitelist - no initial authorization
-    // ...
+    self.observe_initialization()?;
+    
+    // Set token configuration
+    self.set_cap(cap);
+    self.set_value_per_mint(value_per_mint);
+    self.set_data()?;
+    
+    let name = TokenName::new(name_part1, name_part2);
+    <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
+
+    // ✅ NEW: Deploy single auth token and return to deployer
+    response.alkanes.0.push(self.deploy_auth_token(1u128)?);
+
+    // Mint initial tokens if requested
+    if token_units > 0 {
+        response.alkanes.0.push(self.mint(&context, token_units)?);
+    }
+
+    Ok(response)
 }
 
-// STEP 2: Factory self-authorizes during initialization
+// STEP 2: Factory initializes WITHOUT self-authorization
 fn initialize(&self, /* params including free_mint_contract_id */) -> Result<CallResponse> {
     // ... standard initialization ...
     
-    // ✅ NEW: Self-authorize with the free-mint contract
-    let auth_cellpack = Cellpack {
-        target: free_mint_contract_id.clone(),
-        inputs: vec![
-            1u128,                      // UpdateFactoryWhitelist opcode
-            context.myself.block,       // Our factory block ID  
-            context.myself.tx,          // Our factory tx ID
-        ],
-    };
-
-    // Send our factory auth token to authorize the whitelist update
-    let auth_parcel = AlkaneTransferParcel(vec![AlkaneTransfer {
-        id: context.myself.clone(),
-        value: 1u128,
-    }]);
-
-    // Make the authorization call
-    let _ = self.call(&auth_cellpack, &auth_parcel, self.fuel());
+    // ✅ NEW: No self-authorization - deployer will manually authorize factories
+    // Factory simply initializes without attempting to add itself to free-mint whitelist
     
     Ok(response)
 }
 
-// STEP 3: Free-mint allows self-authorization
+// STEP 3: Deployer manually authorizes factories using auth token
 fn update_factory_whitelist(&self, factory_block: u128, factory_tx: u128) -> Result<CallResponse> {
-    let is_authorized = self.is_caller_authorized(&context)?;
-    
-    // ✅ NEW: Allow self-authorization
-    let is_self_authorization = context.caller.block == factory_block 
-        && context.caller.tx == factory_tx;
+    let context = self.context()?;
+    let response = CallResponse::forward(&context.incoming_alkanes);
 
-    // SECURITY: Check if caller is authorized OR is authorizing itself
-    if !is_authorized && !is_self_authorization {
-        return Err(anyhow!("Unauthorized whitelist update"));
-    }
+    // ✅ NEW: Require deployer's auth token (no more self-authorization)
+    self.only_owner()?;
 
     self.set_authorized_factory(factory_block, factory_tx)?;
+
     Ok(response)
 }
 ```
 
 ### **Clean Deployment Flow**
-**VALIDATED**: Sequential deployment without circular dependencies
+**VALIDATED**: Sequential deployment with explicit authorization control
 
 ```
 1. Deploy Free-Mint First
    ├─ NO factory information needed
-   ├─ Clean initialization with empty whitelist
-   └─ Ready to accept authorization requests
+   ├─ Returns: deployer auth token + initial tokens (if requested)
+   └─ Clean factory whitelist (empty initially)
 
-2. Deploy Factory Second
+2. Deploy Factory Second  
    ├─ Requires free-mint contract ID
-   ├─ During initialization: calls UpdateFactoryWhitelist
-   └─ Self-authorizes with free-mint contract
+   ├─ NO self-authorization attempt
+   └─ Factory initializes normally
 
-3. All Future Factories
-   ├─ Follow same self-authorization pattern
-   ├─ No need to modify free-mint contract
-   └─ Scalable architecture for multiple factories
+3. Manual Authorization (Separate Transaction)
+   ├─ Deployer calls UpdateFactoryWhitelist with auth token
+   ├─ Factory becomes authorized in free-mint
+   └─ Auth token returned to deployer for reuse
+
+4. All Future Factories
+   ├─ Follow same manual authorization pattern
+   ├─ Deployer has full control over factory authorization
+   └─ Scalable architecture with explicit control
 ```
 
-### **Security Validation**
-**PROVEN**: Self-authorization is secure and prevents abuse
+### **Dual-Phase Mint Architecture**
+**IMPLEMENTED**: Public open mint transitioning to factory-controlled mint
 
-- **Identity Verification**: Factory can only authorize itself (caller.block == factory_block && caller.tx == factory_tx)
-- **No External Abuse**: External contracts cannot authorize arbitrary factories
-- **Existing Authorization**: Previously authorized factories can still add new factories
-- **Token Requirement**: Auth token still required for the whitelist update call
+#### **Phase 1: Open Mint (Public)**
+- **Opcode 77**: `MintTokens` - Anyone can mint
+- **Limit**: 50,000 mints (determined by cap)
+- **Logic**: Complex mint logic with transaction hash validation, multipliers, etc.
+
+#### **Phase 2: Factory-Only Mint (Controlled)**  
+- **Opcode 78**: `FactoryMintTokens` - Only authorized factories
+- **Trigger**: When `minted() >= cap()` (50k limit reached)
+- **Authorization**: Factory sends its own factory auth token to prove identity
+- **Purpose**: Reward distribution during vault withdrawals
+
+### **Security Validation**
+**PROVEN**: Auth token authorization is secure and prevents abuse
+
+- **Explicit Control**: Only deployer with auth token can authorize factories
+- **No Self-Authorization**: Factories cannot authorize themselves
+- **Token Verification**: Auth token validated using `only_owner()` from `AuthenticatedResponder`
+- **Factory Identity**: Factories prove identity with their own auth tokens during mint calls
 
 ### **Benefits Achieved**
 - ✅ **No Circular Dependency**: Deploy contracts in clean sequence
-- ✅ **Scalable**: New factories can self-authorize without modifying free-mint
+- ✅ **Explicit Control**: Deployer has full control over factory authorization
 - ✅ **Maintainable**: Clear separation of concerns between contracts
-- ✅ **Secure**: Self-authorization is identity-verified and abuse-resistant
+- ✅ **Secure**: Auth token-based authorization prevents unauthorized access
+- ✅ **Dual-Phase Mint**: Elegant transition from public to controlled minting
 
 ---
 

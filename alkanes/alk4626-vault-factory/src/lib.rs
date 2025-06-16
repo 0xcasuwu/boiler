@@ -97,25 +97,8 @@ impl VaultFactory {
         self.set_acc_reward_per_share(0);
         self.set_last_reward_block(start_block);
 
-        // NEW PATTERN: Self-authorize with the free-mint contract
-        // Call UpdateFactoryWhitelist to add ourselves to the authorized factories
-        let auth_cellpack = Cellpack {
-            target: free_mint_contract_id.clone(),
-            inputs: vec![
-                1u128,                      // UpdateFactoryWhitelist opcode
-                context.myself.block,       // Our factory block ID  
-                context.myself.tx,          // Our factory tx ID
-            ],
-        };
-
-        // Send our factory auth token to authorize the whitelist update
-        let auth_parcel = AlkaneTransferParcel(vec![AlkaneTransfer {
-            id: context.myself.clone(),
-            value: 1u128,
-        }]);
-
-        // Make the authorization call - ignore errors as it's not critical to initialization
-        let _ = self.call(&auth_cellpack, &auth_parcel, self.fuel());
+        // NEW PATTERN: No self-authorization - deployer will manually authorize factories
+        // Factory simply initializes without attempting to add itself to free-mint whitelist
 
         Ok(response)
     }
