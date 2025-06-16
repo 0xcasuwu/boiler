@@ -221,8 +221,7 @@ pub struct OwnedToken(());
 
 impl MintableToken for OwnedToken {}
 
-// Note: Removed AuthenticatedResponder trait to avoid chicken-egg problem
-// Auth token logic is implemented manually only where needed
+impl AuthenticatedResponder for OwnedToken {}
 
 /// Message enum for opcode-based dispatch
 #[derive(MessageDispatch)]
@@ -394,8 +393,8 @@ impl OwnedToken {
         let name = TokenName::new(name_part1, name_part2);
         <Self as MintableToken>::set_name_and_symbol(self, name, symbol);
 
-        // NOTE: Auth token will be deployed separately by the deployer
-        // No auth token deployment during initialization - clean deployment
+        // Deploy auth token for later authorization (following reference pattern)
+        response.alkanes.0.push(self.deploy_auth_token(1u128)?);
 
         // Mint initial tokens if requested
         if token_units > 0 {
@@ -645,13 +644,14 @@ impl OwnedToken {
         StoragePointer::from_keyword(&key).get_value::<u8>() == 1
     }
 
-        /// Set/unset authorized factory (simple implementation for tests)
+        /// Set/unset authorized factory (requires auth token - following reference pattern)
     fn update_factory_whitelist(&self, factory_block: u128, factory_tx: u128) -> Result<CallResponse> {
         let context = self.context()?;
         let response = CallResponse::forward(&context.incoming_alkanes);
 
-        // SIMPLIFIED: For now, just allow the whitelist update
-        // In production, this would require proper auth token verification
+        // Require deployer's auth token (following reference pattern)
+        self.only_owner()?;
+
         self.set_authorized_factory(factory_block, factory_tx)?;
 
         Ok(response)

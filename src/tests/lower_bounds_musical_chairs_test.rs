@@ -442,6 +442,7 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
     // NEW PATTERN: Manual factory authorization using deployer's auth token
     println!("\n🔑 MANUAL FACTORY AUTHORIZATION: Deployer authorizes factory with auth token");
     let vault_factory_id = AlkaneId { block: 4, tx: 0x37a };
+    let free_mint_auth_token_id = AlkaneId { block: 2, tx: 1 }; // Auth token deployed during free-mint initialization
     
     let authorize_factory_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
         version: Version::ONE,
@@ -480,7 +481,14 @@ fn create_new_architecture_with_full_verification() -> Result<()> {
                                 refund: Some(0),
                                 from: None,
                                 burn: None,
-                                edicts: vec![],
+                                edicts: vec![
+                                    // Include auth token to prove ownership
+                                    ProtostoneEdict {
+                                        id: free_mint_auth_token_id.into(),
+                                        amount: 1u128,
+                                        output: 0u128,
+                                    }
+                                ],
                             }
                         ].encipher()?
                     )
