@@ -239,104 +239,27 @@ rate_limit_pause() {
     echo ""
 }
 
-# Function for detailed trace analysis with complete TX isolation
-get_detailed_trace() {
+# Simplified trace function - raw output only
+get_trace() {
     local txid="$1"
     
-    echo "🔍 DETAILED TRACE ANALYSIS"
-    echo "=========================="
+    echo "🔍 RAW TRACE OUTPUT"
+    echo "=================="
     echo "🆔 Transaction ID: $txid"
-    echo ""
     
     if [ -z "$txid" ]; then
-        echo "❌ No transaction ID provided for tracing"
+        echo "❌ No transaction ID provided"
         return 1
     fi
     
-    # Pre-trace blockchain state
-    echo "🔧 PREPARING BLOCKCHAIN FOR TRACE ANALYSIS"
-    echo "==========================================="
-    generate_blocks
-    rate_limit_pause 30
+    # Simple vout 3 trace
+    local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '[{\"txid\": \"$txid\", \"vout\": 3}]' -p oylnet"
+    echo "📤 Command: $trace_cmd"
     
-    # Test only vout 3 and 4 as specified
-    local vouts=(3 4)
-    local found_valid_trace=false
-    
-    for vout in "${vouts[@]}"; do
-        echo "🔎 TESTING VOUT $vout"
-        echo "-------------------"
-        
-        # Generate blocks before trace query
-        echo "⛏️  Pre-trace block generation for vout $vout"
-        generate_blocks
-        rate_limit_pause 30
-        
-        local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '[{\"txid\": \"$txid\", \"vout\": $vout}]' -p oylnet"
-        echo "📤 Command: $trace_cmd"
-        
-        local trace_output
-        trace_output=$(cd "$OYL_DIR" && eval "$trace_cmd" 2>&1)
-        local trace_status=$?
-        
-        echo "📊 Command exit status: $trace_status"
-        echo "📥 Raw trace output:"
-        echo "$trace_output"
-        echo ""
-        
-        # Generate blocks after trace query
-        echo "⛏️  Post-trace block generation for vout $vout"  
-        rate_limit_pause 30
-        generate_blocks
-        rate_limit_pause 30
-        
-        # Check if this is valid JSON
-        if echo "$trace_output" | jq . >/dev/null 2>&1; then
-            echo "✅ Valid JSON response"
-            
-            # Check if array is empty
-            local array_length=$(echo "$trace_output" | jq 'length')
-            if [ "$array_length" -eq 0 ]; then
-                echo "⚠️  Empty trace array - no events found"
-            else
-                # Check for create event
-                local create_events=$(echo "$trace_output" | jq '[.[] | select(.event == "create")] | length')
-                if [ "$create_events" -gt 0 ]; then
-                    echo "✅ Contains 'create' event - Valid deployment trace!"
-                    found_valid_trace=true
-                    
-                    echo ""
-                    echo "🎯 FORMATTED TRACE DATA (vout $vout):"
-                    echo "====================================="
-                    echo "$trace_output" | jq '.'
-                    echo "====================================="
-                    echo ""
-                    
-                    # Extract key information
-                    echo "📋 TRACE SUMMARY:"
-                    echo "----------------"
-                    echo "$trace_output" | jq -r '.[] | "Event: \(.event), Status: \(.status), Block: \(.block), TX: \(.tx)"' 2>/dev/null || echo "Could not parse trace summary"
-                    echo ""
-                    break
-                else
-                    echo "⚠️  JSON response but no 'create' event found"
-                    if [ "$array_length" -gt 0 ]; then
-                        echo "📋 Found $array_length other events:"
-                        echo "$trace_output" | jq -r '.[] | "  - Event: \(.event // "unknown")"'
-                    fi
-                fi
-            fi
-        else
-            echo "⚠️  Invalid JSON or empty response"
-        fi
-        echo ""
-    done
-    
-    if [ "$found_valid_trace" = false ]; then
-        echo "❌ No valid trace found in vout 3 or 4"
-        echo "🔍 This may indicate the deployment didn't create trace data at the expected locations"
-    fi
-    
+    local trace_output
+    trace_output=$(cd "$OYL_DIR" && eval "$trace_cmd" 2>&1)
+    echo "📥 Raw output:"
+    echo "$trace_output"
     echo ""
 }
 
@@ -394,10 +317,10 @@ deploy_component() {
             generate_blocks
             rate_limit_pause 30
             
-            # Step 5: PRIMARY - vout3/4 trace analysis (this is the key output)
-            echo "🎯 PRIMARY DEPLOYMENT STATE ANALYSIS - $component_name"
-            echo "======================================================"
-            get_detailed_trace "$txid"
+            # Step 5: Get trace output
+            echo "🎯 DEPLOYMENT TRACE - $component_name"
+            echo "===================================="
+            get_trace "$txid"
             
             # Step 6: Generate final blocks
             rate_limit_pause 30
@@ -478,7 +401,7 @@ initialize_contract() {
     # Execute initialization call
     echo "📤 EXECUTING INITIALIZATION COMMAND"
     echo "==================================="
-    local init_cmd="$OYL_CMD alkane call-contract -t \"$contract_txid\" -data \"$init_params\" -p oylnet"
+    local init_cmd="$OYL_CMD execute -t \"$contract_txid\" -data \"$init_params\" -p oylnet"
     echo "Command: $init_cmd"
     echo ""
     
@@ -508,9 +431,9 @@ initialize_contract() {
             rate_limit_pause 30
             
             # Trace initialization results
-            echo "🎯 INITIALIZATION STATE ANALYSIS - $component_name"
-            echo "=================================================="
-            get_detailed_trace "$init_txid"
+            echo "🎯 INITIALIZATION TRACE - $component_name"
+            echo "========================================"
+            get_trace "$init_txid"
             
             echo "🎉 $component_name INITIALIZATION COMPLETE!"
             echo "=========================================="
@@ -538,80 +461,183 @@ initialize_contract() {
     fi
 }
 
-# Function to initialize all successfully deployed contracts
-initialize_deployed_contracts() {
-    echo "🔧 INITIALIZING ALL DEPLOYED CONTRACTS FOR FUNCTIONAL USE"
-    echo "=========================================================="
-    echo "Making contracts ready for withdraw/deposit/mint operations"
+# Function to deploy proper architecture following test pattern
+deploy_functional_architecture() {
+    echo "🏗️  DEPLOYING FUNCTIONAL ARCHITECTURE (FOLLOWING TEST PATTERN)"
+    echo "=============================================================="
+    echo "Creating actual functional contracts ready for deposit/withdraw operations"
     echo ""
     
-    local init_success=true
-    local initialized_count=0
+    local deployment_success=true
+    local deployed_count=0
     
-    # Initialize Free-mint contract (if deployed)
-    if [ "$FREE_MINT_AVAILABLE" = true ] && [ ! -z "$FREE_MINT_TXID" ]; then
-        echo "🔧 INITIALIZING FREE-MINT CONTRACT"
-        echo "=================================="
-        # Initialize with amount for minting capability
-        if initialize_contract "FREE_MINT" "$FREE_MINT_TXID" "$FREE_MINT_NAMESPACE" "1,1000" "Initialize free-mint with 1000 token capability"; then
-            ((initialized_count++))
+    # Step 1: Deploy and Initialize Free-mint contract (consolidated 6,namespace,0 approach)
+    if [ "$FREE_MINT_AVAILABLE" = true ]; then
+        echo "🔧 STEP 1: DEPLOYING AND INITIALIZING FREE-MINT CONTRACT (CONSOLIDATED)"
+        echo "======================================================================="
+        echo "Using consolidated 6,namespace,0 approach - deploys to 2:n and initializes in one call"
+        
+        # Parameters from working test architecture - consolidated deployment + initialization
+        local free_mint_params="6,$FREE_MINT_NAMESPACE,0,100000,1000,2,1179796805,1296649812,4608589"
+        echo "📋 Free-mint consolidated params: $free_mint_params"
+        echo "📋 Parameters breakdown:"
+        echo "   • Opcode: 6 (Deploy + Initialize in one call)"
+        echo "   • Namespace: $FREE_MINT_NAMESPACE (will deploy to block 2:$FREE_MINT_NAMESPACE)"
+        echo "   • Deploy opcode: 0"
+        echo "   • Token units: 100000"
+        echo "   • Value per mint: 1000"
+        echo "   • Cap: 2 (low for testing)"
+        echo "   • Name: FREE (1179796805) + MINT (1296649812)"
+        echo "   • Symbol: FRM (4608589)"
+        echo "💡 This consolidates template deployment + initialization into single transaction"
+        
+        if deploy_component "FREE_MINT_FUNCTIONAL" "$FREE_MINT_WASM_PATH" "$free_mint_params" "$FREE_MINT_NAMESPACE" "Deploy and initialize functional free-mint contract (consolidated)"; then
+            ((deployed_count++))
+            FREE_MINT_FUNCTIONAL_TXID="$FREE_MINT_FUNCTIONAL_TXID"
+            echo "✅ Free-mint deployed and initialized in one call"
+            echo "🆔 Free-mint functional: $FREE_MINT_FUNCTIONAL_TXID"
+            echo "📍 Deployed to: Block 2, TX $FREE_MINT_NAMESPACE"
         else
-            init_success=false
-            echo "❌ Free-mint initialization failed!"
+            deployment_success=false
+            echo "❌ Free-mint consolidated deployment failed!"
         fi
         echo ""
     fi
     
-    # Initialize Position Token contract (if deployed)
-    if [ "$POSITION_TOKEN_AVAILABLE" = true ] && [ ! -z "$POSITION_TOKEN_TXID" ]; then
-        echo "🔧 INITIALIZING POSITION TOKEN CONTRACT"
-        echo "======================================="
-        # Initialize ERC4626 vault functionality
-        if initialize_contract "POSITION_TOKEN" "$POSITION_TOKEN_TXID" "$POSITION_TOKEN_NAMESPACE" "2,500" "Initialize ERC4626 vault with 500 token capacity"; then
-            ((initialized_count++))
+    # Step 2: Initialize Vault Factory with binding to free-mint token
+    if [ "$VAULT_FACTORY_AVAILABLE" = true ] && [ ! -z "$VAULT_FACTORY_TXID" ] && [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
+        echo "🔧 STEP 2: INITIALIZING VAULT FACTORY WITH FREE-MINT BINDING"
+        echo "==========================================================="
+        echo "Following test pattern: 4,namespace,0 + binding parameters"
+        
+        # Calculate deposit token location (free-mint functional location: block 2, TX namespace)
+        # Free-mint was deployed to block 2:$FREE_MINT_NAMESPACE by the consolidated approach
+        local vault_params="4,$VAULT_FACTORY_NAMESPACE,0,2,$FREE_MINT_NAMESPACE,10,3,1000,2,$FREE_MINT_NAMESPACE"
+        echo "📋 Vault factory params: $vault_params"
+        echo "📋 Parameters breakdown:"
+        echo "   • Opcode: 4 (Initialize vault factory)"
+        echo "   • Namespace: $VAULT_FACTORY_NAMESPACE"
+        echo "   • Deploy opcode: 0"
+        echo "   • Deposit token: Block 2, TX $FREE_MINT_NAMESPACE (free-mint functional)"
+        echo "   • Reward per block: 10"
+        echo "   • Start block: 3"
+        echo "   • End reward block: 1000 (temporal cap)"
+        echo "   • Free-mint contract: Block 2, TX $FREE_MINT_NAMESPACE"
+        
+        if deploy_component "VAULT_FACTORY_FUNCTIONAL" "$VAULT_FACTORY_WASM_PATH" "$vault_params" "$VAULT_FACTORY_NAMESPACE" "Initialize vault factory bound to free-mint token"; then
+            ((deployed_count++))
+            VAULT_FACTORY_FUNCTIONAL_TXID="$VAULT_FACTORY_FUNCTIONAL_TXID"
+            echo "✅ Vault factory functional deployed and bound to free-mint"
+            echo "🆔 Vault factory functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
         else
-            init_success=false
-            echo "❌ Position token initialization failed!"
+            deployment_success=false
+            echo "❌ Vault factory functional deployment failed!"
         fi
         echo ""
     fi
     
-    # Vault Factory doesn't need separate initialization if properly deployed
-    # Auth Token Factory is already initialized during deployment
+    # Step 3: Authorize factory using auth tokens (following test pattern)
+    if [ "$AUTH_TOKEN_AVAILABLE" = true ] && [ ! -z "$AUTH_TOKEN_TXID" ] && [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ] && [ ! -z "$VAULT_FACTORY_FUNCTIONAL_TXID" ]; then
+        echo "🔧 STEP 3: AUTHORIZING FACTORY VIA AUTH TOKENS"
+        echo "=============================================="
+        echo "Following test pattern: opcode 1 (UpdateFactoryWhitelist)"
+        
+        # Parameters for calling free-mint contract directly with execute command
+        # Since we're using execute -t on the free-mint contract, we only need: opcode, factory_block, factory_tx
+        local auth_params="1,4,$VAULT_FACTORY_NAMESPACE"
+        echo "📋 Authorization params: $auth_params"
+        echo "📋 Parameters breakdown:"
+        echo "   • Opcode: 1 (UpdateFactoryWhitelist)"  
+        echo "   • Factory block to authorize: 4"
+        echo "   • Factory tx to authorize: $VAULT_FACTORY_NAMESPACE"
+        echo "   • Target: Free-mint functional contract (via execute command)"
+        
+        # Use auth token for authorization call
+        generate_blocks
+        rate_limit_pause 30
+        
+        echo "🔐 EXECUTING FACTORY AUTHORIZATION - CALLING FREE-MINT CONTRACT"
+        echo "============================================================="
+        echo "Calling free-mint contract to update factory whitelist using auth token"
+        
+        # We need to call the FREE-MINT contract (not deploy new auth token)
+        # Use the consolidated free-mint functional contract that was deployed
+        local free_mint_functional_txid="$FREE_MINT_FUNCTIONAL_TXID"
+        
+        local auth_cmd="$OYL_CMD execute -t \"$free_mint_functional_txid\" -data \"$auth_params\" -p oylnet"
+        echo "Command: $auth_cmd"
+        echo "Target: Free-mint functional contract ($free_mint_functional_txid)"
+        echo "Action: UpdateFactoryWhitelist (opcode 1)"
+        
+        local auth_output
+        auth_output=$(cd "$OYL_DIR" && eval "$auth_cmd" 2>&1)
+        local auth_status=$?
+        
+        echo "📊 Authorization exit status: $auth_status"
+        
+        if [ $auth_status -eq 0 ]; then
+            local auth_txid
+            auth_txid=$(echo "$auth_output" | grep -o '"txId":"[^"]*"' | cut -d'"' -f4)
+            if [ -z "$auth_txid" ]; then
+                auth_txid=$(echo "$auth_output" | grep -o "txId: '[^']*'" | cut -d "'" -f 2)
+            fi
+            
+            if [ ! -z "$auth_txid" ]; then
+                echo "✅ Factory authorization successful"
+                echo "🆔 Authorization TX: $auth_txid"
+                ((deployed_count++))
+                
+                generate_blocks
+                rate_limit_pause 30
+                get_trace "$auth_txid"
+            else
+                echo "❌ Could not extract authorization transaction ID"
+                deployment_success=false
+            fi
+        else
+            echo "❌ Factory authorization failed"
+            echo "Error output: $auth_output"
+            deployment_success=false
+        fi
+        echo ""
+    fi
     
-    echo "📊 INITIALIZATION SUMMARY"
-    echo "========================="
-    echo "✅ Initialized contracts: $initialized_count"
+    echo "📊 FUNCTIONAL ARCHITECTURE DEPLOYMENT SUMMARY"
+    echo "============================================="
+    echo "✅ Functional components deployed: $deployed_count"
     echo ""
     
-    if [ $initialized_count -gt 0 ]; then
-        echo "📋 FUNCTIONAL CONTRACTS:"
-        if [ "$FREE_MINT_AVAILABLE" = true ] && [ ! -z "$FREE_MINT_INIT_TXID" ]; then
-            echo "  1. ✅ Free-mint: Ready for minting operations"
-            echo "     Template: $FREE_MINT_TXID"
-            echo "     Initialized: $FREE_MINT_INIT_TXID"
+    if [ $deployed_count -ge 2 ]; then
+        echo "📋 FUNCTIONAL ARCHITECTURE STATUS:"
+        if [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
+            echo "  1. ✅ Free-mint: FUNCTIONAL for minting operations"
+            echo "     Functional: $FREE_MINT_FUNCTIONAL_TXID"
         fi
-        if [ "$POSITION_TOKEN_AVAILABLE" = true ] && [ ! -z "$POSITION_TOKEN_INIT_TXID" ]; then
-            echo "  2. ✅ Position token: Ready for deposit/withdraw operations"  
-            echo "     Template: $POSITION_TOKEN_TXID"
-            echo "     Initialized: $POSITION_TOKEN_INIT_TXID"
+        if [ ! -z "$VAULT_FACTORY_FUNCTIONAL_TXID" ]; then
+            echo "  2. ✅ Vault factory: FUNCTIONAL and bound to free-mint token"
+            echo "     Functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
         fi
-        if [ "$AUTH_TOKEN_AVAILABLE" = true ] && [ ! -z "$AUTH_TOKEN_TXID" ]; then
-            echo "  3. ✅ Auth token: Ready for authorization operations"
+        if [ ! -z "$AUTH_TOKEN_TXID" ]; then
+            echo "  3. ✅ Auth token: FUNCTIONAL for authorization"
             echo "     Functional: $AUTH_TOKEN_TXID"
         fi
         echo ""
         
-        echo "🎯 CONTRACTS NOW READY FOR:"
-        echo "- 💰 Minting tokens from free-mint contract"
-        echo "- 💳 Depositing assets to position token vault"
-        echo "- 💸 Withdrawing assets from position token vault"
-        echo "- 🔐 Authorization operations via auth tokens"
-        echo "- 🔄 Cross-contract interactions"
+        echo "🎯 ARCHITECTURE NOW READY FOR:"
+        echo "- 💰 Deposit operations to vault factory"
+        echo "- 💸 Withdraw operations with rewards"
+        echo "- 🔄 On-demand minting via free-mint integration"
+        echo "- 🔐 Cross-contract authorization via auth tokens"
+        echo "- ⏰ Temporal reward boundaries (end at block 1000)"
         
-        return 0
+        if [ "$deployment_success" = true ]; then
+            return 0
+        else
+            echo "⚠️  Some components failed - partial functionality available"
+            return 1
+        fi
     else
-        echo "❌ NO CONTRACTS SUCCESSFULLY INITIALIZED"
+        echo "❌ INSUFFICIENT FUNCTIONAL COMPONENTS DEPLOYED"
         return 1
     fi
 }
@@ -692,7 +718,7 @@ deploy_available_architecture() {
         echo ""
     fi
     
-    # Component 4: Auth token factory (if available - breakthrough component)
+    # Component 4: Auth token factory 
     if [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
         echo "📦 COMPONENT 4: AUTH TOKEN FACTORY (BREAKTHROUGH)"
         echo "================================================="
@@ -761,8 +787,8 @@ if deploy_available_architecture; then
     echo "🏗️  Templates deployed - Now initializing for functional use"
     echo ""
     
-    # Initialize deployed contracts for actual use
-    if initialize_deployed_contracts; then
+    # Deploy functional architecture following test pattern
+    if deploy_functional_architecture; then
         echo ""
         echo "🎉 COMPLETE SYSTEM SUCCESS!"
         echo "=========================="
