@@ -50,6 +50,10 @@ enum VaultFactoryMessage {
         from_block: u128,
         to_block: u128,
     },
+
+    #[opcode(30)]
+    #[returns(Vec<u8>)]
+    GetAllPositionIds,
 }
 
 impl Token for VaultFactory {
@@ -441,6 +445,38 @@ impl VaultFactory {
         Ok(response)
     }
 
+    fn get_all_position_ids(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        let total_positions = self.position_count();
+        let mut position_ids = Vec::new();
+
+        // Iterate through all position IDs from 0 to position_count - 1
+        for position_id in 0..total_positions {
+            // For each position ID, we need to find the corresponding position token
+            // Position tokens are registered as children, but we need to search through them
+            // Since we don't store a direct mapping from position_id to token_id,
+            // we'll include all position IDs that are within the valid range
+            position_ids.push(position_id);
+        }
+
+        // Encode the position IDs as bytes
+        // Format: [count (8 bytes)] + [position_id_1 (16 bytes)] + [position_id_2 (16 bytes)] + ...
+        let mut data = Vec::new();
+        
+        // Add count of position IDs (as u64 for compatibility)
+        data.extend_from_slice(&(position_ids.len() as u64).to_le_bytes());
+        
+        // Add each position ID as u128 (16 bytes each)
+        for position_id in position_ids {
+            data.extend_from_slice(&position_id.to_le_bytes());
+        }
+
+        response.data = data;
+        Ok(response)
+    }
+
     // Storage operations using direct store/load methods
 
     fn reward_per_block(&self) -> u128 {
@@ -661,6 +697,27 @@ impl VaultFactory {
 
         self.set_acc_reward_per_share(new_acc_reward_per_share);
         self.set_last_reward_block(current_block);
+    }
+}
+
+impl VaultFactory {
+    fn handle(&self, message: VaultFactoryMessage) -> Result<CallResponse> {
+        match message {
+            VaultFactoryMessage::Initialize {
+                deposit_token_id,
+                reward_per_block,
+                start_block,
+                end_reward_block,
+                free_mint_contract_id,
+            } => self.initialize(deposit_token_id, reward_per_block, start_block, end_reward_block, free_mint_contract_id),
+            VaultFactoryMessage::Deposit => self.deposit(),
+            VaultFactoryMessage::Withdraw => self.withdraw(),
+            VaultFactoryMessage::GetTotalAssets => self.get_total_assets(),
+            VaultFactoryMessage::CalculateRewards { amount, from_block, to_block } => {
+                self.calculate_rewards(amount, from_block, to_block)
+            }
+            VaultFactoryMessage::GetAllPositionIds => self.get_all_position_ids(),
+        }
     }
 }
 
