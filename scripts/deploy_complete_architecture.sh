@@ -446,26 +446,84 @@ deploy_functional_architecture() {
         echo ""
     fi
     
-    # REMOVED: Step 2 - Vault Factory Initialization (you'll handle this manually)
-    echo "🔧 STEP 2: VAULT FACTORY INITIALIZATION SKIPPED"
-    echo "==============================================="
-    echo "Vault factory initialization removed per user request"
-    echo "⚠️  You will need to initialize the vault factory manually to bind it to the free-mint token"
-    echo ""
-    if [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
-        # Extract actual transaction ID from free-mint trace output for manual reference
-        echo "🔄 EXTRACTING FREE-MINT TX ID FOR MANUAL INITIALIZATION"
-        echo "======================================================="
+    # Step 2: Initialize Vault Factory with binding to free-mint token
+    if [ "$VAULT_FACTORY_AVAILABLE" = true ] && [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
+        echo "🔧 STEP 2: INITIALIZING VAULT FACTORY WITH FREE-MINT BINDING"
+        echo "==========================================================="
+        echo "Using direct execute command with live hex-to-decimal conversion"
+        
+        # Extract actual transaction ID from free-mint trace output
+        echo "🔄 EXTRACTING ACTUAL FREE-MINT TRANSACTION ID"
+        echo "=============================================="
         local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "[{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}]" -p oylnet 2>&1)
         local actual_free_mint_tx_id
         actual_free_mint_tx_id=$(extract_actual_tx_id "$free_mint_trace_output")
         
-        if [ ! -z "$actual_free_mint_tx_id" ]; then
-            echo "✅ Free-mint TX ID for manual vault initialization: $actual_free_mint_tx_id"
-            echo "📋 Manual vault factory initialization params would be:"
-            echo "   4,$VAULT_FACTORY_NAMESPACE,0,2,$actual_free_mint_tx_id,10,3,1000,2,$actual_free_mint_tx_id"
+        if [ -z "$actual_free_mint_tx_id" ]; then
+            echo "❌ Failed to extract actual free-mint transaction ID"
+            return 1
+        fi
+        
+        echo "✅ Actual free-mint deployed to: Block 2, TX $actual_free_mint_tx_id"
+        
+        # Initialize vault factory with live parameters
+        local vault_init_params="4,$VAULT_FACTORY_NAMESPACE,0,2,$actual_free_mint_tx_id,10,3,1000,2,$actual_free_mint_tx_id"
+        echo "📋 Vault factory initialization params: $vault_init_params"
+        echo "📋 Parameters breakdown:"
+        echo "   • Opcode: 4 (Vault factory operation)"
+        echo "   • Target namespace: $VAULT_FACTORY_NAMESPACE"
+        echo "   • Initialize opcode: 0 (Initialize vault factory)"
+        echo "   • Deposit token block: 2"
+        echo "   • Deposit token tx: $actual_free_mint_tx_id (live conversion)"
+        echo "   • Reward per block: 10"
+        echo "   • Start block: 3"
+        echo "   • End reward block: 1000 (temporal cap)"
+        echo "   • Free-mint contract block: 2"
+        echo "   • Free-mint contract tx: $actual_free_mint_tx_id"
+        
+        # Generate blocks before initialization
+        generate_blocks
+        rate_limit_pause 30
+        
+        echo "🚀 EXECUTING VAULT FACTORY INITIALIZATION"
+        echo "========================================"
+        local vault_init_cmd="$OYL_CMD alkane execute -data \"$vault_init_params\" -p oylnet"
+        echo "Command: $vault_init_cmd"
+        echo ""
+        
+        local vault_init_output
+        vault_init_output=$(cd "$OYL_DIR" && eval "$vault_init_cmd" 2>&1)
+        local vault_init_status=$?
+        
+        echo "📊 Vault initialization exit status: $vault_init_status"
+        
+        if [ $vault_init_status -eq 0 ]; then
+            local vault_init_txid
+            vault_init_txid=$(echo "$vault_init_output" | grep -o '"txId":"[^"]*"' | cut -d'"' -f4)
+            if [ -z "$vault_init_txid" ]; then
+                vault_init_txid=$(echo "$vault_init_output" | grep -o "txId: '[^']*'" | cut -d "'" -f 2)
+            fi
+            
+            if [ ! -z "$vault_init_txid" ]; then
+                echo "✅ Vault factory initialization successful"
+                echo "🆔 Initialization TX: $vault_init_txid"
+                ((deployed_count++))
+                
+                generate_blocks
+                rate_limit_pause 30
+                get_trace "$vault_init_txid"
+                
+                VAULT_FACTORY_FUNCTIONAL_TXID="$vault_init_txid"
+                echo "✅ Vault factory functional and bound to free-mint"
+                echo "🆔 Vault factory functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
+            else
+                echo "❌ Could not extract vault initialization transaction ID"
+                deployment_success=false
+            fi
         else
-            echo "❌ Could not extract free-mint TX ID for manual initialization"
+            echo "❌ Vault factory initialization failed"
+            echo "Error output: $vault_init_output"
+            deployment_success=false
         fi
         echo ""
     fi
@@ -481,17 +539,24 @@ deploy_functional_architecture() {
             echo "  1. ✅ Free-mint: FUNCTIONAL for minting operations"
             echo "     Functional: $FREE_MINT_FUNCTIONAL_TXID"
         fi
-        echo "  2. ⚠️  Vault factory: TEMPLATE DEPLOYED - Manual initialization required"
+        if [ ! -z "$VAULT_FACTORY_FUNCTIONAL_TXID" ]; then
+            echo "  2. ✅ Vault factory: FUNCTIONAL and bound to free-mint token"
+            echo "     Functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
+        else
+            echo "  2. ⚠️  Vault factory: Initialization in progress or failed"
+        fi
         if [ ! -z "$AUTH_TOKEN_TXID" ]; then
             echo "  3. ✅ Auth token: FUNCTIONAL for authorization"
             echo "     Functional: $AUTH_TOKEN_TXID"
         fi
         echo ""
         
-        echo "🎯 CURRENT ARCHITECTURE STATUS:"
-        echo "- ✅ Free-mint contract ready for minting operations"
-        echo "- ⚠️  Vault factory templates deployed but require manual initialization"
-        echo "- 🔧 You can now manually initialize vault factory with proper parameters"
+        echo "🎯 ARCHITECTURE NOW READY FOR:"
+        echo "- 💰 Deposit operations to vault factory"
+        echo "- 💸 Withdraw operations with rewards"
+        echo "- 🔄 On-demand minting via free-mint integration"
+        echo "- 🔐 Cross-contract authorization via auth tokens"
+        echo "- ⏰ Temporal reward boundaries (end at block 1000)"
         
         if [ "$deployment_success" = true ]; then
             return 0
