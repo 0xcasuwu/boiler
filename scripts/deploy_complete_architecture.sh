@@ -20,8 +20,8 @@ echo ""
 # Configuration - Updated for boiler repository structure
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOILER_ROOT="$(dirname "$SCRIPT_DIR")"
-OYL_DIR="/home/e/Documents/oyl-sdk"
-OYL_CMD="node bin/oyl.js"
+OYL_DIR="/Users/andrewhathaway/code/oyl/oyl-sdk"
+OYL_CMD="oyl"
 
 # WASM paths for all 4 components - Corrected for boiler structure
 FREE_MINT_WASM_PATH="$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/free_mint.wasm"
@@ -253,7 +253,7 @@ get_trace() {
     fi
     
     # Simple vout 3 trace
-    local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '[{\"txid\": \"$txid\", \"vout\": 3}]' -p oylnet"
+    local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '{\"txid\": \"$txid\", \"vout\": 3}' -p oylnet"
     echo "📤 Command: $trace_cmd"
     
     local trace_output
@@ -455,7 +455,7 @@ deploy_functional_architecture() {
         # Extract actual transaction ID from free-mint trace output
         echo "🔄 EXTRACTING ACTUAL FREE-MINT TRANSACTION ID"
         echo "=============================================="
-        local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "[{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}]" -p oylnet 2>&1)
+        local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}" -p oylnet 2>&1)
         local actual_free_mint_tx_id
         actual_free_mint_tx_id=$(extract_actual_tx_id "$free_mint_trace_output")
         
