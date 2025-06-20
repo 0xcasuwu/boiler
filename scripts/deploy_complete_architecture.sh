@@ -49,7 +49,7 @@ generate_component_namespaces() {
     VAULT_FACTORY_NAMESPACE=$((base_namespace + 200))
     
     # Position token uses CONSTANT namespace for predictable deployment
-    POSITION_TOKEN_NAMESPACE=897  # Constant value (0x379 hex) - required for system integration
+    POSITION_TOKEN_NAMESPACE=899  # Constant value (0x379 hex) - required for system integration
     
     # Ensure we don't exceed reasonable bounds for vault factory
     if [ $VAULT_FACTORY_NAMESPACE -gt 60000 ]; then

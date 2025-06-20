@@ -15,7 +15,7 @@ use alkanes_support::{
 use anyhow::{anyhow, Result};
 
 /// Position token template ID
-const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x379;
+const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x383;
 
 #[derive(Default)]
 pub struct VaultFactory(());
@@ -134,7 +134,7 @@ impl VaultFactory {
 
         // PURE MASTERCHEF: Calculate reward debt for this position with overflow protection
         let current_acc_reward_per_share = self.acc_reward_per_share();
-        let precision = 1_000_000_000_000u128; // 10^12 precision
+        let precision = 100_000_000u128; // 1e8 precision (Bitcoin satoshi standard)
         let reward_debt = deposit_amount
             .checked_mul(current_acc_reward_per_share)
             .and_then(|x| x.checked_div(precision))
@@ -259,9 +259,9 @@ impl VaultFactory {
         let (_position_id, deposit_amount, reward_debt, _deposit_block) = position_details;
 
         // PURE MASTERCHEF REWARD CALCULATION WITH TEMPORAL CAP:
-        // pending_rewards = (deposit_amount * accRewardPerShare / 1e12) - rewardDebt
+        // pending_rewards = (deposit_amount * accRewardPerShare / 1e8) - rewardDebt
         let current_acc_reward_per_share = self.acc_reward_per_share();
-        let precision = 1_000_000_000_000u128; // 10^12 precision
+        let precision = 100_000_000u128; // 1e8 precision (Bitcoin satoshi standard)
 
         // Calculate accumulated rewards with overflow protection
         let accumulated_rewards = deposit_amount
@@ -431,7 +431,7 @@ impl VaultFactory {
             // This gives an approximation assuming the user was staked for the entire period
             // Note: This is still an approximation since we don't know the exact pool composition history
             let current_acc_reward_per_share = self.acc_reward_per_share();
-            let precision = 1_000_000_000_000u128; // 10^12 precision
+            let precision = 100_000_000u128; // 1e8 precision (Bitcoin satoshi standard)
 
             // Calculate what the rewards would be if user had been staked from the beginning
             // This is an approximation - actual rewards depend on exact timing and pool composition
@@ -684,7 +684,7 @@ impl VaultFactory {
         let theoretical_period_rewards = blocks_elapsed.checked_mul(reward_per_block).unwrap_or(0);
 
         // PURE MASTERCHEF: Update accumulator with precision
-        let precision = 1_000_000_000_000u128; // 10^12 precision
+        let precision = 100_000_000u128; // 1e8 precision (Bitcoin satoshi standard)
         let reward_increment = theoretical_period_rewards
             .checked_mul(precision)
             .and_then(|x| x.checked_div(total_assets))
