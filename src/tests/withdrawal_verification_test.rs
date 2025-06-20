@@ -480,7 +480,6 @@ fn perform_deposit_with_traces(
                                     vault_factory_id.block,
                                     vault_factory_id.tx,
                                     1u128, // deposit opcode
-                                    deposit_amount
                                 ]).encipher(),
                                 protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
                                 pointer: Some(0),

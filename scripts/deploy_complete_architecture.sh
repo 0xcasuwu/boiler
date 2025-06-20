@@ -1,20 +1,18 @@
 #!/bin/bash
 
-# Complete 4-Component Architecture Deployment with Contract Initialization
+# 2-Component Architecture Deployment with Contract Initialization
 # Production-ready deployment system with comprehensive transaction isolation
-# Components: Free-mint, Position Token, Vault Factory, Auth Token Factory
+# Components: Position Token, Vault Factory
 # Features: Contract initialization, regtest isolation, 3s rate limiting, full trace analysis
 
-echo "🏗️  COMPLETE 4-COMPONENT ARCHITECTURE DEPLOYMENT"
-echo "================================================="
-echo "Production-ready secure free-mint system deployment"
+echo "🏗️  2-COMPONENT ARCHITECTURE DEPLOYMENT"
+echo "======================================="
+echo "Production-ready position token and vault factory deployment"
 echo "Based on breakthrough debugging analysis"
 echo ""
 echo "Components:"
-echo "1. Free-mint template + initialization"
-echo "2. Position token template + initialization" 
-echo "3. Vault factory template + initialization"
-echo "4. Auth token factory (breakthrough component)"
+echo "1. Position token template + initialization"
+echo "2. Vault factory template + initialization"
 echo ""
 
 # Configuration - Updated for boiler repository structure
@@ -23,20 +21,11 @@ BOILER_ROOT="$(dirname "$SCRIPT_DIR")"
 OYL_DIR="/home/e/Documents/oyl-sdk"
 OYL_CMD="node bin/oyl.js"
 
-# WASM paths for all 4 components - Corrected for boiler structure
-FREE_MINT_WASM_PATH="$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/free_mint.wasm"
+# WASM paths for 2 components - Corrected for boiler structure
 POSITION_TOKEN_WASM_PATH="$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alk4626_position_token.wasm"
 VAULT_FACTORY_WASM_PATH="$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alk4626_vault_factory.wasm"
-AUTH_TOKEN_WASM_PATH="/home/e/Documents/alkanes-rs/target/wasm32-unknown-unknown/release/alkanes_std_auth_token.wasm"
 
-# Comprehensive fallback paths for all components
-FREE_MINT_FALLBACK_PATHS=(
-    "$BOILER_ROOT/src/precompiled/alkanes_std_free_mint_build.wasm"
-    "$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alkanes_std_free_mint.wasm"
-    "$BOILER_ROOT/target/wasm32-unknown-unknown/release/alkanes_std_free_mint.wasm"
-    "$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/free_mint.wasm"
-)
-
+# Comprehensive fallback paths for components
 POSITION_TOKEN_FALLBACK_PATHS=(
     "$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alk4626_position_token.wasm"
     "$BOILER_ROOT/../position-token/target/wasm32-unknown-unknown/release/position_token.wasm"
@@ -47,13 +36,7 @@ VAULT_FACTORY_FALLBACK_PATHS=(
     "$BOILER_ROOT/../vault-factory/target/wasm32-unknown-unknown/release/vault_factory.wasm"
 )
 
-AUTH_TOKEN_FALLBACK_PATHS=(
-    "/home/e/Documents/auth-token/target/wasm32-unknown-unknown/release/auth_token.wasm"
-    "/home/e/Documents/alkanes-rs/target/alkanes/wasm32-unknown-unknown/release/alkanes_std_auth_token.wasm"
-    "$BOILER_ROOT/../auth-token/target/wasm32-unknown-unknown/release/auth_token.wasm"
-)
-
-# Function to generate dynamic random parameters for all components
+# Function to generate dynamic random parameters for 2 components
 generate_component_namespaces() {
     # Generate random base seed (avoid conflicts)
     local base_seed=$((RANDOM % 3000 + 10000))  # Random between 10000-40000
@@ -62,47 +45,41 @@ generate_component_namespaces() {
     local timestamp_offset=$(($(date +%s) % 1000))
     local base_namespace=$((base_seed + (timestamp_offset * 10)))
     
-    # Generate 4 unique namespaces with spacing
-    FREE_MINT_NAMESPACE=$((base_namespace))
-    POSITION_TOKEN_NAMESPACE=$((base_namespace + 100))
+    # Generate dynamic namespace for vault factory only
     VAULT_FACTORY_NAMESPACE=$((base_namespace + 200))
-    AUTH_TOKEN_NAMESPACE=$((base_namespace + 30))
     
-    # Ensure we don't exceed reasonable bounds
-    if [ $AUTH_TOKEN_NAMESPACE -gt 60000 ]; then
-        local reduction=$((AUTH_TOKEN_NAMESPACE - 45000))
-        FREE_MINT_NAMESPACE=$((FREE_MINT_NAMESPACE - reduction))
-        POSITION_TOKEN_NAMESPACE=$((POSITION_TOKEN_NAMESPACE - reduction))
-        VAULT_FACTORY_NAMESPACE=$((VAULT_FACTORY_NAMESPACE - reduction))
-        AUTH_TOKEN_NAMESPACE=$((AUTH_TOKEN_NAMESPACE - reduction))
+    # Position token uses CONSTANT namespace for predictable deployment
+    POSITION_TOKEN_NAMESPACE=897  # Constant value (0x379 hex) - required for system integration
+    
+    # Ensure we don't exceed reasonable bounds for vault factory
+    if [ $VAULT_FACTORY_NAMESPACE -gt 60000 ]; then
+        VAULT_FACTORY_NAMESPACE=$((VAULT_FACTORY_NAMESPACE - 15000))
     fi
 }
 
-# Generate dynamic parameters for all 4 components
+# Generate dynamic parameters for 2 components
 generate_component_namespaces
 
 # Deploy parameters for each component (based on working test architecture)
-FREE_MINT_DEPLOY_PARAMS="3,$FREE_MINT_NAMESPACE,101"        # Template deploy, namespace, amount 101
 POSITION_TOKEN_DEPLOY_PARAMS="3,$POSITION_TOKEN_NAMESPACE,10"  # Template deploy, namespace, amount 10
 VAULT_FACTORY_DEPLOY_PARAMS="3,$VAULT_FACTORY_NAMESPACE,10"   # Template deploy, namespace, amount 10
-AUTH_TOKEN_DEPLOY_PARAMS="3,$AUTH_TOKEN_NAMESPACE,0,1"        # Template deploy, namespace, Initialize opcode, amount 1
 
-echo "📋 COMPLETE 4-COMPONENT CONFIGURATION"
-echo "====================================="
+echo "📋 2-COMPONENT CONFIGURATION"
+echo "============================"
 echo "Boiler Root: $BOILER_ROOT"
 echo "OYL Directory: $OYL_DIR"
 echo ""
 echo "🏗️  WASM Files:"
-echo "  1. Free-mint: $FREE_MINT_WASM_PATH"
-echo "  2. Position token: $POSITION_TOKEN_WASM_PATH"
-echo "  3. Vault factory: $VAULT_FACTORY_WASM_PATH"
-echo "  4. Auth token: $AUTH_TOKEN_WASM_PATH"
+echo "  1. Position token: $POSITION_TOKEN_WASM_PATH"
+echo "  2. Vault factory: $VAULT_FACTORY_WASM_PATH"
 echo ""
-echo "🎲 Dynamic Parameters:"
-echo "  1. Free-mint: $FREE_MINT_DEPLOY_PARAMS (namespace: $FREE_MINT_NAMESPACE)"
-echo "  2. Position token: $POSITION_TOKEN_DEPLOY_PARAMS (namespace: $POSITION_TOKEN_NAMESPACE)"
-echo "  3. Vault factory: $VAULT_FACTORY_DEPLOY_PARAMS (namespace: $VAULT_FACTORY_NAMESPACE)"
-echo "  4. Auth token: $AUTH_TOKEN_DEPLOY_PARAMS (namespace: $AUTH_TOKEN_NAMESPACE)"
+echo "🎲 Deployment Parameters:"
+echo "  1. Position token: $POSITION_TOKEN_DEPLOY_PARAMS (namespace: $POSITION_TOKEN_NAMESPACE - CONSTANT 0x379)"
+echo "  2. Vault factory: $VAULT_FACTORY_DEPLOY_PARAMS (namespace: $VAULT_FACTORY_NAMESPACE - DYNAMIC)"
+echo ""
+echo "📍 NAMESPACE STRATEGY:"
+echo "  • Position token: CONSTANT at 889 (0x379 hex) for predictable system integration"
+echo "  • Vault factory: DYNAMIC to avoid deployment conflicts"
 echo ""
 
 # Function to find WASM file with fallbacks
@@ -151,20 +128,13 @@ find_wasm_file() {
 
 # Function to find all WASM files and determine deployment strategy
 find_all_wasm_files() {
-    echo "🔍 LOCATING ALL 4-COMPONENT WASM FILES"
-    echo "======================================"
+    echo "🔍 LOCATING 2-COMPONENT WASM FILES"
+    echo "=================================="
     echo ""
     
     # Track which components are available
-    FREE_MINT_AVAILABLE=false
     POSITION_TOKEN_AVAILABLE=false
     VAULT_FACTORY_AVAILABLE=false
-    AUTH_TOKEN_AVAILABLE=false
-    
-    if find_wasm_file "FREE-MINT" "FREE_MINT_WASM_PATH" "FREE_MINT_FALLBACK_PATHS"; then
-        FREE_MINT_AVAILABLE=true
-    fi
-    echo ""
     
     if find_wasm_file "POSITION-TOKEN" "POSITION_TOKEN_WASM_PATH" "POSITION_TOKEN_FALLBACK_PATHS"; then
         POSITION_TOKEN_AVAILABLE=true
@@ -176,39 +146,25 @@ find_all_wasm_files() {
     fi
     echo ""
     
-    if find_wasm_file "AUTH-TOKEN" "AUTH_TOKEN_WASM_PATH" "AUTH_TOKEN_FALLBACK_PATHS"; then
-        AUTH_TOKEN_AVAILABLE=true
-    fi
-    echo ""
-    
     # Count available components
     local available_count=0
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then ((available_count++)); fi
     if [ "$POSITION_TOKEN_AVAILABLE" = true ]; then ((available_count++)); fi
     if [ "$VAULT_FACTORY_AVAILABLE" = true ]; then ((available_count++)); fi
-    if [ "$AUTH_TOKEN_AVAILABLE" = true ]; then ((available_count++)); fi
     
     echo "📊 COMPONENT AVAILABILITY SUMMARY"
     echo "================================="
-    echo "✅ Available components: $available_count/4"
-    echo "  - Free-mint: $( [ "$FREE_MINT_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
+    echo "✅ Available components: $available_count/2"
     echo "  - Position token: $( [ "$POSITION_TOKEN_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo "  - Vault factory: $( [ "$VAULT_FACTORY_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
-    echo "  - Auth token: $( [ "$AUTH_TOKEN_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo ""
     
-    if [ $available_count -eq 4 ]; then
-        echo "🎉 ALL 4 COMPONENTS AVAILABLE - Full deployment possible!"
+    if [ $available_count -eq 2 ]; then
+        echo "🎉 ALL 2 COMPONENTS AVAILABLE - Full deployment possible!"
         DEPLOYMENT_MODE="FULL"
         return 0
-    elif [ $available_count -ge 2 ] && [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
-        echo "⚠️  PARTIAL DEPLOYMENT MODE - Will deploy available components"
-        echo "🔐 Auth token available - Core breakthrough functionality preserved"
-        DEPLOYMENT_MODE="PARTIAL"
-        return 0
     elif [ $available_count -ge 1 ]; then
-        echo "⚠️  LIMITED DEPLOYMENT MODE - Few components available"
-        DEPLOYMENT_MODE="LIMITED"
+        echo "⚠️  PARTIAL DEPLOYMENT MODE - Will deploy available components"
+        DEPLOYMENT_MODE="PARTIAL"
         return 0
     else
         echo "❌ NO COMPONENTS AVAILABLE - Cannot proceed with deployment"
@@ -403,208 +359,20 @@ deploy_component() {
     fi
 }
 
-# Function to deploy proper architecture following test pattern
-deploy_functional_architecture() {
-    echo "🏗️  DEPLOYING FUNCTIONAL ARCHITECTURE (FOLLOWING TEST PATTERN)"
-    echo "=============================================================="
-    echo "Creating actual functional contracts ready for deposit/withdraw operations"
-    echo ""
-    
-    local deployment_success=true
-    local deployed_count=0
-    
-    # Step 1: Deploy and Initialize Free-mint contract (consolidated 6,namespace,0 approach)
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then
-        echo "🔧 STEP 1: DEPLOYING AND INITIALIZING FREE-MINT CONTRACT (CONSOLIDATED)"
-        echo "======================================================================="
-        echo "Using consolidated 6,namespace,0 approach - deploys to 2:n and initializes in one call"
-        
-        # Parameters from working test architecture - consolidated deployment + initialization
-        local free_mint_params="6,$FREE_MINT_NAMESPACE,0,100000,1000,2,1179796805,1296649812,4608589"
-        echo "📋 Free-mint consolidated params: $free_mint_params"
-        echo "📋 Parameters breakdown:"
-        echo "   • Opcode: 6 (Deploy + Initialize in one call)"
-        echo "   • Namespace: $FREE_MINT_NAMESPACE (will deploy to block 2:$FREE_MINT_NAMESPACE)"
-        echo "   • Deploy opcode: 0"
-        echo "   • Token units: 100000"
-        echo "   • Value per mint: 1000"
-        echo "   • Cap: 2 (low for testing)"
-        echo "   • Name: FREE (1179796805) + MINT (1296649812)"
-        echo "   • Symbol: FRM (4608589)"
-        echo "💡 This consolidates template deployment + initialization into single transaction"
-        
-        if deploy_component "FREE_MINT_FUNCTIONAL" "$FREE_MINT_WASM_PATH" "$free_mint_params" "$FREE_MINT_NAMESPACE" "Deploy and initialize functional free-mint contract (consolidated)"; then
-            ((deployed_count++))
-            FREE_MINT_FUNCTIONAL_TXID="$FREE_MINT_FUNCTIONAL_TXID"
-            echo "✅ Free-mint deployed and initialized in one call"
-            echo "🆔 Free-mint functional: $FREE_MINT_FUNCTIONAL_TXID"
-            echo "📍 Deployed to: Block 2, TX $FREE_MINT_NAMESPACE"
-        else
-            deployment_success=false
-            echo "❌ Free-mint consolidated deployment failed!"
-        fi
-        echo ""
-    fi
-    
-    # Step 2: Initialize Vault Factory with binding to free-mint token
-    if [ "$VAULT_FACTORY_AVAILABLE" = true ] && [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
-        echo "🔧 STEP 2: INITIALIZING VAULT FACTORY WITH FREE-MINT BINDING"
-        echo "==========================================================="
-        echo "Using direct execute command with live hex-to-decimal conversion"
-        
-        # Extract actual transaction ID from free-mint trace output
-        echo "🔄 EXTRACTING ACTUAL FREE-MINT TRANSACTION ID"
-        echo "=============================================="
-        local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "[{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}]" -p oylnet 2>&1)
-        local actual_free_mint_tx_id
-        actual_free_mint_tx_id=$(extract_actual_tx_id "$free_mint_trace_output")
-        
-        if [ -z "$actual_free_mint_tx_id" ]; then
-            echo "❌ Failed to extract actual free-mint transaction ID"
-            return 1
-        fi
-        
-        echo "✅ Actual free-mint deployed to: Block 2, TX $actual_free_mint_tx_id"
-        
-        # Initialize vault factory with live parameters
-        local vault_init_params="4,$VAULT_FACTORY_NAMESPACE,0,2,$actual_free_mint_tx_id,10,3,1000,2,$actual_free_mint_tx_id"
-        echo "📋 Vault factory initialization params: $vault_init_params"
-        echo "📋 Parameters breakdown:"
-        echo "   • Opcode: 4 (Vault factory operation)"
-        echo "   • Target namespace: $VAULT_FACTORY_NAMESPACE"
-        echo "   • Initialize opcode: 0 (Initialize vault factory)"
-        echo "   • Deposit token block: 2"
-        echo "   • Deposit token tx: $actual_free_mint_tx_id (live conversion)"
-        echo "   • Reward per block: 10"
-        echo "   • Start block: 3"
-        echo "   • End reward block: 1000 (temporal cap)"
-        echo "   • Free-mint contract block: 2"
-        echo "   • Free-mint contract tx: $actual_free_mint_tx_id"
-        
-        # Generate blocks before initialization
-        generate_blocks
-        rate_limit_pause 30
-        
-        echo "🚀 EXECUTING VAULT FACTORY INITIALIZATION"
-        echo "========================================"
-        local vault_init_cmd="$OYL_CMD alkane execute -data \"$vault_init_params\" -p oylnet"
-        echo "Command: $vault_init_cmd"
-        echo ""
-        
-        local vault_init_output
-        vault_init_output=$(cd "$OYL_DIR" && eval "$vault_init_cmd" 2>&1)
-        local vault_init_status=$?
-        
-        echo "📊 Vault initialization exit status: $vault_init_status"
-        
-        if [ $vault_init_status -eq 0 ]; then
-            local vault_init_txid
-            vault_init_txid=$(echo "$vault_init_output" | grep -o '"txId":"[^"]*"' | cut -d'"' -f4)
-            if [ -z "$vault_init_txid" ]; then
-                vault_init_txid=$(echo "$vault_init_output" | grep -o "txId: '[^']*'" | cut -d "'" -f 2)
-            fi
-            
-            if [ ! -z "$vault_init_txid" ]; then
-                echo "✅ Vault factory initialization successful"
-                echo "🆔 Initialization TX: $vault_init_txid"
-                ((deployed_count++))
-                
-                generate_blocks
-                rate_limit_pause 30
-                get_trace "$vault_init_txid"
-                
-                VAULT_FACTORY_FUNCTIONAL_TXID="$vault_init_txid"
-                echo "✅ Vault factory functional and bound to free-mint"
-                echo "🆔 Vault factory functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
-            else
-                echo "❌ Could not extract vault initialization transaction ID"
-                deployment_success=false
-            fi
-        else
-            echo "❌ Vault factory initialization failed"
-            echo "Error output: $vault_init_output"
-            deployment_success=false
-        fi
-        echo ""
-    fi
-    
-    echo "📊 FUNCTIONAL ARCHITECTURE DEPLOYMENT SUMMARY"
-    echo "============================================="
-    echo "✅ Functional components deployed: $deployed_count"
-    echo ""
-    
-    if [ $deployed_count -ge 1 ]; then
-        echo "📋 FUNCTIONAL ARCHITECTURE STATUS:"
-        if [ ! -z "$FREE_MINT_FUNCTIONAL_TXID" ]; then
-            echo "  1. ✅ Free-mint: FUNCTIONAL for minting operations"
-            echo "     Functional: $FREE_MINT_FUNCTIONAL_TXID"
-        fi
-        if [ ! -z "$VAULT_FACTORY_FUNCTIONAL_TXID" ]; then
-            echo "  2. ✅ Vault factory: FUNCTIONAL and bound to free-mint token"
-            echo "     Functional: $VAULT_FACTORY_FUNCTIONAL_TXID"
-        else
-            echo "  2. ⚠️  Vault factory: Initialization in progress or failed"
-        fi
-        if [ ! -z "$AUTH_TOKEN_TXID" ]; then
-            echo "  3. ✅ Auth token: FUNCTIONAL for authorization"
-            echo "     Functional: $AUTH_TOKEN_TXID"
-        fi
-        echo ""
-        
-        echo "🎯 ARCHITECTURE NOW READY FOR:"
-        echo "- 💰 Deposit operations to vault factory"
-        echo "- 💸 Withdraw operations with rewards"
-        echo "- 🔄 On-demand minting via free-mint integration"
-        echo "- 🔐 Cross-contract authorization via auth tokens"
-        echo "- ⏰ Temporal reward boundaries (end at block 1000)"
-        
-        if [ "$deployment_success" = true ]; then
-            return 0
-        else
-            echo "⚠️  Some components failed - partial functionality available"
-            return 1
-        fi
-    else
-        echo "❌ INSUFFICIENT FUNCTIONAL COMPONENTS DEPLOYED"
-        return 1
-    fi
-}
 
 # Deploy available components based on what's found
 deploy_available_architecture() {
     echo "🏗️  DEPLOYING AVAILABLE COMPONENTS ($DEPLOYMENT_MODE MODE)"
     echo "========================================================"
-    echo "Deploying available components in breakthrough order..."
+    echo "Deploying 2-component architecture..."
     echo ""
     
     local deployment_success=true
     local deployed_count=0
     
-    # Component 1: Free-mint template (if available)
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then
-        echo "📦 COMPONENT 1: FREE-MINT TEMPLATE"
-        echo "=================================="
-        if deploy_component "FREE_MINT" "$FREE_MINT_WASM_PATH" "$FREE_MINT_DEPLOY_PARAMS" "$FREE_MINT_NAMESPACE" "Template deploy, free-mint token, amount 101"; then
-            ((deployed_count++))
-        else
-            deployment_success=false
-            echo "❌ Free-mint deployment failed!"
-        fi
-        
-        # Component isolation - ensure clean state between deployments
-        echo "🔧 COMPONENT ISOLATION: FREE-MINT → POSITION-TOKEN"
-        echo "=================================================="
-        generate_blocks
-        rate_limit_pause 3
-        echo ""
-    else
-        echo "⏭️  SKIPPING COMPONENT 1: FREE-MINT TEMPLATE (not available)"
-        echo ""
-    fi
-    
-    # Component 2: Position token template (if available)
+    # Component 1: Position token template (if available)
     if [ "$POSITION_TOKEN_AVAILABLE" = true ]; then
-        echo "📦 COMPONENT 2: POSITION TOKEN TEMPLATE"
+        echo "📦 COMPONENT 1: POSITION TOKEN TEMPLATE"
         echo "======================================="
         if deploy_component "POSITION_TOKEN" "$POSITION_TOKEN_WASM_PATH" "$POSITION_TOKEN_DEPLOY_PARAMS" "$POSITION_TOKEN_NAMESPACE" "Template deploy, position token, amount 10"; then
             ((deployed_count++))
@@ -620,41 +388,19 @@ deploy_available_architecture() {
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 2: POSITION TOKEN TEMPLATE (not available)"
+        echo "⏭️  SKIPPING COMPONENT 1: POSITION TOKEN TEMPLATE (not available)"
         echo ""
     fi
     
-    # Component 3: Vault factory template (if available)
+    # Component 2: Vault factory template (if available)
     if [ "$VAULT_FACTORY_AVAILABLE" = true ]; then
-        echo "📦 COMPONENT 3: VAULT FACTORY TEMPLATE"
+        echo "📦 COMPONENT 2: VAULT FACTORY TEMPLATE"
         echo "======================================"
         if deploy_component "VAULT_FACTORY" "$VAULT_FACTORY_WASM_PATH" "$VAULT_FACTORY_DEPLOY_PARAMS" "$VAULT_FACTORY_NAMESPACE" "Template deploy, vault factory, amount 10"; then
             ((deployed_count++))
         else
             deployment_success=false
             echo "❌ Vault factory deployment failed!"
-        fi
-        
-        # Component isolation - ensure clean state between deployments
-        echo "🔧 COMPONENT ISOLATION: VAULT-FACTORY → AUTH-TOKEN"
-        echo "=================================================="
-        generate_blocks
-        rate_limit_pause 3
-        echo ""
-    else
-        echo "⏭️  SKIPPING COMPONENT 3: VAULT FACTORY TEMPLATE (not available)"
-        echo ""
-    fi
-    
-    # Component 4: Auth token factory 
-    if [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
-        echo "📦 COMPONENT 4: AUTH TOKEN FACTORY (BREAKTHROUGH)"
-        echo "================================================="
-        if deploy_component "AUTH_TOKEN" "$AUTH_TOKEN_WASM_PATH" "$AUTH_TOKEN_DEPLOY_PARAMS" "$AUTH_TOKEN_NAMESPACE" "Template deploy, auth token factory, Initialize opcode, amount 1 (CRITICAL)"; then
-            ((deployed_count++))
-        else
-            deployment_success=false
-            echo "❌ Auth token deployment failed!"
         fi
         
         # Final component isolation - ensure clean final state
@@ -664,17 +410,42 @@ deploy_available_architecture() {
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 4: AUTH TOKEN FACTORY (not available)"
-        echo "⚠️  WARNING: Auth token is the breakthrough component!"
+        echo "⏭️  SKIPPING COMPONENT 2: VAULT FACTORY TEMPLATE (not available)"
         echo ""
     fi
     
-    return 0
+    echo "📊 DEPLOYMENT SUMMARY"
+    echo "===================="
+    echo "✅ Components deployed: $deployed_count/2"
+    echo ""
+    
+    if [ $deployed_count -ge 1 ]; then
+        echo "📋 DEPLOYMENT STATUS:"
+        if [ ! -z "$POSITION_TOKEN_TXID" ]; then
+            echo "  1. ✅ Position token: DEPLOYED at namespace $POSITION_TOKEN_NAMESPACE"
+            echo "     Transaction: $POSITION_TOKEN_TXID"
+        fi
+        if [ ! -z "$VAULT_FACTORY_TXID" ]; then
+            echo "  2. ✅ Vault factory: DEPLOYED at namespace $VAULT_FACTORY_NAMESPACE"
+            echo "     Transaction: $VAULT_FACTORY_TXID"
+        fi
+        echo ""
+        
+        if [ "$deployment_success" = true ]; then
+            return 0
+        else
+            echo "⚠️  Some components failed - partial deployment completed"
+            return 1
+        fi
+    else
+        echo "❌ NO COMPONENTS DEPLOYED SUCCESSFULLY"
+        return 1
+    fi
 }
 
 # Main execution
-echo "🏁 STARTING COMPLETE 4-COMPONENT DEPLOYMENT"
-echo "==========================================="
+echo "🏁 STARTING 2-COMPONENT DEPLOYMENT"
+echo "=================================="
 
 # Initial blockchain state setup
 echo "🔧 INITIALIZING BLOCKCHAIN STATE"
@@ -685,7 +456,7 @@ echo ""
 
 # Find all WASM files
 if ! find_all_wasm_files; then
-    echo "❌ Cannot proceed without all required WASM files"
+    echo "❌ Cannot proceed without required WASM files"
     exit 1
 fi
 
@@ -710,26 +481,19 @@ echo ""
 # Deploy available architecture
 if deploy_available_architecture; then
     echo ""
-    echo "🎊 TEMPLATE DEPLOYMENT SUCCESS!"
-    echo "==============================="
-    echo "🏗️  Templates deployed - Now initializing for functional use"
+    echo "🎉 2-COMPONENT DEPLOYMENT SUCCESS!"
+    echo "================================="
+    echo "✅ Position token and vault factory templates deployed successfully"
     echo ""
-    
-    # Deploy functional architecture following test pattern
-    if deploy_functional_architecture; then
-        echo ""
-        echo "🎉 DEPLOYMENT SUCCESS WITH MANUAL INITIALIZATION REQUIRED!"
-        echo "========================================================="
-        echo "🏗️  Free-mint contract fully functional and ready for operations"
-        echo "⚠️  Vault factory template deployed - you can now initialize it manually"
-        echo "🔧 Manual vault factory initialization required"
-    else
-        echo ""
-        echo "⚠️  TEMPLATES DEPLOYED BUT INITIALIZATION FAILED"
-        echo "==============================================="
-        echo "Templates are deployed but not yet functional for operations"
-        echo "Manual initialization may be required"
-    fi
+    echo "🎯 DEPLOYMENT COMPLETE:"
+    echo "• Position token deployed at constant namespace 889 (0x379 hex)"
+    echo "• Vault factory deployed at dynamic namespace for conflict avoidance"
+    echo "• Both components are ready for system integration"
+    echo ""
+    echo "🔧 NEXT STEPS:"
+    echo "• Position token is available at predictable namespace 889"
+    echo "• Vault factory can be initialized manually if needed"
+    echo "• System integration can reference position token at constant location"
 else
     echo ""
     echo "❌ DEPLOYMENT FAILED"
