@@ -15,7 +15,7 @@ use alkanes_support::{
 use anyhow::{anyhow, Result};
 
 /// Position token template ID
-const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x379;
+const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x385;
 
 #[derive(Default)]
 pub struct VaultFactory(());
@@ -62,6 +62,52 @@ enum VaultFactoryMessage {
     #[opcode(32)]
     #[returns(Vec<u8>)]
     GetAllRegisteredChildren,
+
+    #[opcode(33)]
+    #[returns(AlkaneId)]
+    GetDepositTokenId,
+
+    #[opcode(34)]
+    #[returns(u128)]
+    GetRewardPerBlock,
+
+    #[opcode(35)]
+    #[returns(u128)]
+    GetStartBlock,
+
+    #[opcode(36)]
+    #[returns(u128)]
+    GetEndRewardBlock,
+
+    #[opcode(37)]
+    #[returns(AlkaneId)]
+    GetFreeMintContractId,
+
+    #[opcode(38)]
+    #[returns(u128)]
+    GetPositionCount,
+
+    #[opcode(39)]
+    #[returns(u128)]
+    GetAccRewardPerShare,
+
+    #[opcode(40)]
+    #[returns(u128)]
+    GetLastRewardBlock,
+
+    #[opcode(41)]
+    #[returns(u128)]
+    GetLastUpdateBlock,
+
+    #[opcode(42)]
+    #[returns(bool)]
+    IsRegisteredChild {
+        child_id: AlkaneId,
+    },
+
+    #[opcode(43)]
+    #[returns(Vec<u8>)]
+    GetVaultInfo,
 }
 
 impl Token for VaultFactory {
@@ -379,7 +425,7 @@ impl VaultFactory {
 
         // SECURITY CRITICAL: Verify this position token was created by US FIRST
         // This prevents calling malicious contracts that could cause panics
-        if !self.is_registered_child(&transfer.id) {
+        if !self.is_registered_child_internal(&transfer.id) {
             return Err(anyhow!(
                 "Position token not our registered child - potential spoofing attack"
             ));
@@ -486,7 +532,7 @@ impl VaultFactory {
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         // Collect all registered position token IDs
-        let mut token_ids: Vec<AlkaneId> = Vec::new();
+        let _token_ids: Vec<AlkaneId> = Vec::new();
 
         
         // Since we don't have a direct way to iterate through all registered children,
@@ -494,7 +540,7 @@ impl VaultFactory {
         // This assumes position tokens were created sequentially
         let total_positions = self.position_count();
         
-        for position_id in 0..total_positions {
+        for _position_id in 0..total_positions {
             // Try to find the corresponding position token by checking all possible combinations
             // This is a brute force approach but should work for reasonable numbers of positions
             
@@ -685,10 +731,18 @@ impl VaultFactory {
         Ok(())
     }
 
-    fn is_registered_child(&self, child_id: &AlkaneId) -> bool {
+    fn is_registered_child_internal(&self, child_id: &AlkaneId) -> bool {
         let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
         let bytes = self.load(key);
         !bytes.is_empty() && bytes[0] == 1
+    }
+
+    fn is_registered_child(&self, child_id: AlkaneId) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let is_registered = self.is_registered_child_internal(&child_id);
+        response.data = vec![if is_registered { 1u8 } else { 0u8 }];
+        Ok(response)
     }
 
     fn register_child(&self, child_id: &AlkaneId) {
@@ -825,9 +879,125 @@ impl VaultFactory {
         self.set_acc_reward_per_share(new_acc_reward_per_share);
         self.set_last_reward_block(current_block);
     }
+
+    // NEW GETTER FUNCTIONS FOR FRONTEND CONSUMPTION
+
+    fn get_deposit_token_id(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let deposit_token_id = self.deposit_token_id()?;
+        
+        // Pack AlkaneId into response (32 bytes: 16 for block, 16 for tx)
+        let mut data = Vec::with_capacity(32);
+        data.extend_from_slice(&deposit_token_id.block.to_le_bytes());
+        data.extend_from_slice(&deposit_token_id.tx.to_le_bytes());
+        
+        response.data = data;
+        Ok(response)
+    }
+
+    fn get_reward_per_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.reward_per_block().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_start_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.start_block().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_end_reward_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.end_reward_block().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_free_mint_contract_id(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        let free_mint_contract_id = self.free_mint_contract_id()?;
+        
+        // Pack AlkaneId into response (32 bytes: 16 for block, 16 for tx)
+        let mut data = Vec::with_capacity(32);
+        data.extend_from_slice(&free_mint_contract_id.block.to_le_bytes());
+        data.extend_from_slice(&free_mint_contract_id.tx.to_le_bytes());
+        
+        response.data = data;
+        Ok(response)
+    }
+
+    fn get_position_count(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.position_count().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_acc_reward_per_share(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.acc_reward_per_share().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_last_reward_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.last_reward_block().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_last_update_block(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        response.data = self.last_update_block().to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+
+    fn get_vault_info(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        
+        // Get all vault configuration data
+        let deposit_token_id = self.deposit_token_id()?;
+        let free_mint_contract_id = self.free_mint_contract_id()?;
+        
+        // Pack all vault info into single response
+        // Format: [deposit_token_id (32)] + [reward_per_block (16)] + [start_block (16)] + 
+        //         [end_reward_block (16)] + [free_mint_contract_id (32)] + [position_count (16)] +
+        //         [acc_reward_per_share (16)] + [last_reward_block (16)] + [total_assets (16)]
+        // Total: 176 bytes
+        let mut data = Vec::with_capacity(176);
+        
+        // Deposit token ID (32 bytes)
+        data.extend_from_slice(&deposit_token_id.block.to_le_bytes());
+        data.extend_from_slice(&deposit_token_id.tx.to_le_bytes());
+        
+        // Configuration values (16 bytes each)
+        data.extend_from_slice(&self.reward_per_block().to_le_bytes());
+        data.extend_from_slice(&self.start_block().to_le_bytes());
+        data.extend_from_slice(&self.end_reward_block().to_le_bytes());
+        
+        // Free mint contract ID (32 bytes)
+        data.extend_from_slice(&free_mint_contract_id.block.to_le_bytes());
+        data.extend_from_slice(&free_mint_contract_id.tx.to_le_bytes());
+        
+        // State values (16 bytes each)
+        data.extend_from_slice(&self.position_count().to_le_bytes());
+        data.extend_from_slice(&self.acc_reward_per_share().to_le_bytes());
+        data.extend_from_slice(&self.last_reward_block().to_le_bytes());
+        data.extend_from_slice(&self.total_assets().to_le_bytes());
+        
+        response.data = data;
+        Ok(response)
+    }
 }
-
-
 declare_alkane! {
   impl AlkaneResponder for VaultFactory {
     type Message = VaultFactoryMessage;

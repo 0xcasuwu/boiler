@@ -9,6 +9,7 @@ pub mod std;
 // pub mod four_player_musical_chairs_test;
 pub mod lower_bounds_musical_chairs_test;
 pub mod withdrawal_verification_test;
+pub mod comprehensive_getter_tests;
 // pub mod end_to_end_flow_test;
 // pub mod long_term_determinism_test;
 // pub mod comprehensive_security_test;

@@ -102,13 +102,33 @@ enum PositionTokenMessage {
     #[returns(u128)]
     GetDepositAmount,
 
+    #[opcode(12)]
+    #[returns(u128)]
+    GetPendingRewards,
+
+    #[opcode(13)]
+    #[returns(u128)]
+    GetPositionValue,
+
     #[opcode(14)]
     #[returns(u128)]
     GetDepositBlock,
 
+    #[opcode(15)]
+    #[returns(u128)]
+    GetBlocksStaked,
+
     #[opcode(16)]
     #[returns(u128)]
     GetRewardDebt,
+
+    #[opcode(17)]
+    #[returns(u128)]
+    GetLastClaimBlock,
+
+    #[opcode(18)]
+    #[returns(AlkaneId)]
+    GetVaultId,
 
     #[opcode(23)]
     #[returns((u128, u128, u128, u128))]
@@ -252,7 +272,7 @@ impl PositionToken {
         Ok(response)
     }
 
-    fn calculate_blocks_staked(&self) -> Result<CallResponse> {
+    fn get_blocks_staked(&self) -> Result<CallResponse> {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
@@ -273,24 +293,50 @@ impl PositionToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
-        // Get the vault factory reference
+        // FIXED: Proper MasterChef pending rewards calculation
+        // Get current acc_reward_per_share from vault
         let vault_id = self.vault_ref();
-
-        // Call vault to calculate rewards
         let cellpack = Cellpack {
             target: vault_id,
-            inputs: vec![
-                0x20,                      // 0x20 = CalculateRewards opcode
-                self.deposit_amount(), // PURE MASTERCHEF: use deposit_amount instead of current_assets
-                self.deposit_block(),  // PURE MASTERCHEF: use deposit_block as start point
-                u128::from(self.height()), // Current block
-            ],
+            inputs: vec![39u128], // GetAccRewardPerShare opcode
         };
 
-        let vault_response =
-            self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
-        response.data = vault_response.data;
+        let vault_response = self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
+        
+        let acc_reward_per_share = if vault_response.data.len() >= 16 {
+            u128::from_le_bytes(vault_response.data[0..16].try_into().unwrap_or([0; 16]))
+        } else {
+            0
+        };
 
+        // Calculate proper MasterChef pending rewards
+        let deposit_amount = self.deposit_amount();
+        let reward_debt = self.reward_debt();
+        let precision = 100_000_000u128; // 1e8 precision (Bitcoin satoshi standard)
+
+        let accumulated_rewards = deposit_amount
+            .checked_mul(acc_reward_per_share)
+            .and_then(|x| x.checked_div(precision))
+            .unwrap_or(0);
+        
+        let pending_rewards = accumulated_rewards.saturating_sub(reward_debt);
+
+        response.data = pending_rewards.to_le_bytes().to_vec();
+        Ok(response)
+    }
+
+    fn get_vault_id(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+        
+        let vault_id = self.vault_ref();
+        
+        // Pack AlkaneId into response (32 bytes: 16 for block, 16 for tx)
+        let mut data = Vec::with_capacity(32);
+        data.extend_from_slice(&vault_id.block.to_le_bytes());
+        data.extend_from_slice(&vault_id.tx.to_le_bytes());
+        
+        response.data = data;
         Ok(response)
     }
 
@@ -601,6 +647,36 @@ impl PositionToken {
         response.data = attributes.into_bytes();
 
         Ok(response)
+    }
+}
+
+impl PositionToken {
+    fn handle(&self, message: PositionTokenMessage) -> Result<CallResponse> {
+        match message {
+            PositionTokenMessage::Initialize {
+                position_id,
+                deposit_amount,
+                reward_debt,
+                deposit_block,
+                deposit_token_id,
+            } => self.initialize(position_id, deposit_amount, reward_debt, deposit_block, deposit_token_id),
+            PositionTokenMessage::GetPositionId => self.get_position_id(),
+            PositionTokenMessage::GetDepositAmount => self.get_deposit_amount(),
+            PositionTokenMessage::GetPendingRewards => self.get_pending_rewards(),
+            PositionTokenMessage::GetPositionValue => self.get_position_value(),
+            PositionTokenMessage::GetDepositBlock => self.get_deposit_block(),
+            PositionTokenMessage::GetBlocksStaked => self.get_blocks_staked(),
+            PositionTokenMessage::GetRewardDebt => self.get_reward_debt(),
+            PositionTokenMessage::GetLastClaimBlock => self.get_last_claim_block(),
+            PositionTokenMessage::GetVaultId => self.get_vault_id(),
+            PositionTokenMessage::GetAllDetails => self.get_all_details(),
+            PositionTokenMessage::GetDepositTokenId => self.get_deposit_token_id(),
+            PositionTokenMessage::GetName => self.get_name(),
+            PositionTokenMessage::GetSymbol => self.get_symbol(),
+            PositionTokenMessage::GetData => self.get_data(),
+            PositionTokenMessage::GetContentType => self.get_content_type(),
+            PositionTokenMessage::GetAttributes => self.get_attributes(),
+        }
     }
 }
 

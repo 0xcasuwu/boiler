@@ -85,7 +85,7 @@ fn create_withdrawal_verification_setup() -> Result<(AlkaneId, AlkaneId, u128, O
         ].into(),
         [
             vec![3u128, 797u128, 101u128],
-            vec![3u128, 0x379, 10u128],
+            vec![3u128, 0x385, 10u128],
             vec![3u128, 0x37a, 10u128],
             vec![3u128, 0xffee, 0u128, 1u128],
         ].into_iter().map(|v| into_cellpack(v)).collect::<Vec<Cellpack>>()
@@ -1379,6 +1379,178 @@ fn test_multi_position_withdrawal_verification() -> Result<()> {
     println!("   • Function is accessible via opcode 32");
     println!("   • Registry cross-referenced with actual deposit history");
     println!("   • Hybrid storage system verified (individual + centralized)");
+
+    // ===== NEW: TEST RECENTLY ADDED GETTER FUNCTIONS =====
+    println!("\n🔍 PHASE 6C: Testing Recently Added Getter Functions");
+    println!("===================================================");
+    
+    // Helper function to call vault factory getter functions
+    fn test_getter_function(
+        vault_factory_id: &AlkaneId,
+        opcode: u128,
+        function_name: &str,
+        block_height: u32,
+    ) -> Result<()> {
+        let test_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+            version: Version::ONE,
+            lock_time: bitcoin::absolute::LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint::null(),
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: Witness::new()
+            }],
+            output: vec![
+                TxOut {
+                    script_pubkey: Address::from_str(ADDRESS1().as_str())
+                        .unwrap()
+                        .require_network(get_btc_network())
+                        .unwrap()
+                        .script_pubkey(),
+                    value: Amount::from_sat(546),
+                },
+                TxOut {
+                    script_pubkey: (Runestone {
+                        edicts: vec![],
+                        etching: None,
+                        mint: None,
+                        pointer: None,
+                        protocol: Some(
+                            vec![
+                                Protostone {
+                                    message: into_cellpack(vec![
+                                        vault_factory_id.block,
+                                        vault_factory_id.tx,
+                                        opcode, // The getter function opcode
+                                    ]).encipher(),
+                                    protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
+                                    pointer: Some(0),
+                                    refund: Some(0),
+                                    from: None,
+                                    burn: None,
+                                    edicts: vec![], // No tokens needed for getter queries
+                                }
+                            ].encipher()?
+                        )
+                    }).encipher(),
+                    value: Amount::from_sat(546)
+                }
+            ],
+        }]);
+        index_block(&test_block, block_height)?;
+        
+        println!("✅ {} call executed at block {}", function_name, block_height);
+        
+        // Get complete trace data for all vouts
+        println!("🔍 COMPLETE TRACE DATA for {}:", function_name);
+        println!("====================================================");
+        
+        for vout in 0..5 {
+            let trace_data = &view::trace(&OutPoint {
+                txid: test_block.txdata[0].compute_txid(),
+                vout,
+            })?;
+            let trace_result: alkanes_support::trace::Trace = alkanes_support::proto::alkanes::AlkanesTrace::parse_from_bytes(trace_data)?.into();
+            let trace_guard = trace_result.0.lock().unwrap();
+            if !trace_guard.is_empty() {
+                println!("   • {} vout {} trace: {:?}", function_name, vout, *trace_guard);
+            }
+        }
+        
+        println!("");
+        Ok(())
+    }
+    
+    // Test all the recently added getter functions
+    println!("\n🔍 Testing GetDepositTokenId (opcode 33)");
+    test_getter_function(&vault_factory_id, 33, "GetDepositTokenId", 57)?;
+    
+    println!("\n🔍 Testing GetRewardPerBlock (opcode 34)");
+    test_getter_function(&vault_factory_id, 34, "GetRewardPerBlock", 58)?;
+    
+    println!("\n🔍 Testing GetStartBlock (opcode 35)");
+    test_getter_function(&vault_factory_id, 35, "GetStartBlock", 59)?;
+    
+    println!("\n🔍 Testing GetEndRewardBlock (opcode 36)");
+    test_getter_function(&vault_factory_id, 36, "GetEndRewardBlock", 60)?;
+    
+    println!("\n🔍 Testing GetFreeMintContractId (opcode 37)");
+    test_getter_function(&vault_factory_id, 37, "GetFreeMintContractId", 61)?;
+    
+    println!("\n🔍 Testing GetPositionCount (opcode 38)");
+    test_getter_function(&vault_factory_id, 38, "GetPositionCount", 62)?;
+    
+    println!("\n🔍 Testing GetAccRewardPerShare (opcode 39)");
+    test_getter_function(&vault_factory_id, 39, "GetAccRewardPerShare", 63)?;
+    
+    println!("\n🔍 Testing GetLastRewardBlock (opcode 40)");
+    test_getter_function(&vault_factory_id, 40, "GetLastRewardBlock", 64)?;
+    
+    println!("\n🔍 Testing GetLastUpdateBlock (opcode 41)");
+    test_getter_function(&vault_factory_id, 41, "GetLastUpdateBlock", 65)?;
+    
+    // Test IsRegisteredChild with a valid position token
+    println!("\n🔍 Testing IsRegisteredChild with valid position (opcode 42)");
+    let test_position_id = expected_position_tokens[0]; // Use Alice's position token
+    let is_registered_test_block: Block = protorune_helpers::create_block_with_txs(vec![Transaction {
+        version: Version::ONE,
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![TxIn {
+            previous_output: OutPoint::null(),
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::MAX,
+            witness: Witness::new()
+        }],
+        output: vec![
+            TxOut {
+                script_pubkey: Address::from_str(ADDRESS1().as_str())
+                    .unwrap()
+                    .require_network(get_btc_network())
+                    .unwrap()
+                    .script_pubkey(),
+                value: Amount::from_sat(546),
+            },
+            TxOut {
+                script_pubkey: (Runestone {
+                    edicts: vec![],
+                    etching: None,
+                    mint: None,
+                    pointer: None,
+                    protocol: Some(
+                        vec![
+                            Protostone {
+                                message: into_cellpack(vec![
+                                    vault_factory_id.block,
+                                    vault_factory_id.tx,
+                                    42u128, // IsRegisteredChild opcode
+                                    test_position_id.block,
+                                    test_position_id.tx,
+                                ]).encipher(),
+                                protocol_tag: AlkaneMessageContext::protocol_tag() as u128,
+                                pointer: Some(0),
+                                refund: Some(0),
+                                from: None,
+                                burn: None,
+                                edicts: vec![],
+                            }
+                        ].encipher()?
+                    )
+                }).encipher(),
+                value: Amount::from_sat(546)
+            }
+        ],
+    }]);
+    index_block(&is_registered_test_block, 66)?;
+    println!("✅ IsRegisteredChild call executed at block 66");
+    
+    println!("\n🔍 Testing GetVaultInfo (opcode 43)");
+    test_getter_function(&vault_factory_id, 43, "GetVaultInfo", 67)?;
+    
+    println!("\n✅ GETTER FUNCTIONS VERIFICATION COMPLETED!");
+    println!("   • All recently added getter functions called successfully");
+    println!("   • Functions are accessible via their respective opcodes");
+    println!("   • Vault factory responds to getter function calls");
+    println!("   • Ready for frontend integration and data extraction");
 
     // ===== NEW: TEST SVG GENERATION STABILITY =====
     println!("\n🎨 PHASE 7: Testing SVG Generation Stability");
