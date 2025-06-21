@@ -1,0 +1,367 @@
+use alkanes_support::id::AlkaneId;
+use anyhow::Result;
+
+pub struct PositionData {
+    pub position_id: u128,
+    pub deposit_amount: u128,
+    pub reward_debt: u128,
+    pub deposit_block: u128,
+    pub deposit_token_id: AlkaneId,
+    pub current_block: u128,
+}
+
+pub struct SvgGenerator;
+
+impl SvgGenerator {
+    pub fn generate_svg(data: PositionData) -> Result<String> {
+        let token_symbol = Self::get_token_symbol(&data.deposit_token_id);
+        let formatted_amount = Self::format_amount(data.deposit_amount);
+        let blocks_staked = if data.current_block > data.deposit_block {
+            data.current_block - data.deposit_block
+        } else {
+            0
+        };
+        let formatted_reward = Self::format_amount(data.reward_debt);
+
+        let svg = format!(r##"<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Ultra-luxury gradient backgrounds -->
+    <linearGradient id="ticketGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="25%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#134e4a;stop-opacity:1" />
+      <stop offset="75%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#312e81;stop-opacity:1" />
+    </linearGradient>
+    
+    <radialGradient id="luxuryGold" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#d97706;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#92400e;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="platinumGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e5e7eb;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d1d5db;stop-opacity:1" />
+    </linearGradient>
+    
+    <radialGradient id="emeraldLux" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#047857;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="mysticalGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="25%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="75%" style="stop-color:#a78bfa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fbbf24;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Luxury filters and effects -->
+    <filter id="ultraGlow">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="magicalShimmer">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="#fbbf24" flood-opacity="0.5"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="premiumEmboss">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="3" dy="3" result="offset"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#fbbf24" flood-opacity="0.3"/>
+      <feComposite in2="offset" operator="over"/>
+    </filter>
+    
+    <!-- Animated sparkle pattern -->
+    <pattern id="sparklePattern" patternUnits="userSpaceOnUse" width="20" height="20">
+      <circle cx="5" cy="5" r="0.5" fill="#fbbf24" opacity="0.6">
+        <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="15" cy="15" r="0.3" fill="#34d399" opacity="0.4">
+        <animate attributeName="opacity" values="0.4;0.8;0.4" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+    </pattern>
+  </defs>
+  
+  <!-- Magical aura background -->
+  <rect x="0" y="0" width="300" height="400" fill="url(#sparklePattern)" opacity="0.1"/>
+  
+  <!-- Ultra-luxury certificate base -->
+  <rect x="15" y="25" width="270" height="350" rx="20" ry="20" fill="url(#ticketGradient)" stroke="url(#luxuryGold)" stroke-width="4" filter="url(#ultraGlow)"/>
+  
+  <!-- Inner ornate border -->
+  <rect x="25" y="35" width="250" height="330" rx="15" ry="15" fill="none" stroke="url(#mysticalGlow)" stroke-width="2" opacity="0.8">
+    <animate attributeName="stroke-dasharray" values="0,1000;1000,0;0,1000" dur="8s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Decorative corner ornaments -->
+  <g fill="url(#luxuryGold)" filter="url(#magicalShimmer)">
+    <!-- Top corners -->
+    <path d="M 40 50 Q 35 45 45 40 Q 50 45 55 40 Q 60 45 55 50 Q 50 55 45 50 Q 40 55 40 50 Z" opacity="0.8"/>
+    <path d="M 260 50 Q 255 45 265 40 Q 270 45 275 40 Q 280 45 275 50 Q 270 55 265 50 Q 260 55 260 50 Z" opacity="0.8"/>
+    <!-- Bottom corners -->
+    <path d="M 40 350 Q 35 345 45 340 Q 50 345 55 340 Q 60 345 55 350 Q 50 355 45 350 Q 40 355 40 350 Z" opacity="0.8"/>
+    <path d="M 260 350 Q 255 345 265 340 Q 270 345 275 340 Q 280 345 275 350 Q 270 355 265 350 Q 260 355 260 350 Z" opacity="0.8"/>
+  </g>
+  
+  <!-- Magical seal background with multiple rings -->
+  <circle cx="150" cy="105" r="55" fill="url(#luxuryGold)" opacity="0.1" filter="url(#ultraGlow)"/>
+  <circle cx="150" cy="105" r="50" fill="none" stroke="url(#luxuryGold)" stroke-width="3" opacity="0.8"/>
+  <circle cx="150" cy="105" r="45" fill="none" stroke="url(#platinumGradient)" stroke-width="2" opacity="0.6"/>
+  <circle cx="150" cy="105" r="40" fill="none" stroke="url(#emeraldLux)" stroke-width="1.5" opacity="0.8"/>
+  
+  <!-- Mystical rotating ring -->
+  <circle cx="150" cy="105" r="47" fill="none" stroke="url(#mysticalGlow)" stroke-width="1" opacity="0.6" stroke-dasharray="5,5">
+    <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 150 105" to="360 150 105" dur="20s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Ultra-detailed goblin seal -->
+  <g transform="translate(150, 105)">
+    <!-- Ornate heraldic background -->
+    <circle cx="0" cy="0" r="37" fill="url(#emeraldLux)" opacity="0.3"/>
+    
+    <!-- Decorative shield shape -->
+    <path d="M 0 -35 Q -20 -30 -25 -10 Q -25 10 -15 25 Q 0 35 15 25 Q 25 10 25 -10 Q 20 -30 0 -35 Z" fill="url(#ticketGradient)" stroke="url(#luxuryGold)" stroke-width="2" opacity="0.9"/>
+    
+    <!-- Majestic goblin sovereign -->
+    <g transform="translate(0, -5)">
+      <!-- Royal crown with gems -->
+      <path d="M -12 -25 Q -15 -35 -8 -38 Q 0 -40 8 -38 Q 15 -35 12 -25 Z" fill="url(#luxuryGold)" stroke="url(#platinumGradient)" stroke-width="1"/>
+      <circle cx="-6" cy="-32" r="2" fill="#ef4444"/>
+      <circle cx="0" cy="-35" r="2.5" fill="#3b82f6"/>
+      <circle cx="6" cy="-32" r="2" fill="#ef4444"/>
+      
+      <!-- Noble goblin head with magical aura -->
+      <path d="M -18 -20 Q -22 -30 -10 -33 Q 0 -35 10 -33 Q 22 -30 18 -20 Q 15 -8 10 -2 Q 0 3 -10 -2 Q -15 -8 -18 -20 Z" fill="#4a5d4a" stroke="url(#emeraldLux)" stroke-width="1.5" filter="url(#magicalShimmer)"/>
+      
+      <!-- Mystical ears with magical glow -->
+      <path d="M -18 -25 Q -30 -30 -35 -18 Q -30 -12 -22 -15 Z" fill="#3a4d3a" stroke="url(#mysticalGlow)" stroke-width="0.8"/>
+      <path d="M 18 -25 Q 30 -30 35 -18 Q 30 -12 22 -15 Z" fill="#3a4d3a" stroke="url(#mysticalGlow)" stroke-width="0.8"/>
+      
+      <!-- Enchanted eyes with inner light -->
+      <ellipse cx="-6" cy="-22" rx="4" ry="5" fill="#1a472a" stroke="url(#emeraldLux)" stroke-width="0.8"/>
+      <ellipse cx="6" cy="-22" rx="4" ry="5" fill="#1a472a" stroke="url(#emeraldLux)" stroke-width="0.8"/>
+      <circle cx="-6" cy="-22" r="2.5" fill="url(#luxuryGold)" filter="url(#magicalShimmer)"/>
+      <circle cx="6" cy="-22" r="2.5" fill="url(#luxuryGold)" filter="url(#magicalShimmer)"/>
+      <circle cx="-6" cy="-22" r="1.2" fill="#000"/>
+      <circle cx="6" cy="-22" r="1.2" fill="#000"/>
+      <circle cx="-5.5" cy="-22.5" r="0.5" fill="#fbbf24" opacity="0.8"/>
+      <circle cx="6.5" cy="-22.5" r="0.5" fill="#fbbf24" opacity="0.8"/>
+      
+      <!-- Distinguished nose with magical highlight -->
+      <path d="M -2 -15 L 0 -10 L 2 -15 Q 0 -18 -2 -15 Z" fill="#3a4d3a" stroke="url(#emeraldLux)" stroke-width="0.5"/>
+      
+      <!-- Wise expression -->
+      <path d="M -5 -8 Q 0 -6 5 -8" stroke="url(#emeraldLux)" stroke-width="1.5" fill="none"/>
+      
+      <!-- Regal tusks with platinum shine -->
+      <path d="M -3 -7 L -1.5 -2 L -4 -3 Z" fill="url(#platinumGradient)" stroke="url(#luxuryGold)" stroke-width="0.4"/>
+      <path d="M 3 -7 L 1.5 -2 L 4 -3 Z" fill="url(#platinumGradient)" stroke="url(#luxuryGold)" stroke-width="0.4"/>
+    </g>
+    
+    <!-- Magical ceremonial pot base -->
+    <path d="M -15 10 Q -15 20 -10 25 L 10 25 Q 15 20 15 10 Q 12 5 10 10 L -10 10 Q -12 5 -15 10 Z" fill="url(#emeraldLux)" stroke="url(#luxuryGold)" stroke-width="1.5" filter="url(#magicalShimmer)"/>
+    
+    <!-- Floating magical orbs around the seal -->
+    <circle cx="-25" cy="0" r="3" fill="url(#mysticalGlow)" opacity="0.7">
+      <animate attributeName="cy" values="0;-5;0;5;0" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="25" cy="0" r="3" fill="url(#mysticalGlow)" opacity="0.7">
+      <animate attributeName="cy" values="0;5;0;-5;0" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    
+    <!-- Luxurious scrollwork -->
+    <g fill="none" stroke="url(#luxuryGold)" stroke-width="1.2" opacity="0.8">
+      <path d="M -30 -15 Q -35 -20 -30 -25 Q -25 -20 -30 -15"/>
+      <path d="M 30 -15 Q 35 -20 30 -25 Q 25 -20 30 -15"/>
+      <path d="M -30 15 Q -35 20 -30 25 Q -25 20 -30 15"/>
+      <path d="M 30 15 Q 35 20 30 25 Q 25 20 30 15"/>
+    </g>
+    
+    <!-- Premium motto banner -->
+    <rect x="-35" y="28" width="70" height="12" rx="6" ry="6" fill="url(#luxuryGold)" stroke="url(#platinumGradient)" stroke-width="1" filter="url(#magicalShimmer)"/>
+    <text x="0" y="36" font-family="serif" font-size="6" text-anchor="middle" fill="#0f172a" font-weight="bold">VAULT POSITION</text>
+  </g>
+  
+  <!-- Luxury bank name with magical effects -->
+  <text x="150" y="180" font-family="serif" font-size="24" font-weight="bold" text-anchor="middle" fill="url(#mysticalGlow)" filter="url(#ultraGlow)">POSITION #{}</text>
+  <text x="150" y="205" font-family="serif" font-size="16" text-anchor="middle" fill="url(#luxuryGold)" opacity="0.9">STAKING VAULT</text>
+  
+  <!-- Ornate decorative divider -->
+  <g transform="translate(150, 220)">
+    <line x1="-80" y1="0" x2="80" y2="0" stroke="url(#mysticalGlow)" stroke-width="2" opacity="0.6"/>
+    <circle cx="-60" cy="0" r="4" fill="url(#luxuryGold)" opacity="0.8"/>
+    <circle cx="-30" cy="0" r="3" fill="url(#emeraldLux)" opacity="0.8"/>
+    <circle cx="0" cy="0" r="5" fill="url(#mysticalGlow)" opacity="0.8"/>
+    <circle cx="30" cy="0" r="3" fill="url(#emeraldLux)" opacity="0.8"/>
+    <circle cx="60" cy="0" r="4" fill="url(#luxuryGold)" opacity="0.8"/>
+  </g>
+  
+  <!-- Premium amount display -->
+  <rect x="50" y="240" width="200" height="40" rx="10" ry="10" fill="url(#luxuryGold)" opacity="0.1" stroke="url(#mysticalGlow)" stroke-width="2"/>
+  <text x="150" y="265" font-family="serif" font-size="20" font-weight="bold" text-anchor="middle" fill="url(#mysticalGlow)" filter="url(#ultraGlow)">{} {}</text>
+  
+  <!-- Position details -->
+  <text x="150" y="290" font-family="serif" font-size="14" font-weight="bold" text-anchor="middle" fill="url(#luxuryGold)">STAKED DEPOSIT</text>
+  
+  <!-- Reward information -->
+  <rect x="50" y="300" width="200" height="25" rx="8" ry="8" fill="url(#emeraldLux)" opacity="0.1" stroke="url(#emeraldLux)" stroke-width="1"/>
+  <text x="150" y="318" font-family="serif" font-size="12" text-anchor="middle" fill="url(#emeraldLux)">Reward Debt: {}</text>
+  
+  <!-- Staking duration -->
+  <text x="150" y="340" font-family="serif" font-size="11" text-anchor="middle" fill="url(#platinumGradient)" opacity="0.9">Staked for {} blocks</text>
+  <text x="150" y="355" font-family="serif" font-size="10" text-anchor="middle" fill="url(#platinumGradient)" opacity="0.7">Since block {}</text>
+  
+  <!-- Floating magical elements -->
+  <g fill="url(#mysticalGlow)" filter="url(#magicalShimmer)">
+    <!-- Premium floating coins -->
+    <g transform="translate(70, 280)">
+      <circle cx="0" cy="0" r="8" fill="url(#luxuryGold)" opacity="0.8"/>
+      <text x="0" y="3" font-family="serif" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">$</text>
+      <animate attributeName="transform" values="translate(70,280) rotate(0);translate(70,275) rotate(180);translate(70,280) rotate(360)" dur="4s" repeatCount="indefinite"/>
+    </g>
+    <g transform="translate(230, 280)">
+      <circle cx="0" cy="0" r="8" fill="url(#luxuryGold)" opacity="0.8"/>
+      <text x="0" y="3" font-family="serif" font-size="8" text-anchor="middle" fill="#0f172a" font-weight="bold">V</text>
+      <animate attributeName="transform" values="translate(230,280) rotate(0);translate(230,285) rotate(-180);translate(230,280) rotate(-360)" dur="4s" repeatCount="indefinite"/>
+    </g>
+    
+    <!-- Enchanted stars -->
+    <g transform="translate(80, 320)">
+      <polygon points="0,-6 2,-2 6,-2 3,1 4,5 0,3 -4,5 -3,1 -6,-2 -2,-2" fill="url(#mysticalGlow)"/>
+      <animate attributeName="transform" values="translate(80,320) scale(1);translate(80,315) scale(1.2);translate(80,320) scale(1)" dur="2s" repeatCount="indefinite"/>
+    </g>
+    <g transform="translate(220, 320)">
+      <polygon points="0,-6 2,-2 6,-2 3,1 4,5 0,3 -4,5 -3,1 -6,-2 -2,-2" fill="url(#mysticalGlow)"/>
+      <animate attributeName="transform" values="translate(220,320) scale(1);translate(220,325) scale(1.2);translate(220,320) scale(1)" dur="2s" repeatCount="indefinite"/>
+    </g>
+  </g>
+  
+  <!-- Ultra-premium sparkles throughout -->
+  <g fill="url(#mysticalGlow)" filter="url(#magicalShimmer)">
+    <circle cx="60" cy="60" r="2" opacity="0.8">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="240" cy="70" r="1.5" opacity="0.6">
+      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="80" cy="200" r="2.5" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;0.2;0.7" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="220" cy="190" r="1.8" opacity="0.5">
+      <animate attributeName="opacity" values="0.5;0.1;0.5" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="50" cy="350" r="1.2" opacity="0.9">
+      <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="250" cy="360" r="1.6" opacity="0.6">
+      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="1.7s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <!-- Luxury outer magical aura -->
+  <rect x="12" y="22" width="276" height="356" rx="22" ry="22" fill="none" stroke="url(#mysticalGlow)" stroke-width="2" opacity="0.4">
+    <animate attributeName="stroke-width" values="2;4;2" dur="5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.4;0.8;0.4" dur="5s" repeatCount="indefinite"/>
+  </rect>
+</svg>"##, 
+            data.position_id,
+            formatted_amount,
+            token_symbol,
+            formatted_reward,
+            blocks_staked,
+            data.deposit_block
+        );
+
+        Ok(svg)
+    }
+
+    pub fn get_attributes(data: PositionData) -> Result<String> {
+        let token_symbol = Self::get_token_symbol(&data.deposit_token_id);
+        let blocks_staked = if data.current_block > data.deposit_block {
+            data.current_block - data.deposit_block
+        } else {
+            0
+        };
+
+        let attributes = format!(
+            r#"{{
+  "name": "Vault Position #{}",
+  "description": "A staking position certificate from the Goblin Vault system",
+  "image": "data:image/svg+xml;base64,{{base64}}",
+  "attributes": [
+    {{
+      "trait_type": "Position ID",
+      "value": {}
+    }},
+    {{
+      "trait_type": "Deposit Amount",
+      "value": {}
+    }},
+    {{
+      "trait_type": "Token",
+      "value": "{}"
+    }},
+    {{
+      "trait_type": "Reward Debt",
+      "value": {}
+    }},
+    {{
+      "trait_type": "Deposit Block",
+      "value": {}
+    }},
+    {{
+      "trait_type": "Blocks Staked",
+      "value": {}
+    }},
+    {{
+      "trait_type": "Status",
+      "value": "Active"
+    }}
+  ]
+}}"#,
+            data.position_id,
+            data.position_id,
+            data.deposit_amount,
+            token_symbol,
+            data.reward_debt,
+            data.deposit_block,
+            blocks_staked
+        );
+
+        Ok(attributes)
+    }
+
+    fn get_token_symbol(token_id: &AlkaneId) -> String {
+        // For now, create a simple symbol based on the token ID
+        // In a real implementation, you might want to call the token contract
+        // to get its actual symbol
+        format!("TOK-{}", token_id.tx % 10000)
+    }
+
+    fn format_amount(amount: u128) -> String {
+        if amount >= 1_000_000_000 {
+            format!("{:.1}B", amount as f64 / 1_000_000_000.0)
+        } else if amount >= 1_000_000 {
+            format!("{:.1}M", amount as f64 / 1_000_000.0)
+        } else if amount >= 1_000 {
+            format!("{:.1}K", amount as f64 / 1_000.0)
+        } else {
+            amount.to_string()
+        }
+    }
+}

@@ -15,7 +15,7 @@ use alkanes_support::{
 use anyhow::{anyhow, Result};
 
 /// Position token template ID
-const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x383;
+const POSITION_TOKEN_TEMPLATE_ID: u128 = 0x379;
 
 #[derive(Default)]
 pub struct VaultFactory(());

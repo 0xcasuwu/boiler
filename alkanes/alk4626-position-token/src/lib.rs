@@ -16,6 +16,9 @@ use alkanes_support::{
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 
+mod svg_generator;
+use svg_generator::{SvgGenerator, PositionData};
+
 /// Trims a u128 value to a String by removing trailing zeros
 pub fn trim(v: u128) -> String {
     let bytes: Vec<u8> = v.to_le_bytes()
@@ -124,6 +127,21 @@ enum PositionTokenMessage {
     #[opcode(100)]
     #[returns(String)]
     GetSymbol,
+
+    /// Get the SVG data
+    #[opcode(1000)]
+    #[returns(Vec<u8>)]
+    GetData,
+
+    /// Get the content type
+    #[opcode(1001)]
+    #[returns(String)]
+    GetContentType,
+
+    /// Get the attributes (metadata)
+    #[opcode(1002)]
+    #[returns(String)]
+    GetAttributes,
 }
 
 impl Token for PositionToken {
@@ -457,6 +475,60 @@ impl PositionToken {
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
         response.data = self.symbol().into_bytes().to_vec();
+
+        Ok(response)
+    }
+
+    /// Get the SVG data for this position token
+    fn get_data(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Gather all position data
+        let position_data = PositionData {
+            position_id: self.position_id(),
+            deposit_amount: self.deposit_amount(),
+            reward_debt: self.reward_debt(),
+            deposit_block: self.deposit_block(),
+            deposit_token_id: self.deposit_token_id()?,
+            current_block: u128::from(self.height()),
+        };
+
+        // Generate the SVG
+        let svg = SvgGenerator::generate_svg(position_data)?;
+        response.data = svg.into_bytes();
+
+        Ok(response)
+    }
+
+    /// Get the content type for the SVG
+    fn get_content_type(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        response.data = String::from("image/svg+xml").into_bytes();
+
+        Ok(response)
+    }
+
+    /// Get the attributes (metadata) for this position token
+    fn get_attributes(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Gather all position data
+        let position_data = PositionData {
+            position_id: self.position_id(),
+            deposit_amount: self.deposit_amount(),
+            reward_debt: self.reward_debt(),
+            deposit_block: self.deposit_block(),
+            deposit_token_id: self.deposit_token_id()?,
+            current_block: u128::from(self.height()),
+        };
+
+        // Generate the attributes JSON
+        let attributes = SvgGenerator::get_attributes(position_data)?;
+        response.data = attributes.into_bytes();
 
         Ok(response)
     }
