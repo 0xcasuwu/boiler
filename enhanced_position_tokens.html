@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Gringotts Position Tokens - Real Trace Data</title>
+    <style>
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b, #134e4a);
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 15px;
+            border: 2px solid #fbbf24;
+        }
+        
+        .header h1 {
+            color: #fbbf24;
+            font-size: 2.5em;
+            margin: 0;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+        }
+        
+        .subtitle {
+            color: #34d399;
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+        
+        .trace-info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid #3b82f6;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .trace-title {
+            color: #60a5fa;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .token-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 40px;
+            margin-top: 30px;
+        }
+        
+        .token-card {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 20px;
+            padding: 25px;
+            border: 3px solid #fbbf24;
+            box-shadow: 0 15px 40px rgba(251, 191, 36, 0.3);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .token-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #fbbf24, #34d399, #60a5fa, #a78bfa, #fbbf24);
+            border-radius: 22px;
+            z-index: -1;
+            animation: borderGlow 6s linear infinite;
+        }
+        
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+        
+        .token-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 50px rgba(251, 191, 36, 0.4);
+        }
+        
+        .token-title {
+            color: #fbbf24;
+            font-size: 1.6em;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+        
+        .trace-badge {
+            display: inline-block;
+            background: rgba(52, 211, 153, 0.2);
+            color: #34d399;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.7em;
+            margin-left: 10px;
+            border: 1px solid #34d399;
+        }
+        
+        .svg-container {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 15px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .svg-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .position-details {
+            background: rgba(52, 211, 153, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            border: 1px solid #34d399;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        
+        .detail-label {
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        
+        .detail-value {
+            color: #34d399;
+            font-weight: bold;
+        }
+        
+        .highlight-success {
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        .stats-summary {
+            background: rgba(168, 139, 250, 0.1);
+            border: 1px solid #a78bfa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .stat-item {
+            background: rgba(251, 191, 36, 0.1);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #fbbf24;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .footer-note {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 30px 0;
+            font-size: 0.9em;
+        }
+        
+        .footer-note h4 {
+            color: #fca5a5;
+            margin: 0 0 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏛️ Enhanced Gringotts Position Tokens</h1>
+        <div class="subtitle">Real Blockchain Trace Data Integration</div>
+        <div class="subtitle">Only Successful Positions Displayed</div>
+    </div>
+
+    <div class="trace-info">
+        <div class="trace-title">🔍 Trace Data Analysis</div>
+        <div>• Filtered 14 total trace attempts</div>
+        <div>• Found 2 successful position traces with real data</div>
+        <div>• Excluded 12 empty trace results (positions not yet active)</div>
+        <div>• All displayed positions use actual blockchain data from oylnet</div>
+    </div>
+
+    <div class="token-grid">
+        <!-- Position #3000 - Real Trace Data -->
+        <div class="token-card">
+            <div class="token-title">🏆 Active Position #3000 <span class="trace-badge">LIVE TRACE</span></div>
+            
+            <div class="svg-container">
+                <svg viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg" style="max-width: 320px; height: auto;">
+  <defs>
+    <!-- Ultra-luxury gradient backgrounds -->
+    <linearGradient id="ticketGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="25%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#134e4a;stop-opacity:1" />
+      <stop offset="75%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#312e81;stop-opacity:1" />
+    </linearGradient>
+    
+    <radialGradient id="luxuryGold1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#d97706;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#92400e;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="platinumGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e5e7eb;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d1d5db;stop-opacity:1" />
+    </linearGradient>
+    
+    <radialGradient id="emeraldLux1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#047857;stop-opacity:1" />
+    </radialGradient>
+    
+    <linearGradient id="mysticalGlow1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="25%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="75%" style="stop-color:#a78bfa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fbbf24;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="rewardsGlow1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.8" />
+      <stop offset="50%" style="stop-color:#34d399;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:0.8" />
+    </linearGradient>
+    
+    <radialGradient id="brassGradient1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#cd7f32;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#b8860b;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#8b6914;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#704214;stop-opacity:1" />
+    </radialGradient>
+    
+    <!-- Luxury filters and effects -->
+    <filter id="ultraGlow1">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="subtleGlow1">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="magicalShimmer1">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feDropShadow dx="2" dy="2" stdDeviation="4" flood-color="#fbbf24" flood-opacity="0.5"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <filter id="rewardsGlow1">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10b981" flood-opacity="0.4"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Subtle animated sparkle pattern -->
+    <pattern id="sparklePattern1" patternUnits="userSpaceOnUse" width="30" height="30">
+      <circle cx="8" cy="8" r="0.8" fill="#fbbf24" opacity="0.3">
+        <animate attributeName="opacity" values="0.3;0.7;0.3" dur="4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="22" cy="22" r="0.5" fill="#34d399" opacity="0.2">
+        <animate attributeName="opacity" values="0.2;0.5;0.2" dur="5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="15" cy="5" r="0.3" fill="#60a5fa" opacity="0.25">
+        <animate attributeName="opacity" values="0.25;0.6;0.25" dur="3s" repeatCount="indefinite"/>
+      </circle>
+    </pattern>
+  </defs>
+  
+  <!-- Magical aura background with subtle movement -->
+  <rect x="0" y="0" width="300" height="450" fill="url(#sparklePattern1)" opacity="0.08">
+    <animateTransform attributeName="transform" attributeType="XML" type="translate" values="0,0;2,1;0,0;-1,2;0,0" dur="10s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Ultra-luxury certificate base with breathing effect -->
+  <rect x="15" y="25" width="270" height="400" rx="20" ry="20" fill="url(#ticketGradient1)" stroke="url(#luxuryGold1)" stroke-width="4" filter="url(#ultraGlow1)">
+    <animateTransform attributeName="transform" attributeType="XML" type="scale" values="1;1.01;1" dur="6s" repeatCount="indefinite" transform-origin="150 225"/>
+  </rect>
+  
+  <!-- Inner ornate border with subtle shimmer -->
+  <rect x="25" y="35" width="250" height="380" rx="15" ry="15" fill="none" stroke="url(#mysticalGlow1)" stroke-width="2" opacity="0.6">
+    <animate attributeName="stroke-dasharray" values="0,1000;1000,0;0,1000" dur="12s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.6;0.9;0.6" dur="8s" repeatCount="indefinite"/>
+  </rect>
+  
+  <!-- Enhanced Goblin with better details -->
+  <g transform="translate(150, 105)">
+    <!-- Magical seal rings -->
+    <circle cx="0" cy="0" r="55" fill="url(#luxuryGold1)" opacity="0.1" filter="url(#ultraGlow1)"/>
+    <circle cx="0" cy="0" r="50" fill="none" stroke="url(#luxuryGold1)" stroke-width="3" opacity="0.8"/>
+    <circle cx="0" cy="0" r="45" fill="none" stroke="url(#platinumGradient1)" stroke-width="2" opacity="0.6"/>
+    <circle cx="0" cy="0" r="40" fill="none" stroke="url(#emeraldLux1)" stroke-width="1.5" opacity="0.8"/>
+    
+    <!-- Rotating magical ring -->
+    <circle cx="0" cy="0" r="47" fill="none" stroke="url(#mysticalGlow1)" stroke-width="1" opacity="0.6" stroke-dasharray="5,5">
+      <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 0 0" to="360 0 0" dur="20s" repeatCount="indefinite"/>
+    </circle>
+    
+    <!-- Enhanced goblin design -->
+    <g>
+      <!-- Shield background -->
+      <path d="M 0 -35 Q -20 -30 -25 -10 Q -25 10 -15 25 Q 0 35 15 25 Q 25 10 25 -10 Q 20 -30 0 -35 Z" fill="url(#ticketGradient1)" stroke="url(#luxuryGold1)" stroke-width="2" opacity="0.9"/>
+      
+      <!-- Royal crown with enhanced gems -->
+      <path d="M -15 -25 Q -18 -38 -8 -42 Q 0 -44 8 -42 Q 18 -38 15 -25 Z" fill="url(#luxuryGold1)" stroke="url(#platinumGradient1)" stroke-width="1"/>
+      <circle cx="-8" cy="-35" r="2.5" fill="#ef4444">
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="0" cy="-39" r="3" fill="#3b82f6">
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="2.5s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="8" cy="-35" r="2.5" fill="#ef4444">
+        <animate attributeName="opacity" values="0.8;1;0.8" dur="3.5s" repeatCount="indefinite"/>
+      </circle>
+      
+      <!-- Enhanced goblin head -->
+      <path d="M -20 -22 Q -25 -32 -12 -36 Q 0 -38 12 -36 Q 25 -32 20 -22 Q 18 -10 12 -4 Q 0 2 -12 -4 Q -18 -10 -20 -22 Z" fill="#4a5d4a" stroke="url(#emeraldLux1)" stroke-width="1.5" filter="url(#magicalShimmer1)"/>
+      
+      <!-- Better ears with more detail -->
+      <path d="M -20 -28 Q -32 -33 -38 -20 Q -33 -14 -25 -17 Q -22 -20 -20 -28 Z" fill="#3a4d3a" stroke="url(#mysticalGlow1)" stroke-width="0.8"/>
+      <path d="M 20 -28 Q 32 -33 38 -20 Q 33 -14 25 -17 Q 22 -20 20 -28 Z" fill="#3a4d3a" stroke="url(#mysticalGlow1)" stroke-width="0.8"/>
+      
+      <!-- Enhanced eyes with more expression -->
+      <ellipse cx="-7" cy="-24" rx="5" ry="6" fill="#1a472a" stroke="url(#emeraldLux1)" stroke-width="1"/>
+      <ellipse cx="7" cy="-24" rx="5" ry="6" fill="#1a472a" stroke="url(#emeraldLux1)" stroke-width="1"/>
+      <circle cx="-7" cy="-24" r="3" fill="url(#luxuryGold1)" filter="url(#magicalShimmer1)">
+        <animate attributeName="opacity" values="0.9;1;0.9" dur="4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="7" cy="-24" r="3" fill="url(#luxuryGold1)" filter="url(#magicalShimmer1)">
+        <animate attributeName="opacity" values="0.9;1;0.9" dur="4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="-7" cy="-24" r="1.5" fill="#000"/>
+      <circle cx="7" cy="-24" r="1.5" fill="#000"/>
+      <circle cx="-6.5" cy="-24.5" r="0.6" fill="#fbbf24" opacity="0.9"/>
+      <circle cx="7.5" cy="-24.5" r="0.6" fill="#fbbf24" opacity="0.9"/>
+      
+      <!-- Expressive eyebrows -->
+      <path d="M -12 -28 Q -7 -30 -2 -28" stroke="url(#emeraldLux1)" stroke-width="1.2" fill="none"/>
+      <path d="M 2 -28 Q 7 -30 12 -28" stroke="url(#emeraldLux1)" stroke-width="1.2" fill="none"/>
+      
+      <!-- Enhanced nose -->
+      <path d="M -2.5 -17 L 0 -12 L 2.5 -17 Q 0 -20 -2.5 -17 Z" fill="#3a4d3a" stroke="url(#emeraldLux1)" stroke-width="0.6"/>
+      
+      <!-- Wise smile -->
+      <path d="M -6 -10 Q 0 -8 6 -10" stroke="url(#emeraldLux1)" stroke-width="1.8" fill="none"/>
+      
+      <!-- Enhanced tusks -->
+      <path d="M -4 -9 L -2 -4 L -5 -5 Z" fill="url(#platinumGradient1)" stroke="url(#luxuryGold1)" stroke-width="0.5"/>
+      <path d="M 4 -9 L 2 -4 L 5 -5 Z" fill="url(#platinumGradient1)" stroke="url(#luxuryGold1)" stroke-width="0.5"/>
+      
+      <!-- Enhanced ceremonial pot -->
+      <path d="M -18 8 Q -18 18 -12 23 L 12 23 Q 18 18 18 8 Q 15 3 12 8 L -12 8 Q -15 3 -18 8 Z" fill="url(#emeraldLux1)" stroke="url(#luxuryGold1)" stroke-width="1.8" filter="url(#magicalShimmer1)"/>
+      
+      <!-- Static magical orbs -->
+      <circle cx="-28" cy="0" r="3.5" fill="url(#mysticalGlow1)" opacity="0.7"/>
+      <circle cx="28" cy="0" r="3.5" fill="url(#mysticalGlow1)" opacity="0.7"/>
+    </g>
+    
+    <!-- Premium motto banner -->
+    <rect x="-38" y="28" width="76" height="14" rx="7" ry="7" fill="url(#luxuryGold1)" stroke="url(#platinumGradient1)" stroke-width="1" filter="url(#magicalShimmer1)"/>
+    <text x="0" y="38" font-family="serif" font-size="7" text-anchor="middle" fill="#0f172a" font-weight="bold">VAULT POSITION</text>
+  </g>
+  
+  <!-- Enhanced title -->
+  <text x="150" y="180" font-family="serif" font-size="26" font-weight="bold" text-anchor="middle" fill="url(#mysticalGlow1)" filter="url(#ultraGlow1)">sAlkamist #3000</text>
+  <text x="150" y="205" font-family="serif" font-size="17" text-anchor="middle" fill="url(#luxuryGold1)" opacity="0.9">GREENPOTS BANK</text>
+  
+  <!-- Ornate decorative divider -->
+  <g transform="translate(150, 220)">
+    <line x1="-85" y1="0" x2="85" y2="0" stroke="url(#mysticalGlow1)" stroke-width="2" opacity="0.6"/>
+    <circle cx="-65" cy="0" r="4" fill="url(#luxuryGold1)" opacity="0.8"/>
+    <circle cx="-32" cy="0" r="3" fill="url(#emeraldLux1)" opacity="0.8"/>
+    <circle cx="0" cy="0" r="5" fill="url(#mysticalGlow1)" opacity="0.8"/>
+    <circle cx="32" cy="0" r="3" fill="url(#emeraldLux1)" opacity="0.8"/>
+    <circle cx="65" cy="0" r="4" fill="url(#luxuryGold1)" opacity="0.8"/>
+  </g>
+  
+  <!-- Deposit amount display with label inside -->
+  <rect x="50" y="240" width="200" height="45" rx="10" ry="10" fill="url(#luxuryGold1)" opacity="0.1" stroke="url(#mysticalGlow1)" stroke-width="2"/>
+  <text x="150" y="255" font-family="serif" font-size="12" font-weight="bold" text-anchor="middle" fill="url(#brassGradient1)" opacity="0.9">DEPOSIT</text>
+  <text x="150" y="275" font-family="serif" font-size="18" font-weight="bold" text-anchor="middle" fill="url(#mysticalGlow1)" filter="url(#subtleGlow1)">50.0K USDC</text>
+  
+  <!-- Separator -->
+  <g transform="translate(150, 290)">
+    <line x1="-60" y1="0" x2="60" y2="0" stroke="url(#emeraldLux1)" stroke-width="1" opacity="0.4"/>
+    <circle cx="0" cy="0" r="2" fill="url(#emeraldLux1)" opacity="0.6"/>
+  </g>
+  
+  <!-- PENDING REWARDS - Same style as deposit -->
+  <rect x="50" y="305" width="200" height="45" rx="10" ry="10" fill="url(#luxuryGold1)" opacity="0.1" stroke="url(#mysticalGlow1)" stroke-width="2"/>
+  <text x="150" y="320" font-family="serif" font-size="12" font-weight="bold" text-anchor="middle" fill="url(#brassGradient1)" opacity="0.9">PENDING REWARDS</text>
+  <text x="150" y="340" font-family="serif" font-size="18" font-weight="bold" text-anchor="middle" fill="url(#mysticalGlow1)" filter="url(#subtleGlow1)">2.85K USDC</text>
+  
+  <!-- Position info -->
+  <rect x="50" y="370" width="200" height="18" rx

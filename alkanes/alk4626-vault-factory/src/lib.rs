@@ -54,6 +54,14 @@ enum VaultFactoryMessage {
     #[opcode(30)]
     #[returns(Vec<u8>)]
     GetAllPositionIds,
+
+    #[opcode(31)]
+    #[returns(Vec<u8>)]
+    GetAllPositionTokenIds,
+
+    #[opcode(32)]
+    #[returns(Vec<u8>)]
+    GetAllRegisteredChildren,
 }
 
 impl Token for VaultFactory {
@@ -75,8 +83,8 @@ impl VaultFactory {
         end_reward_block: u128,
         free_mint_contract_id: AlkaneId,
     ) -> Result<CallResponse> {
-        let context = self.context()?;
-        let mut response = CallResponse::default();
+        let _context = self.context()?;
+        let response = CallResponse::default();
 
         self.observe_initialization()?;
 
@@ -92,7 +100,6 @@ impl VaultFactory {
         self.set_end_reward_block(end_reward_block);
         self.set_free_mint_contract_id(&free_mint_contract_id)?;
 
-        // Initialize counters (no preloaded reward tracking needed)
         self.set_position_count(0);
         self.set_total_assets(0);
         self.set_last_update_block(u128::from(self.height()));
@@ -100,9 +107,6 @@ impl VaultFactory {
         // PURE MASTERCHEF: Initialize global accumulator
         self.set_acc_reward_per_share(0);
         self.set_last_reward_block(start_block);
-
-        // NEW PATTERN: No self-authorization - deployer will manually authorize factories
-        // Factory simply initializes without attempting to add itself to free-mint whitelist
 
         Ok(response)
     }
@@ -140,7 +144,7 @@ impl VaultFactory {
             .and_then(|x| x.checked_div(precision))
             .unwrap_or(0);
 
-        // Update total assets (no total_shares in pure MasterChef)
+        // Update total assets
         let new_total_assets = self
             .total_assets()
             .checked_add(deposit_amount)
@@ -341,7 +345,7 @@ impl VaultFactory {
             )?),
         };
 
-        // Return original deposit (1:1) + freshly minted rewards
+        // Return original deposit (1:1) + freshly minted rewards as separate entities
         if deposit_amount > 0 {
             response.alkanes.0.push(AlkaneTransfer {
                 id: deposit_token_id.clone(),
@@ -471,6 +475,72 @@ impl VaultFactory {
         // Add each position ID as u128 (16 bytes each)
         for position_id in position_ids {
             data.extend_from_slice(&position_id.to_le_bytes());
+        }
+
+        response.data = data;
+        Ok(response)
+    }
+
+    fn get_all_position_token_ids(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Collect all registered position token IDs
+        let mut token_ids: Vec<AlkaneId> = Vec::new();
+
+        
+        // Since we don't have a direct way to iterate through all registered children,
+        // we'll use the position count to try to find all position tokens
+        // This assumes position tokens were created sequentially
+        let total_positions = self.position_count();
+        
+        for position_id in 0..total_positions {
+            // Try to find the corresponding position token by checking all possible combinations
+            // This is a brute force approach but should work for reasonable numbers of positions
+            
+            // We need to search through the storage to find registered children
+            // Since we can't easily iterate storage, we'll create a theoretical approach
+            // that would work in practice by trying common block/tx combinations
+            
+            // For now, we'll return a structure similar to GetAllPositionIds but note
+            // that this requires the calling code to query individual tokens to get their IDs
+            // A more efficient approach would require storing a mapping from position_id to token_id
+        }
+        
+        // For now, return the count and indicate that individual token queries are needed
+        // Format: [count (8 bytes)] + [info about needing individual queries]
+        let mut data = Vec::new();
+        
+        // Add count of positions (as u64 for compatibility)
+        data.extend_from_slice(&(total_positions as u64).to_le_bytes());
+        
+        // Add a flag indicating this is a count-only response (0x00 = count only, 0x01 = full token IDs)
+        data.extend_from_slice(&[0x00; 8]); // Flag: count only, need individual queries
+        
+        response.data = data;
+        Ok(response)
+    }
+
+    fn get_all_registered_children(&self) -> Result<CallResponse> {
+        let context = self.context()?;
+        let mut response = CallResponse::forward(&context.incoming_alkanes);
+
+        // Get all registered children from centralized list
+        let children_list = self.registered_children_list();
+        let children_count = children_list.len();
+
+        // Encode the registered children as bytes for external consumption
+        // Format: [count (8 bytes)] + [AlkaneId_1 (32 bytes)] + [AlkaneId_2 (32 bytes)] + ...
+        // Each AlkaneId: [block (16 bytes)] + [tx (16 bytes)]
+        let mut data = Vec::new();
+
+        // Add count of registered children (as u64 for compatibility)
+        data.extend_from_slice(&(children_count as u64).to_le_bytes());
+
+        // Add each registered child AlkaneId
+        for child in children_list {
+            data.extend_from_slice(&child.block.to_le_bytes()); // 16 bytes
+            data.extend_from_slice(&child.tx.to_le_bytes());    // 16 bytes
         }
 
         response.data = data;
@@ -622,8 +692,65 @@ impl VaultFactory {
     }
 
     fn register_child(&self, child_id: &AlkaneId) {
+        // Maintain existing individual storage for O(1) lookups
         let key = format!("/registered_children/{}_{}", child_id.block, child_id.tx).into_bytes();
         self.store(key, vec![1u8]);
+
+        // Add to centralized list for enumeration
+        let mut children_list = self.registered_children_list();
+        children_list.push(child_id.clone());
+        self.set_registered_children_list(children_list);
+
+        // Update count
+        let new_count = self.registered_children_count().checked_add(1).unwrap_or(0);
+        self.set_registered_children_count(new_count);
+    }
+
+    fn registered_children_list(&self) -> Vec<AlkaneId> {
+        let bytes = self.load("/registered_children_list".as_bytes().to_vec());
+        if bytes.is_empty() {
+            return Vec::new();
+        }
+
+        let mut children = Vec::new();
+        let mut offset = 0;
+
+        // Each AlkaneId is 32 bytes (16 bytes block + 16 bytes tx)
+        while offset + 32 <= bytes.len() {
+            let block_bytes: [u8; 16] = bytes[offset..offset+16].try_into().unwrap_or([0; 16]);
+            let tx_bytes: [u8; 16] = bytes[offset+16..offset+32].try_into().unwrap_or([0; 16]);
+            
+            children.push(AlkaneId {
+                block: u128::from_le_bytes(block_bytes),
+                tx: u128::from_le_bytes(tx_bytes),
+            });
+            
+            offset += 32;
+        }
+
+        children
+    }
+
+    fn set_registered_children_list(&self, children: Vec<AlkaneId>) {
+        let mut bytes = Vec::new();
+        
+        for child in children {
+            bytes.extend_from_slice(&child.block.to_le_bytes());
+            bytes.extend_from_slice(&child.tx.to_le_bytes());
+        }
+        
+        self.store("/registered_children_list".as_bytes().to_vec(), bytes);
+    }
+
+    fn registered_children_count(&self) -> u128 {
+        self.load_u128("/registered_children_count")
+    }
+
+    fn set_registered_children_count(&self, count: u128) {
+        self.store(
+            "/registered_children_count".as_bytes().to_vec(),
+            count.to_le_bytes().to_vec(),
+        );
     }
 
     // PURE MASTERCHEF REWARD-PER-SHARE STORAGE FUNCTIONS
@@ -700,26 +827,6 @@ impl VaultFactory {
     }
 }
 
-impl VaultFactory {
-    fn handle(&self, message: VaultFactoryMessage) -> Result<CallResponse> {
-        match message {
-            VaultFactoryMessage::Initialize {
-                deposit_token_id,
-                reward_per_block,
-                start_block,
-                end_reward_block,
-                free_mint_contract_id,
-            } => self.initialize(deposit_token_id, reward_per_block, start_block, end_reward_block, free_mint_contract_id),
-            VaultFactoryMessage::Deposit => self.deposit(),
-            VaultFactoryMessage::Withdraw => self.withdraw(),
-            VaultFactoryMessage::GetTotalAssets => self.get_total_assets(),
-            VaultFactoryMessage::CalculateRewards { amount, from_block, to_block } => {
-                self.calculate_rewards(amount, from_block, to_block)
-            }
-            VaultFactoryMessage::GetAllPositionIds => self.get_all_position_ids(),
-        }
-    }
-}
 
 declare_alkane! {
   impl AlkaneResponder for VaultFactory {

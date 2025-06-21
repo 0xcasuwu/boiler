@@ -484,6 +484,39 @@ impl PositionToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
+        // Calculate pending rewards by calling the vault
+        let vault_id = self.vault_ref();
+        let cellpack = Cellpack {
+            target: vault_id,
+            inputs: vec![
+                0x20,                      // 0x20 = CalculateRewards opcode
+                self.deposit_amount(),
+                self.deposit_block(),
+                u128::from(self.height()),
+            ],
+        };
+        
+        let vault_response = self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
+        let pending_rewards = if vault_response.data.len() >= 16 {
+            u128::from_le_bytes(vault_response.data[0..16].try_into().unwrap_or([0; 16]))
+        } else {
+            0
+        };
+
+        // Get the actual token symbol by calling the token contract
+        let token_id = self.deposit_token_id()?;
+        let cellpack_symbol = Cellpack {
+            target: token_id,
+            inputs: vec![100], // GetSymbol opcode
+        };
+        
+        let symbol_response = self.staticcall(&cellpack_symbol, &AlkaneTransferParcel::default(), self.fuel())?;
+        let token_symbol = if !symbol_response.data.is_empty() {
+            String::from_utf8(symbol_response.data).unwrap_or_else(|_| format!("TOK-{}", token_id.tx % 10000))
+        } else {
+            format!("TOK-{}", token_id.tx % 10000)
+        };
+
         // Gather all position data
         let position_data = PositionData {
             position_id: self.position_id(),
@@ -492,6 +525,8 @@ impl PositionToken {
             deposit_block: self.deposit_block(),
             deposit_token_id: self.deposit_token_id()?,
             current_block: u128::from(self.height()),
+            pending_rewards,
+            token_symbol,
         };
 
         // Generate the SVG
@@ -516,6 +551,39 @@ impl PositionToken {
         let context = self.context()?;
         let mut response = CallResponse::forward(&context.incoming_alkanes);
 
+        // Calculate pending rewards by calling the vault
+        let vault_id = self.vault_ref();
+        let cellpack = Cellpack {
+            target: vault_id,
+            inputs: vec![
+                0x20,                      // 0x20 = CalculateRewards opcode
+                self.deposit_amount(),
+                self.deposit_block(),
+                u128::from(self.height()),
+            ],
+        };
+        
+        let vault_response = self.staticcall(&cellpack, &AlkaneTransferParcel::default(), self.fuel())?;
+        let pending_rewards = if vault_response.data.len() >= 16 {
+            u128::from_le_bytes(vault_response.data[0..16].try_into().unwrap_or([0; 16]))
+        } else {
+            0
+        };
+
+        // Get the actual token symbol by calling the token contract
+        let token_id = self.deposit_token_id()?;
+        let cellpack_symbol = Cellpack {
+            target: token_id,
+            inputs: vec![100], // GetSymbol opcode
+        };
+        
+        let symbol_response = self.staticcall(&cellpack_symbol, &AlkaneTransferParcel::default(), self.fuel())?;
+        let token_symbol = if !symbol_response.data.is_empty() {
+            String::from_utf8(symbol_response.data).unwrap_or_else(|_| format!("TOK-{}", token_id.tx % 10000))
+        } else {
+            format!("TOK-{}", token_id.tx % 10000)
+        };
+
         // Gather all position data
         let position_data = PositionData {
             position_id: self.position_id(),
@@ -524,6 +592,8 @@ impl PositionToken {
             deposit_block: self.deposit_block(),
             deposit_token_id: self.deposit_token_id()?,
             current_block: u128::from(self.height()),
+            pending_rewards,
+            token_symbol,
         };
 
         // Generate the attributes JSON
