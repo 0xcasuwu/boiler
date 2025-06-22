@@ -166,9 +166,11 @@ generate_component_namespaces() {
     
     # Generate 4 unique namespaces with spacing
     FREE_MINT_NAMESPACE=$((base_namespace))
-    POSITION_TOKEN_NAMESPACE=$((base_namespace + 100))
+    #hard code position token ``
+    POSITION_TOKEN_NAMESPACE=901
     VAULT_FACTORY_NAMESPACE=$((base_namespace + 200))
-    AUTH_TOKEN_NAMESPACE=$((base_namespace + 30))
+    #hard code auth token 
+    AUTH_TOKEN_NAMESPACE=65518
     
     # Ensure we don't exceed reasonable bounds
     if [ $AUTH_TOKEN_NAMESPACE -gt 60000 ]; then
@@ -500,6 +502,9 @@ deploy_component() {
     echo "📤 EXECUTING DEPLOYMENT COMMAND"
     echo "==============================="
     local deploy_cmd="$OYL_CMD alkane new-contract -c \"$wasm_path\" -data \"$deploy_params\" -p $NETWORK"
+    if [[ "$NETWORK" == "signet" ]]; then
+        deploy_cmd="$deploy_cmd --feeRate 10"
+    fi
     echo "Command: $deploy_cmd"
     echo ""
     
@@ -802,8 +807,7 @@ deploy_available_architecture() {
 # Main execution
 echo "🏁 STARTING COMPLETE 4-COMPONENT DEPLOYMENT"
 echo "==========================================="
-
-# Handle interactive selection if requested
+ Handle interactive selection if requested
 if [[ "$DEPLOY_MODE" == "select" ]]; then
     interactive_component_selection
 fi
