@@ -3,16 +3,118 @@
 # Complete 4-Component Architecture Deployment with Contract Initialization
 # Production-ready deployment system with comprehensive transaction isolation
 # Components: Free-mint, Position Token, Vault Factory, Auth Token Factory
-# Features: Contract initialization, regtest isolation, 3s rate limiting, full trace analysis
+# Features: Contract initialization, regtest isolation, 3s rate limiting, full trace analysis, selective deployment
+
+# Parse command line arguments
+DEPLOY_MODE=""
+SELECTED_COMPONENTS=()
+NETWORK="oylnet"  # Default network
+
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --all                 Deploy all available components (default)"
+    echo "  --select              Interactive component selection"
+    echo "  --free-mint          Deploy only free-mint component"
+    echo "  --position-token     Deploy only position token component"
+    echo "  --vault-factory      Deploy only vault factory component"
+    echo "  --auth-token         Deploy only auth token component"
+    echo "  --components LIST    Deploy specific components (comma-separated)"
+    echo "                       Example: --components free-mint,vault-factory"
+    echo "  -p NETWORK           Network to deploy to (oylnet or signet, default: oylnet)"
+    echo "  --help               Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                           # Deploy all components on oylnet"
+    echo "  $0 --all                     # Deploy all components on oylnet"
+    echo "  $0 --select                  # Interactive selection on oylnet"
+    echo "  $0 --free-mint               # Deploy only free-mint on oylnet"
+    echo "  $0 -p signet --auth-token    # Deploy auth-token on signet (no block generation)"
+    echo "  $0 --components free-mint,auth-token  # Deploy specific components"
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --all)
+            DEPLOY_MODE="all"
+            shift
+            ;;
+        --select)
+            DEPLOY_MODE="select"
+            shift
+            ;;
+        --free-mint)
+            DEPLOY_MODE="specific"
+            SELECTED_COMPONENTS+=("free-mint")
+            shift
+            ;;
+        --position-token)
+            DEPLOY_MODE="specific"
+            SELECTED_COMPONENTS+=("position-token")
+            shift
+            ;;
+        --vault-factory)
+            DEPLOY_MODE="specific"
+            SELECTED_COMPONENTS+=("vault-factory")
+            shift
+            ;;
+        --auth-token)
+            DEPLOY_MODE="specific"
+            SELECTED_COMPONENTS+=("auth-token")
+            shift
+            ;;
+        --components)
+            DEPLOY_MODE="specific"
+            IFS=',' read -ra COMPONENTS <<< "$2"
+            for component in "${COMPONENTS[@]}"; do
+                SELECTED_COMPONENTS+=("$component")
+            done
+            shift 2
+            ;;
+        -p)
+            NETWORK="$2"
+            if [[ "$NETWORK" != "oylnet" && "$NETWORK" != "signet" ]]; then
+                echo "Error: Invalid network '$NETWORK'. Must be 'oylnet' or 'signet'"
+                exit 1
+            fi
+            shift 2
+            ;;
+        --help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Default to all if no mode specified
+if [[ -z "$DEPLOY_MODE" ]]; then
+    DEPLOY_MODE="all"
+fi
 
 echo "🏗️  COMPLETE 4-COMPONENT ARCHITECTURE DEPLOYMENT"
 echo "================================================="
 echo "Production-ready secure free-mint system deployment"
 echo "Based on breakthrough debugging analysis"
 echo ""
-echo "Components:"
+echo "Deployment Mode: $DEPLOY_MODE"
+echo "Network: $NETWORK"
+if [[ "$NETWORK" == "signet" ]]; then
+    echo "⚠️  Signet mode: Block generation will be skipped"
+fi
+if [[ "$DEPLOY_MODE" == "specific" ]]; then
+    echo "Selected Components: ${SELECTED_COMPONENTS[*]}"
+fi
+echo ""
+echo "Available Components:"
 echo "1. Free-mint template + initialization"
-echo "2. Position token template + initialization" a
+echo "2. Position token template + initialization"
 echo "3. Vault factory template + initialization"
 echo "4. Auth token factory (breakthrough component)"
 echo ""
@@ -104,6 +206,86 @@ echo "  2. Position token: $POSITION_TOKEN_DEPLOY_PARAMS (namespace: $POSITION_T
 echo "  3. Vault factory: $VAULT_FACTORY_DEPLOY_PARAMS (namespace: $VAULT_FACTORY_NAMESPACE)"
 echo "  4. Auth token: $AUTH_TOKEN_DEPLOY_PARAMS (namespace: $AUTH_TOKEN_NAMESPACE)"
 echo ""
+
+# Interactive component selection function
+interactive_component_selection() {
+    echo "🎯 INTERACTIVE COMPONENT SELECTION"
+    echo "=================================="
+    echo ""
+    echo "Available components:"
+    echo "1. Free-mint template"
+    echo "2. Position token template"
+    echo "3. Vault factory template"
+    echo "4. Auth token factory"
+    echo "5. All components"
+    echo ""
+    
+    while true; do
+        echo "Select components to deploy (enter numbers separated by spaces, or 5 for all):"
+        read -p "> " selection
+        
+        SELECTED_COMPONENTS=()
+        valid_selection=true
+        
+        # Parse the selection
+        for num in $selection; do
+            case $num in
+                1)
+                    SELECTED_COMPONENTS+=("free-mint")
+                    ;;
+                2)
+                    SELECTED_COMPONENTS+=("position-token")
+                    ;;
+                3)
+                    SELECTED_COMPONENTS+=("vault-factory")
+                    ;;
+                4)
+                    SELECTED_COMPONENTS+=("auth-token")
+                    ;;
+                5)
+                    SELECTED_COMPONENTS=("free-mint" "position-token" "vault-factory" "auth-token")
+                    break
+                    ;;
+                *)
+                    echo "Invalid selection: $num"
+                    valid_selection=false
+                    break
+                    ;;
+            esac
+        done
+        
+        if [[ "$valid_selection" == "true" ]] && [[ ${#SELECTED_COMPONENTS[@]} -gt 0 ]]; then
+            echo ""
+            echo "✅ Selected components: ${SELECTED_COMPONENTS[*]}"
+            echo ""
+            break
+        else
+            echo "❌ Invalid selection. Please try again."
+            echo ""
+        fi
+    done
+    
+    DEPLOY_MODE="specific"
+}
+
+# Function to check if a component is selected for deployment
+is_component_selected() {
+    local component="$1"
+    
+    # If mode is "all", deploy everything
+    if [[ "$DEPLOY_MODE" == "all" ]]; then
+        return 0
+    fi
+    
+    # Check if component is in selected list
+    for selected in "${SELECTED_COMPONENTS[@]}"; do
+        if [[ "$selected" == "$component" ]]; then
+            return 0
+        fi
+    done
+    
+    return 1
+}
 
 # Function to find WASM file with fallbacks
 find_wasm_file() {
@@ -218,9 +400,15 @@ find_all_wasm_files() {
 
 # Function to generate blocks with rate limiting
 generate_blocks() {
+    if [[ "$NETWORK" == "signet" ]]; then
+        echo "⏭️  Skipping block generation (signet mode)"
+        echo ""
+        return 0
+    fi
+    
     echo "⛏️  Generating blocks..."
     local block_output
-    block_output=$(cd "$OYL_DIR" && $OYL_CMD regtest genBlocks -p oylnet 2>&1)
+    block_output=$(cd "$OYL_DIR" && $OYL_CMD regtest genBlocks -p $NETWORK 2>&1)
     local block_status=$?
     echo "📊 Block generation status: $block_status"
     if [ $block_status -ne 0 ]; then
@@ -253,8 +441,8 @@ get_trace() {
     fi
     
     # Simple vout 3 trace
-    local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '[{\"txid\": \"$txid\", \"vout\": 3}]' -p oylnet"
-    echo "📤 Command: $trace_cmd"
+    local trace_cmd="$OYL_CMD provider alkanes -method \"trace\" -params '[{\"txid\": \"$txid\", \"vout\": 3}]' -p $NETWORK"
+    echo "📤 Command: cd $OYL_DIR && $trace_cmd"
     
     local trace_output
     trace_output=$(cd "$OYL_DIR" && eval "$trace_cmd" 2>&1)
@@ -311,7 +499,7 @@ deploy_component() {
     # Step 2: Execute deployment
     echo "📤 EXECUTING DEPLOYMENT COMMAND"
     echo "==============================="
-    local deploy_cmd="$OYL_CMD alkane new-contract -c \"$wasm_path\" -data \"$deploy_params\" -p oylnet"
+    local deploy_cmd="$OYL_CMD alkane new-contract -c \"$wasm_path\" -data \"$deploy_params\" -p $NETWORK"
     echo "Command: $deploy_cmd"
     echo ""
     
@@ -340,14 +528,18 @@ deploy_component() {
             
             # Step 4: Generate blocks after deployment
             generate_blocks
-            rate_limit_pause 3
+            rate_limit_pause 5
             
-            # Step 5: Get trace output
+            # Step 5: Additional blocks to ensure transaction is fully processed
+            generate_blocks
+            rate_limit_pause 5
+            
+            # Step 6: Get trace output with longer delay
             echo "🎯 DEPLOYMENT TRACE - $component_name"
             echo "===================================="
             get_trace "$txid"
             
-            # Step 6: Generate final blocks
+            # Step 7: Generate final blocks
             rate_limit_pause 3
             generate_blocks
             
@@ -414,7 +606,7 @@ deploy_functional_architecture() {
     local deployed_count=0
     
     # Step 1: Deploy and Initialize Free-mint contract (consolidated 6,namespace,0 approach)
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then
+    if [ "$FREE_MINT_AVAILABLE" = true ] && is_component_selected "free-mint"; then
         echo "🔧 STEP 1: DEPLOYING AND INITIALIZING FREE-MINT CONTRACT (CONSOLIDATED)"
         echo "======================================================================="
         echo "Using consolidated 6,namespace,0 approach - deploys to 2:n and initializes in one call"
@@ -456,7 +648,7 @@ deploy_functional_architecture() {
         # Extract actual transaction ID from free-mint trace output for manual reference
         echo "🔄 EXTRACTING FREE-MINT TX ID FOR MANUAL INITIALIZATION"
         echo "======================================================="
-        local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "[{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}]" -p oylnet 2>&1)
+        local free_mint_trace_output=$(cd "$OYL_DIR" && $OYL_CMD provider alkanes -method "trace" -params "[{\"txid\": \"$FREE_MINT_FUNCTIONAL_TXID\", \"vout\": 3}]" -p $NETWORK 2>&1)
         local actual_free_mint_tx_id
         actual_free_mint_tx_id=$(extract_actual_tx_id "$free_mint_trace_output")
         
@@ -516,7 +708,7 @@ deploy_available_architecture() {
     local deployed_count=0
     
     # Component 1: Free-mint template (if available)
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then
+    if [ "$FREE_MINT_AVAILABLE" = true ] && is_component_selected "free-mint"; then
         echo "📦 COMPONENT 1: FREE-MINT TEMPLATE"
         echo "=================================="
         if deploy_component "FREE_MINT" "$FREE_MINT_WASM_PATH" "$FREE_MINT_DEPLOY_PARAMS" "$FREE_MINT_NAMESPACE" "Template deploy, free-mint token, amount 101"; then
@@ -538,7 +730,7 @@ deploy_available_architecture() {
     fi
     
     # Component 2: Position token template (if available)
-    if [ "$POSITION_TOKEN_AVAILABLE" = true ]; then
+    if [ "$POSITION_TOKEN_AVAILABLE" = true ] && is_component_selected "position-token"; then
         echo "📦 COMPONENT 2: POSITION TOKEN TEMPLATE"
         echo "======================================="
         if deploy_component "POSITION_TOKEN" "$POSITION_TOKEN_WASM_PATH" "$POSITION_TOKEN_DEPLOY_PARAMS" "$POSITION_TOKEN_NAMESPACE" "Template deploy, position token, amount 10"; then
@@ -560,7 +752,7 @@ deploy_available_architecture() {
     fi
     
     # Component 3: Vault factory template (if available)
-    if [ "$VAULT_FACTORY_AVAILABLE" = true ]; then
+    if [ "$VAULT_FACTORY_AVAILABLE" = true ] && is_component_selected "vault-factory"; then
         echo "📦 COMPONENT 3: VAULT FACTORY TEMPLATE"
         echo "======================================"
         if deploy_component "VAULT_FACTORY" "$VAULT_FACTORY_WASM_PATH" "$VAULT_FACTORY_DEPLOY_PARAMS" "$VAULT_FACTORY_NAMESPACE" "Template deploy, vault factory, amount 10"; then
@@ -581,8 +773,8 @@ deploy_available_architecture() {
         echo ""
     fi
     
-    # Component 4: Auth token factory 
-    if [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
+    # Component 4: Auth token factory
+    if [ "$AUTH_TOKEN_AVAILABLE" = true ] && is_component_selected "auth-token"; then
         echo "📦 COMPONENT 4: AUTH TOKEN FACTORY (BREAKTHROUGH)"
         echo "================================================="
         if deploy_component "AUTH_TOKEN" "$AUTH_TOKEN_WASM_PATH" "$AUTH_TOKEN_DEPLOY_PARAMS" "$AUTH_TOKEN_NAMESPACE" "Template deploy, auth token factory, Initialize opcode, amount 1 (CRITICAL)"; then
@@ -611,6 +803,11 @@ deploy_available_architecture() {
 echo "🏁 STARTING COMPLETE 4-COMPONENT DEPLOYMENT"
 echo "==========================================="
 
+# Handle interactive selection if requested
+if [[ "$DEPLOY_MODE" == "select" ]]; then
+    interactive_component_selection
+fi
+
 # Initial blockchain state setup
 echo "🔧 INITIALIZING BLOCKCHAIN STATE"
 echo "================================="
@@ -620,7 +817,7 @@ echo ""
 
 # Find all WASM files
 if ! find_all_wasm_files; then
-    echo "❌ Cannot proceed without all required WASM files"
+    echo "❌ Cannot proceed without required WASM files"
     exit 1
 fi
 
