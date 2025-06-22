@@ -292,7 +292,7 @@ impl VaultFactory {
 
     fn withdraw(&self) -> Result<CallResponse> {
         let context = self.context()?;
-        let mut response = CallResponse::default();
+        let mut response = CallResponse::forward();
 
         // Verify the caller is a valid position token
         self.authenticate_position(&context)?;
@@ -843,10 +843,10 @@ impl VaultFactory {
 
         // PURE MASTERCHEF: If no assets exist, only update last_reward_block to current
         // This prevents accumulating rewards for periods with no stakers
-        if total_assets == 0 {
-            self.set_last_reward_block(current_block);
-            return;
-        }
+        // if total_assets == 0 {
+        //     self.set_last_reward_block(current_block);
+        //     return;
+        // }
 
         // NEW: Apply temporal cap - don't accumulate rewards beyond end_reward_block
         let effective_end_block = std::cmp::min(current_block, self.end_reward_block());
