@@ -821,25 +821,25 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     println!("\n🎯 TWO EQUAL DEPOSITS → 100 BLOCK ELAPSE → 1E8 REWARDS EVALUATION");
     println!("=====================================================================");
     
-    // PHASE 1: Contract ecosystem setup with HIGH REWARDS (1e8 per block)
-    let (_free_mint_id, vault_factory_id, _old_reward_per_block, _deposit_outpoint) = 
+    // PHASE 1: Contract ecosystem setup with ACTUAL CONFIGURED REWARDS
+    let (_free_mint_id, vault_factory_id, reward_per_block, _deposit_outpoint) =
         create_withdrawal_verification_setup()?;
     
-    // Override with 1e8 rewards per block for this test
-    let reward_per_block = 100_000_000u128; // 1e8 tokens per block
-    
-    println!("\n📈 HIGH-REWARD TWO-USER TEST PARAMETERS:");
-    println!("   • Reward per block: {} tokens (1e8)", reward_per_block);
-    println!("   • Two equal deposits: 50,000,000 tokens each");
-    println!("   • Blocks to hold: 100 blocks (block 10 → block 110)");
-    println!("   • Expected total rewards: {} tokens", 100u128 * reward_per_block);
-    println!("   • Expected per-user rewards: {} tokens each", 50u128 * reward_per_block);
+    // Use the actual reward_per_block that the vault was configured with (1000 tokens)
+    println!("🔍 Using ACTUAL vault reward_per_block: {} tokens", reward_per_block);
     
     // PHASE 2: TWO EQUAL DEPOSITS WITH FULL TRACE CAPTURE
     println!("\n💰 PHASE 2: TWO EQUAL DEPOSITS WITH FULL TRACE CAPTURE");
     println!("======================================================");
     
-    let deposit_amount = 50000000u128; // 50M tokens each (total 100M split equally)
+    let deposit_amount = 100000000u128; // 100M tokens each (actual amount deposited based on trace data)
+    
+    println!("\n📈 ACTUAL TWO-USER TEST PARAMETERS:");
+    println!("   • Reward per block: {} tokens", reward_per_block);
+    println!("   • Two equal deposits: {} tokens each", deposit_amount);
+    println!("   • Blocks to hold: 20 blocks (block 10 → block 30)");
+    println!("   • Expected total rewards: {} tokens", 20u128 * reward_per_block);
+    println!("   • Expected per-user rewards: {} tokens each", 10u128 * reward_per_block);
     
     // USER A: First equal deposit
     println!("\n👤 USER A DEPOSIT:");
@@ -869,7 +869,8 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     println!("   • User A: {} tokens at block 10", deposit_amount);
     println!("   • User B: {} tokens at block 15", deposit_amount);
     println!("   • Total vault assets: {} tokens", deposit_amount * 2);
-    println!("   • Both users will stake for 100 blocks");
+    println!("   • User A will stake for 20 blocks (10→30)");
+    println!("   • User B will stake for 15 blocks (15→30)");
     
     // PHASE 3: GET VAULT INFO - COMPREHENSIVE STATE CAPTURE
     println!("\n🏭 PHASE 3: GET VAULT INFO - COMPREHENSIVE STATE CAPTURE");
@@ -1102,15 +1103,15 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     
     // Capture final pre-withdrawal state
     let pre_withdrawal_vault_state = capture_vault_state(&vault_factory_id, 28, "PRE_WITHDRAWAL")?;
-    let pre_withdrawal_position_state = capture_position_state(&position_token_id, 29, "PRE_WITHDRAWAL")?;
+    let pre_withdrawal_position_state = capture_position_state(&position_token_id_a, 29, "PRE_WITHDRAWAL")?;
     
     // PHASE 7: WITHDRAWAL OPERATION WITH FULL TRACE CAPTURE
     println!("\n💸 PHASE 7: WITHDRAWAL OPERATION WITH FULL TRACE CAPTURE");
     println!("========================================================");
     
     let withdrawal_block = perform_withdrawal_with_traces(
-        &deposit_block,
-        &position_token_id,
+        &deposit_block_a,
+        &position_token_id_a,
         &vault_factory_id,
         "ComprehensiveUser",
         30
@@ -1173,8 +1174,8 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     compare_states(&pre_withdrawal_vault_state, &post_withdrawal_vault_state, "PRE_WITHDRAWAL", "POST_WITHDRAWAL");
     
     // Compare position states (note: position token destroyed during withdrawal)
-    compare_states(&post_deposit_position_state, &mid_staking_position_state, "POST_DEPOSIT", "MID_STAKING");
-    compare_states(&mid_staking_position_state, &pre_withdrawal_position_state, "MID_STAKING", "PRE_WITHDRAWAL");
+    compare_states(&post_deposit_position_state_a, &mid_staking_position_state_a, "POST_DEPOSIT", "MID_STAKING");
+    compare_states(&mid_staking_position_state_a, &pre_withdrawal_position_state, "MID_STAKING", "PRE_WITHDRAWAL");
     
     // PHASE 10: MATHEMATICAL VERIFICATION
     println!("\n🧮 PHASE 10: MATHEMATICAL VERIFICATION");
@@ -1212,14 +1213,26 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     
     println!("📊 WITHDRAWAL RESULTS ANALYSIS:");
     println!("   • Original deposit: {} tokens", deposit_amount);
-    println!("   • Blocks staked: 20 blocks");
-    println!("   • Expected rewards: {} tokens", 20u128 * reward_per_block);
+    println!("   • Deposit at block 10, withdrawal at block 30");
+    
+    // CORRECT reward calculation: only blocks with non-empty pool
+    // Blocks 3-9: Pool empty (no rewards)
+    // Blocks 10-14: Solo staking (5 blocks × 1000 = 5000 tokens)
+    // Blocks 15-29: Shared staking (15 blocks × 1000 × 50% = 7500 tokens)
+    let solo_blocks = 5u128;  // blocks 10-14
+    let shared_blocks = 15u128; // blocks 15-29
+    let solo_rewards = solo_blocks * reward_per_block;
+    let shared_rewards = shared_blocks * reward_per_block / 2; // 50% share with User B
+    let expected_rewards = solo_rewards + shared_rewards;
+    
+    println!("   • Solo staking period: {} blocks × {} = {} tokens", solo_blocks, reward_per_block, solo_rewards);
+    println!("   • Shared staking period: {} blocks × {} × 50% = {} tokens", shared_blocks, reward_per_block, shared_rewards);
+    println!("   • Expected total rewards: {} tokens", expected_rewards);
     println!("   • Actual principal returned: {} tokens", principal_returned);
     println!("   • Actual rewards received: {} tokens", rewards_received);
     println!("   • Total received: {} tokens", total_received);
     
     let principal_correct = principal_returned == deposit_amount;
-    let expected_rewards = 20u128 * reward_per_block;
     let rewards_correct = rewards_received == expected_rewards;
     
     println!("\n✅ VERIFICATION RESULTS:");
@@ -1238,8 +1251,8 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     
     let total_vault_traces = post_deposit_vault_state.len() + mid_staking_vault_state.len() + 
                             pre_withdrawal_vault_state.len() + post_withdrawal_vault_state.len();
-    let total_position_traces = post_deposit_position_state.len() + mid_staking_position_state.len() + 
-                               pre_withdrawal_position_state.len();
+    let total_position_traces = post_deposit_position_state_a.len() + mid_staking_position_state_a.len() +
+                                pre_withdrawal_position_state.len();
     
     println!("📊 COMPREHENSIVE TRACE DATA COLLECTED:");
     println!("   • Total vault state captures: {}", total_vault_traces);
@@ -1250,9 +1263,9 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     
     println!("\n🗂️ TRACE DATA STRUCTURE:");
     println!("   📁 POST_DEPOSIT_VAULT_STATE: {} traces", post_deposit_vault_state.len());
-    println!("   📁 POST_DEPOSIT_POSITION_STATE: {} traces", post_deposit_position_state.len());
+    println!("   📁 POST_DEPOSIT_POSITION_STATE: {} traces", post_deposit_position_state_a.len());
     println!("   📁 MID_STAKING_VAULT_STATE: {} traces", mid_staking_vault_state.len());
-    println!("   📁 MID_STAKING_POSITION_STATE: {} traces", mid_staking_position_state.len());
+    println!("   📁 MID_STAKING_POSITION_STATE: {} traces", mid_staking_position_state_a.len());
     println!("   📁 PRE_WITHDRAWAL_VAULT_STATE: {} traces", pre_withdrawal_vault_state.len());
     println!("   📁 PRE_WITHDRAWAL_POSITION_STATE: {} traces", pre_withdrawal_position_state.len());
     println!("   📁 POST_WITHDRAWAL_VAULT_STATE: {} traces", post_withdrawal_vault_state.len());
@@ -1260,9 +1273,9 @@ fn test_comprehensive_deposit_vault_info_position_info_withdraw_flow() -> Result
     // Store all trace data in a structured format for external analysis
     let mut comprehensive_trace_data = std::collections::HashMap::new();
     comprehensive_trace_data.insert("post_deposit_vault".to_string(), post_deposit_vault_state);
-    comprehensive_trace_data.insert("post_deposit_position".to_string(), post_deposit_position_state);
+    comprehensive_trace_data.insert("post_deposit_position".to_string(), post_deposit_position_state_a);
     comprehensive_trace_data.insert("mid_staking_vault".to_string(), mid_staking_vault_state);
-    comprehensive_trace_data.insert("mid_staking_position".to_string(), mid_staking_position_state);
+    comprehensive_trace_data.insert("mid_staking_position".to_string(), mid_staking_position_state_a);
     comprehensive_trace_data.insert("pre_withdrawal_vault".to_string(), pre_withdrawal_vault_state);
     comprehensive_trace_data.insert("pre_withdrawal_position".to_string(), pre_withdrawal_position_state);
     comprehensive_trace_data.insert("post_withdrawal_vault".to_string(), post_withdrawal_vault_state);
