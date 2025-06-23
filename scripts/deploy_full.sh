@@ -16,12 +16,13 @@ show_usage() {
     echo "Options:"
     echo "  --all                 Deploy all available components (default)"
     echo "  --select              Interactive component selection"
-    echo "  --free-mint          Deploy only free-mint component"
+    echo "  --alkamist           Deploy only ALKAMIST component"
+    echo "  --dust               Deploy only DUST component"
     echo "  --position-token     Deploy only position token component"
     echo "  --vault-factory      Deploy only vault factory component"
     echo "  --auth-token         Deploy only auth token component"
     echo "  --components LIST    Deploy specific components (comma-separated)"
-    echo "                       Example: --components free-mint,vault-factory"
+    echo "                       Example: --components alkamist,dust,vault-factory"
     echo "  -p NETWORK           Network to deploy to (oylnet or signet, default: oylnet)"
     echo "  --help               Show this help message"
     echo ""
@@ -29,9 +30,10 @@ show_usage() {
     echo "  $0                           # Deploy all components on oylnet"
     echo "  $0 --all                     # Deploy all components on oylnet"
     echo "  $0 --select                  # Interactive selection on oylnet"
-    echo "  $0 --free-mint               # Deploy only free-mint on oylnet"
+    echo "  $0 --alkamist                # Deploy only ALKAMIST on oylnet"
+    echo "  $0 --dust                    # Deploy only DUST on oylnet"
     echo "  $0 -p signet --auth-token    # Deploy auth-token on signet (no block generation)"
-    echo "  $0 --components free-mint,auth-token  # Deploy specific components"
+    echo "  $0 --components alkamist,dust,auth-token  # Deploy specific components"
 }
 
 # Parse arguments
@@ -45,9 +47,14 @@ while [[ $# -gt 0 ]]; do
             DEPLOY_MODE="select"
             shift
             ;;
-        --free-mint)
+        --alkamist)
             DEPLOY_MODE="specific"
-            SELECTED_COMPONENTS+=("free-mint")
+            SELECTED_COMPONENTS+=("alkamist")
+            shift
+            ;;
+        --dust)
+            DEPLOY_MODE="specific"
+            SELECTED_COMPONENTS+=("dust")
             shift
             ;;
         --position-token)
@@ -113,10 +120,11 @@ if [[ "$DEPLOY_MODE" == "specific" ]]; then
 fi
 echo ""
 echo "Available Components:"
-echo "1. Free-mint template + initialization"
-echo "2. Position token template + initialization"
-echo "3. Vault factory template + initialization"
-echo "4. Auth token factory (breakthrough component)"
+echo "1. ALKAMIST free-mint contract"
+echo "2. DUST free-mint contract"
+echo "3. Position token template + initialization"
+echo "4. Vault factory template + initialization"
+echo "5. Auth token factory (breakthrough component)"
 echo ""
 
 # Configuration - Updated for boiler repository structure
@@ -125,18 +133,24 @@ BOILER_ROOT="$(dirname "$SCRIPT_DIR")"
 OYL_DIR="/home/e/Documents/oyl-sdk"
 OYL_CMD="node bin/oyl.js"
 
-# WASM paths for all 4 components - Corrected for boiler structure
-FREE_MINT_WASM_PATH="$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/free_mint.wasm"
+# WASM paths for all components - Updated for dual free-mint contracts
+ALKAMIST_WASM_PATH="$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/alkamist.wasm"
+DUST_WASM_PATH="$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/dust.wasm"
 POSITION_TOKEN_WASM_PATH="$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alk4626_position_token.wasm"
 VAULT_FACTORY_WASM_PATH="$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alk4626_vault_factory.wasm"
 AUTH_TOKEN_WASM_PATH="/home/e/Documents/alkanes-rs/target/wasm32-unknown-unknown/release/alkanes_std_auth_token.wasm"
 
 # Comprehensive fallback paths for all components
-FREE_MINT_FALLBACK_PATHS=(
-    "$BOILER_ROOT/src/precompiled/alkanes_std_free_mint_build.wasm"
-    "$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alkanes_std_free_mint.wasm"
-    "$BOILER_ROOT/target/wasm32-unknown-unknown/release/alkanes_std_free_mint.wasm"
-    "$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/free_mint.wasm"
+ALKAMIST_FALLBACK_PATHS=(
+    "$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/alkamist.wasm"
+    "$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/alkamist.wasm"
+    "$BOILER_ROOT/target/wasm32-unknown-unknown/release/alkamist.wasm"
+)
+
+DUST_FALLBACK_PATHS=(
+    "$BOILER_ROOT/../free-mint/target/wasm32-unknown-unknown/release/dust.wasm"
+    "$BOILER_ROOT/target/alkanes/wasm32-unknown-unknown/release/dust.wasm"
+    "$BOILER_ROOT/target/wasm32-unknown-unknown/release/dust.wasm"
 )
 
 POSITION_TOKEN_FALLBACK_PATHS=(
@@ -157,36 +171,28 @@ AUTH_TOKEN_FALLBACK_PATHS=(
 
 # Function to generate dynamic random parameters for all components
 generate_component_namespaces() {
-    # Generate random base seed (avoid conflicts)
-    local base_seed=$((RANDOM % 3000 + 10000))  # Random between 10000-40000
+    # Generate random base seed ensuring all namespaces stay positive
+    local base_seed=$((RANDOM % 5000 + 10000))  # Random between 10000-15000
     
-    # Add timestamp-based offset to ensure uniqueness
-    local timestamp_offset=$(($(date +%s) % 1000))
-    local base_namespace=$((base_seed + (timestamp_offset * 10)))
+    # Add timestamp-based offset to ensure uniqueness (smaller range)
+    local timestamp_offset=$(($(date +%s) % 100))
+    local base_namespace=$((base_seed + timestamp_offset))
     
-    # Generate 4 unique namespaces with spacing
-    FREE_MINT_NAMESPACE=$((base_namespace))
-    #hard code position token ``
-    POSITION_TOKEN_NAMESPACE=901
+    # Generate unique positive namespaces with spacing
+    ALKAMIST_NAMESPACE=$((base_namespace))
+    DUST_NAMESPACE=$((base_namespace + 100))
+    POSITION_TOKEN_NAMESPACE=902
     VAULT_FACTORY_NAMESPACE=$((base_namespace + 200))
-    #hard code auth token 
     AUTH_TOKEN_NAMESPACE=65518
-    
-    # Ensure we don't exceed reasonable bounds
-    if [ $AUTH_TOKEN_NAMESPACE -gt 60000 ]; then
-        local reduction=$((AUTH_TOKEN_NAMESPACE - 45000))
-        FREE_MINT_NAMESPACE=$((FREE_MINT_NAMESPACE - reduction))
-        POSITION_TOKEN_NAMESPACE=$((POSITION_TOKEN_NAMESPACE - reduction))
-        VAULT_FACTORY_NAMESPACE=$((VAULT_FACTORY_NAMESPACE - reduction))
-        AUTH_TOKEN_NAMESPACE=$((AUTH_TOKEN_NAMESPACE - reduction))
-    fi
+
 }
 
 # Generate dynamic parameters for all 4 components
 generate_component_namespaces
 
 # Deploy parameters for each component (based on working test architecture)
-FREE_MINT_DEPLOY_PARAMS="3,$FREE_MINT_NAMESPACE,101"        # Template deploy, namespace, amount 101
+ALKAMIST_DEPLOY_PARAMS="3,$ALKAMIST_NAMESPACE,100"           # Template deploy, namespace, amount 100 (as requested)
+DUST_DEPLOY_PARAMS="3,$DUST_NAMESPACE,100"                   # Template deploy, namespace, amount 100 (as requested)
 POSITION_TOKEN_DEPLOY_PARAMS="3,$POSITION_TOKEN_NAMESPACE,10"  # Template deploy, namespace, amount 10
 VAULT_FACTORY_DEPLOY_PARAMS="3,$VAULT_FACTORY_NAMESPACE,10"   # Template deploy, namespace, amount 10
 AUTH_TOKEN_DEPLOY_PARAMS="3,$AUTH_TOKEN_NAMESPACE,0,1"        # Template deploy, namespace, Initialize opcode, amount 1
@@ -197,16 +203,18 @@ echo "Boiler Root: $BOILER_ROOT"
 echo "OYL Directory: $OYL_DIR"
 echo ""
 echo "🏗️  WASM Files:"
-echo "  1. Free-mint: $FREE_MINT_WASM_PATH"
-echo "  2. Position token: $POSITION_TOKEN_WASM_PATH"
-echo "  3. Vault factory: $VAULT_FACTORY_WASM_PATH"
-echo "  4. Auth token: $AUTH_TOKEN_WASM_PATH"
+echo "  1. ALKAMIST: $ALKAMIST_WASM_PATH"
+echo "  2. DUST: $DUST_WASM_PATH"
+echo "  3. Position token: $POSITION_TOKEN_WASM_PATH"
+echo "  4. Vault factory: $VAULT_FACTORY_WASM_PATH"
+echo "  5. Auth token: $AUTH_TOKEN_WASM_PATH"
 echo ""
 echo "🎲 Dynamic Parameters:"
-echo "  1. Free-mint: $FREE_MINT_DEPLOY_PARAMS (namespace: $FREE_MINT_NAMESPACE)"
-echo "  2. Position token: $POSITION_TOKEN_DEPLOY_PARAMS (namespace: $POSITION_TOKEN_NAMESPACE)"
-echo "  3. Vault factory: $VAULT_FACTORY_DEPLOY_PARAMS (namespace: $VAULT_FACTORY_NAMESPACE)"
-echo "  4. Auth token: $AUTH_TOKEN_DEPLOY_PARAMS (namespace: $AUTH_TOKEN_NAMESPACE)"
+echo "  1. ALKAMIST: $ALKAMIST_DEPLOY_PARAMS (namespace: $ALKAMIST_NAMESPACE)"
+echo "  2. DUST: $DUST_DEPLOY_PARAMS (namespace: $DUST_NAMESPACE)"
+echo "  3. Position token: $POSITION_TOKEN_DEPLOY_PARAMS (namespace: $POSITION_TOKEN_NAMESPACE)"
+echo "  4. Vault factory: $VAULT_FACTORY_DEPLOY_PARAMS (namespace: $VAULT_FACTORY_NAMESPACE)"
+echo "  5. Auth token: $AUTH_TOKEN_DEPLOY_PARAMS (namespace: $AUTH_TOKEN_NAMESPACE)"
 echo ""
 
 # Interactive component selection function
@@ -215,15 +223,16 @@ interactive_component_selection() {
     echo "=================================="
     echo ""
     echo "Available components:"
-    echo "1. Free-mint template"
-    echo "2. Position token template"
-    echo "3. Vault factory template"
-    echo "4. Auth token factory"
-    echo "5. All components"
+    echo "1. ALKAMIST free-mint template"
+    echo "2. DUST free-mint template"
+    echo "3. Position token template"
+    echo "4. Vault factory template"
+    echo "5. Auth token factory"
+    echo "6. All components"
     echo ""
     
     while true; do
-        echo "Select components to deploy (enter numbers separated by spaces, or 5 for all):"
+        echo "Select components to deploy (enter numbers separated by spaces, or 6 for all):"
         read -p "> " selection
         
         SELECTED_COMPONENTS=()
@@ -233,19 +242,22 @@ interactive_component_selection() {
         for num in $selection; do
             case $num in
                 1)
-                    SELECTED_COMPONENTS+=("free-mint")
+                    SELECTED_COMPONENTS+=("alkamist")
                     ;;
                 2)
-                    SELECTED_COMPONENTS+=("position-token")
+                    SELECTED_COMPONENTS+=("dust")
                     ;;
                 3)
-                    SELECTED_COMPONENTS+=("vault-factory")
+                    SELECTED_COMPONENTS+=("position-token")
                     ;;
                 4)
-                    SELECTED_COMPONENTS+=("auth-token")
+                    SELECTED_COMPONENTS+=("vault-factory")
                     ;;
                 5)
-                    SELECTED_COMPONENTS=("free-mint" "position-token" "vault-factory" "auth-token")
+                    SELECTED_COMPONENTS+=("auth-token")
+                    ;;
+                6)
+                    SELECTED_COMPONENTS=("alkamist" "dust" "position-token" "vault-factory" "auth-token")
                     break
                     ;;
                 *)
@@ -340,13 +352,19 @@ find_all_wasm_files() {
     echo ""
     
     # Track which components are available
-    FREE_MINT_AVAILABLE=false
+    ALKAMIST_AVAILABLE=false
+    DUST_AVAILABLE=false
     POSITION_TOKEN_AVAILABLE=false
     VAULT_FACTORY_AVAILABLE=false
     AUTH_TOKEN_AVAILABLE=false
     
-    if find_wasm_file "FREE-MINT" "FREE_MINT_WASM_PATH" "FREE_MINT_FALLBACK_PATHS"; then
-        FREE_MINT_AVAILABLE=true
+    if find_wasm_file "ALKAMIST" "ALKAMIST_WASM_PATH" "ALKAMIST_FALLBACK_PATHS"; then
+        ALKAMIST_AVAILABLE=true
+    fi
+    echo ""
+    
+    if find_wasm_file "DUST" "DUST_WASM_PATH" "DUST_FALLBACK_PATHS"; then
+        DUST_AVAILABLE=true
     fi
     echo ""
     
@@ -367,25 +385,27 @@ find_all_wasm_files() {
     
     # Count available components
     local available_count=0
-    if [ "$FREE_MINT_AVAILABLE" = true ]; then ((available_count++)); fi
+    if [ "$ALKAMIST_AVAILABLE" = true ]; then ((available_count++)); fi
+    if [ "$DUST_AVAILABLE" = true ]; then ((available_count++)); fi
     if [ "$POSITION_TOKEN_AVAILABLE" = true ]; then ((available_count++)); fi
     if [ "$VAULT_FACTORY_AVAILABLE" = true ]; then ((available_count++)); fi
     if [ "$AUTH_TOKEN_AVAILABLE" = true ]; then ((available_count++)); fi
     
     echo "📊 COMPONENT AVAILABILITY SUMMARY"
     echo "================================="
-    echo "✅ Available components: $available_count/4"
-    echo "  - Free-mint: $( [ "$FREE_MINT_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
+    echo "✅ Available components: $available_count/5"
+    echo "  - ALKAMIST: $( [ "$ALKAMIST_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
+    echo "  - DUST: $( [ "$DUST_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo "  - Position token: $( [ "$POSITION_TOKEN_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo "  - Vault factory: $( [ "$VAULT_FACTORY_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo "  - Auth token: $( [ "$AUTH_TOKEN_AVAILABLE" = true ] && echo "✅ Available" || echo "❌ Missing" )"
     echo ""
     
-    if [ $available_count -eq 4 ]; then
-        echo "🎉 ALL 4 COMPONENTS AVAILABLE - Full deployment possible!"
+    if [ $available_count -eq 5 ]; then
+        echo "🎉 ALL 5 COMPONENTS AVAILABLE - Full deployment possible!"
         DEPLOYMENT_MODE="FULL"
         return 0
-    elif [ $available_count -ge 2 ] && [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
+    elif [ $available_count -ge 3 ] && [ "$AUTH_TOKEN_AVAILABLE" = true ]; then
         echo "⚠️  PARTIAL DEPLOYMENT MODE - Will deploy available components"
         echo "🔐 Auth token available - Core breakthrough functionality preserved"
         DEPLOYMENT_MODE="PARTIAL"
@@ -610,38 +630,38 @@ deploy_functional_architecture() {
     local deployment_success=true
     local deployed_count=0
     
-    # Step 1: Deploy and Initialize Free-mint contract (consolidated 6,namespace,0 approach)
-    if [ "$FREE_MINT_AVAILABLE" = true ] && is_component_selected "free-mint"; then
-        echo "🔧 STEP 1: DEPLOYING AND INITIALIZING FREE-MINT CONTRACT (CONSOLIDATED)"
-        echo "======================================================================="
-        echo "Using consolidated 6,namespace,0 approach - deploys to 2:n and initializes in one call"
+    # # Step 1: Deploy and Initialize Free-mint contract (consolidated 6,namespace,0 approach)
+    # if [ "$FREE_MINT_AVAILABLE" = true ] && is_component_selected "free-mint"; then
+    #     echo "🔧 STEP 1: DEPLOYING AND INITIALIZING FREE-MINT CONTRACT (CONSOLIDATED)"
+    #     echo "======================================================================="
+    #     echo "Using consolidated 6,namespace,0 approach - deploys to 2:n and initializes in one call"
         
-        # Parameters from working test architecture - consolidated deployment + initialization
-        local free_mint_params="6,$FREE_MINT_NAMESPACE,0,100000,1000,2,1179796805,1296649812,4608589"
-        echo "📋 Free-mint consolidated params: $free_mint_params"
-        echo "📋 Parameters breakdown:"
-        echo "   • Opcode: 6 (Deploy + Initialize in one call)"
-        echo "   • Namespace: $FREE_MINT_NAMESPACE (will deploy to block 2:$FREE_MINT_NAMESPACE)"
-        echo "   • Deploy opcode: 0"
-        echo "   • Token units: 100000"
-        echo "   • Value per mint: 1000"
-        echo "   • Cap: 2 (low for testing)"
-        echo "   • Name: FREE (1179796805) + MINT (1296649812)"
-        echo "   • Symbol: FRM (4608589)"
-        echo "💡 This consolidates template deployment + initialization into single transaction"
+    #     # Parameters from working test architecture - consolidated deployment + initialization
+    #     local free_mint_params="6,$FREE_MINT_NAMESPACE,0,100000,1000,2,1179796805,1296649812,4608589"
+    #     echo "📋 Free-mint consolidated params: $free_mint_params"
+    #     echo "📋 Parameters breakdown:"
+    #     echo "   • Opcode: 6 (Deploy + Initialize in one call)"
+    #     echo "   • Namespace: $FREE_MINT_NAMESPACE (will deploy to block 2:$FREE_MINT_NAMESPACE)"
+    #     echo "   • Deploy opcode: 0"
+    #     echo "   • Token units: 100000"
+    #     echo "   • Value per mint: 1000"
+    #     echo "   • Cap: 2 (low for testing)"
+    #     echo "   • Name: FREE (1179796805) + MINT (1296649812)"
+    #     echo "   • Symbol: FRM (4608589)"
+    #     echo "💡 This consolidates template deployment + initialization into single transaction"
         
-        if deploy_component "FREE_MINT_FUNCTIONAL" "$FREE_MINT_WASM_PATH" "$free_mint_params" "$FREE_MINT_NAMESPACE" "Deploy and initialize functional free-mint contract (consolidated)"; then
-            ((deployed_count++))
-            FREE_MINT_FUNCTIONAL_TXID="$FREE_MINT_FUNCTIONAL_TXID"
-            echo "✅ Free-mint deployed and initialized in one call"
-            echo "🆔 Free-mint functional: $FREE_MINT_FUNCTIONAL_TXID"
-            echo "📍 Deployed to: Block 2, TX $FREE_MINT_NAMESPACE"
-        else
-            deployment_success=false
-            echo "❌ Free-mint consolidated deployment failed!"
-        fi
-        echo ""
-    fi
+    #     if deploy_component "FREE_MINT_FUNCTIONAL" "$FREE_MINT_WASM_PATH" "$free_mint_params" "$FREE_MINT_NAMESPACE" "Deploy and initialize functional free-mint contract (consolidated)"; then
+    #         ((deployed_count++))
+    #         FREE_MINT_FUNCTIONAL_TXID="$FREE_MINT_FUNCTIONAL_TXID"
+    #         echo "✅ Free-mint deployed and initialized in one call"
+    #         echo "🆔 Free-mint functional: $FREE_MINT_FUNCTIONAL_TXID"
+    #         echo "📍 Deployed to: Block 2, TX $FREE_MINT_NAMESPACE"
+    #     else
+    #         deployment_success=false
+    #         echo "❌ Free-mint consolidated deployment failed!"
+    #     fi
+    #     echo ""
+    # fi
     
     # REMOVED: Step 2 - Vault Factory Initialization (you'll handle this manually)
     echo "🔧 STEP 2: VAULT FACTORY INITIALIZATION SKIPPED"
@@ -712,31 +732,53 @@ deploy_available_architecture() {
     local deployment_success=true
     local deployed_count=0
     
-    # Component 1: Free-mint template (if available)
-    if [ "$FREE_MINT_AVAILABLE" = true ] && is_component_selected "free-mint"; then
-        echo "📦 COMPONENT 1: FREE-MINT TEMPLATE"
-        echo "=================================="
-        if deploy_component "FREE_MINT" "$FREE_MINT_WASM_PATH" "$FREE_MINT_DEPLOY_PARAMS" "$FREE_MINT_NAMESPACE" "Template deploy, free-mint token, amount 101"; then
+    # Component 1: ALKAMIST template (if available)
+    if [ "$ALKAMIST_AVAILABLE" = true ] && is_component_selected "alkamist"; then
+        echo "📦 COMPONENT 1: ALKAMIST TEMPLATE"
+        echo "================================="
+        if deploy_component "ALKAMIST" "$ALKAMIST_WASM_PATH" "$ALKAMIST_DEPLOY_PARAMS" "$ALKAMIST_NAMESPACE" "Template deploy, ALKAMIST token, amount 100"; then
             ((deployed_count++))
         else
             deployment_success=false
-            echo "❌ Free-mint deployment failed!"
+            echo "❌ ALKAMIST deployment failed!"
         fi
         
         # Component isolation - ensure clean state between deployments
-        echo "🔧 COMPONENT ISOLATION: FREE-MINT → POSITION-TOKEN"
-        echo "=================================================="
+        echo "🔧 COMPONENT ISOLATION: ALKAMIST → DUST"
+        echo "========================================"
         generate_blocks
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 1: FREE-MINT TEMPLATE (not available)"
+        echo "⏭️  SKIPPING COMPONENT 1: ALKAMIST TEMPLATE (not available)"
         echo ""
     fi
     
-    # Component 2: Position token template (if available)
+    # Component 2: DUST template (if available)
+    if [ "$DUST_AVAILABLE" = true ] && is_component_selected "dust"; then
+        echo "📦 COMPONENT 2: DUST TEMPLATE"
+        echo "============================="
+        if deploy_component "DUST" "$DUST_WASM_PATH" "$DUST_DEPLOY_PARAMS" "$DUST_NAMESPACE" "Template deploy, DUST token, amount 100"; then
+            ((deployed_count++))
+        else
+            deployment_success=false
+            echo "❌ DUST deployment failed!"
+        fi
+        
+        # Component isolation - ensure clean state between deployments
+        echo "🔧 COMPONENT ISOLATION: DUST → POSITION-TOKEN"
+        echo "=============================================="
+        generate_blocks
+        rate_limit_pause 3
+        echo ""
+    else
+        echo "⏭️  SKIPPING COMPONENT 2: DUST TEMPLATE (not available)"
+        echo ""
+    fi
+    
+    # Component 3: Position token template (if available)
     if [ "$POSITION_TOKEN_AVAILABLE" = true ] && is_component_selected "position-token"; then
-        echo "📦 COMPONENT 2: POSITION TOKEN TEMPLATE"
+        echo "📦 COMPONENT 3: POSITION TOKEN TEMPLATE"
         echo "======================================="
         if deploy_component "POSITION_TOKEN" "$POSITION_TOKEN_WASM_PATH" "$POSITION_TOKEN_DEPLOY_PARAMS" "$POSITION_TOKEN_NAMESPACE" "Template deploy, position token, amount 10"; then
             ((deployed_count++))
@@ -752,13 +794,13 @@ deploy_available_architecture() {
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 2: POSITION TOKEN TEMPLATE (not available)"
+        echo "⏭️  SKIPPING COMPONENT 3: POSITION TOKEN TEMPLATE (not available)"
         echo ""
     fi
     
-    # Component 3: Vault factory template (if available)
+    # Component 4: Vault factory template (if available)
     if [ "$VAULT_FACTORY_AVAILABLE" = true ] && is_component_selected "vault-factory"; then
-        echo "📦 COMPONENT 3: VAULT FACTORY TEMPLATE"
+        echo "📦 COMPONENT 4: VAULT FACTORY TEMPLATE"
         echo "======================================"
         if deploy_component "VAULT_FACTORY" "$VAULT_FACTORY_WASM_PATH" "$VAULT_FACTORY_DEPLOY_PARAMS" "$VAULT_FACTORY_NAMESPACE" "Template deploy, vault factory, amount 10"; then
             ((deployed_count++))
@@ -774,13 +816,13 @@ deploy_available_architecture() {
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 3: VAULT FACTORY TEMPLATE (not available)"
+        echo "⏭️  SKIPPING COMPONENT 4: VAULT FACTORY TEMPLATE (not available)"
         echo ""
     fi
     
-    # Component 4: Auth token factory
+    # Component 5: Auth token factory
     if [ "$AUTH_TOKEN_AVAILABLE" = true ] && is_component_selected "auth-token"; then
-        echo "📦 COMPONENT 4: AUTH TOKEN FACTORY (BREAKTHROUGH)"
+        echo "📦 COMPONENT 5: AUTH TOKEN FACTORY (BREAKTHROUGH)"
         echo "================================================="
         if deploy_component "AUTH_TOKEN" "$AUTH_TOKEN_WASM_PATH" "$AUTH_TOKEN_DEPLOY_PARAMS" "$AUTH_TOKEN_NAMESPACE" "Template deploy, auth token factory, Initialize opcode, amount 1 (CRITICAL)"; then
             ((deployed_count++))
@@ -796,7 +838,7 @@ deploy_available_architecture() {
         rate_limit_pause 3
         echo ""
     else
-        echo "⏭️  SKIPPING COMPONENT 4: AUTH TOKEN FACTORY (not available)"
+        echo "⏭️  SKIPPING COMPONENT 5: AUTH TOKEN FACTORY (not available)"
         echo "⚠️  WARNING: Auth token is the breakthrough component!"
         echo ""
     fi
