@@ -292,7 +292,7 @@ impl VaultFactory {
 
     fn withdraw(&self) -> Result<CallResponse> {
         let context = self.context()?;
-        let mut response = CallResponse::forward();
+        let mut response = CallResponse::default();
 
         // Verify the caller is a valid position token
         self.authenticate_position(&context)?;

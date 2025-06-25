@@ -82,8 +82,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p)
             NETWORK="$2"
-            if [[ "$NETWORK" != "oylnet" && "$NETWORK" != "signet" ]]; then
-                echo "Error: Invalid network '$NETWORK'. Must be 'oylnet' or 'signet'"
+            if [[ "$NETWORK" != "oylnet" && "$NETWORK" != "signet" && "$NETWORK" != "bitcoin" ]]; then
+                echo "Error: Invalid network '$NETWORK'. Must be 'oylnet', 'signet', or 'bitcoin'"
                 exit 1
             fi
             shift 2
@@ -114,6 +114,8 @@ echo "Deployment Mode: $DEPLOY_MODE"
 echo "Network: $NETWORK"
 if [[ "$NETWORK" == "signet" ]]; then
     echo "⚠️  Signet mode: Block generation will be skipped"
+elif [[ "$NETWORK" == "bitcoin" ]]; then
+    echo "⚠️  Bitcoin mode: Block generation will be skipped"
 fi
 if [[ "$DEPLOY_MODE" == "specific" ]]; then
     echo "Selected Components: ${SELECTED_COMPONENTS[*]}"
@@ -181,7 +183,7 @@ generate_component_namespaces() {
     # Generate unique positive namespaces with spacing
     ALKAMIST_NAMESPACE=$((base_namespace))
     DUST_NAMESPACE=$((base_namespace + 100))
-    POSITION_TOKEN_NAMESPACE=902
+    POSITION_TOKEN_NAMESPACE=912
     VAULT_FACTORY_NAMESPACE=$((base_namespace + 200))
     AUTH_TOKEN_NAMESPACE=65518
 
@@ -426,6 +428,10 @@ generate_blocks() {
         echo "⏭️  Skipping block generation (signet mode)"
         echo ""
         return 0
+    elif [[ "$NETWORK" == "bitcoin" ]]; then
+        echo "⏭️  Skipping block generation (bitcoin mode)"
+        echo ""
+        return 0
     fi
     
     echo "⛏️  Generating blocks..."
@@ -522,8 +528,8 @@ deploy_component() {
     echo "📤 EXECUTING DEPLOYMENT COMMAND"
     echo "==============================="
     local deploy_cmd="$OYL_CMD alkane new-contract -c \"$wasm_path\" -data \"$deploy_params\" -p $NETWORK"
-    if [[ "$NETWORK" == "signet" ]]; then
-        deploy_cmd="$deploy_cmd --feeRate 10"
+    if [[ "$NETWORK" == "signet" || "$NETWORK" == "bitcoin" ]]; then
+        deploy_cmd="$deploy_cmd --feeRate 4"
     fi
     echo "Command: $deploy_cmd"
     echo ""
